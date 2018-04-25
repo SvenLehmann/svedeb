@@ -1,7 +1,8 @@
 package de.hpi.svedeb
 
-import akka.actor.{Actor, ActorSystem, Props}
-import de.hpi.svedeb.tableHierarchy.{AddLineMessage, Table}
+import akka.actor.{ActorSystem, PoisonPill, Props}
+import de.hpi.svedeb.table.Table
+import de.hpi.svedeb.table.Table.AddRowMessage
 
 // This class is mainly for testing at the moment, just to get something running
 object Main {
@@ -9,6 +10,8 @@ object Main {
     val system = ActorSystem("tableSystem")
 
     val table = system.actorOf(Props[Table], "tableA")
-    table ! new AddLineMessage("blah")
+    table ! AddRowMessage(List("blah"))
+
+
   }
 }
