@@ -2,14 +2,17 @@ package de.hpi.svedeb.table
 
 import akka.actor.{Actor, Props}
 import akka.event.Logging
-import de.hpi.svedeb.table.Column.{AppendValue, DeleteValue, ScanValuesMessage, ValuesMessage}
+import de.hpi.svedeb.table.Column._
 
 object Column {
   case class AppendValue(value: String)
   case class DeleteValue(value: String)
-  case class ScanValuesMessage()
-  // Just for return values
-  case class ValuesMessage(values: List[String])
+  case class Scan()
+
+  // Result events
+  case class ScannedValues(values: List[String])
+  case class ValueAppended()
+  case class ValueDeleted()
 
   def props(name: String): Props = Props(new Column(name))
 }
@@ -19,21 +22,24 @@ class Column(name: String) extends Actor {
 
   override def receive: Receive = active(List.empty[String])
 
-  def active(values: List[String]): Receive = {
+  private def active(values: List[String]): Receive = {
     case AppendValue(value: String) => addRow(values, value)
-    case ScanValuesMessage => sender() ! ValuesMessage(values)
+    case Scan => sender() ! ScannedValues(values)
     case DeleteValue(value: String) => deleteRow(values, value)
     case _ => log.error("Message not understood")
   }
 
-  def deleteRow(values: List[String], value: String): Unit = {
+  private def deleteRow(values: List[String], value: String): Unit = {
     log.debug("Going to delete value: {}", value)
     context.become(active(values.filter(_ != value)))
+    sender() ! ValueDeleted
   }
 
-  def addRow(values: List[String], value: String): Unit = {
+  private def addRow(values: List[String], value: String): Unit = {
     log.debug("Appending value: {}", value)
     context.become(active(values :+ value))
+
+    sender() ! ValueAppended
   }
 }
 

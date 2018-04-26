@@ -1,8 +1,8 @@
 package de.hpi.svedeb.table
 
 import akka.actor.{ActorRef, ActorSystem}
-import akka.testkit.{ImplicitSender, TestKit}
-import de.hpi.svedeb.table.Partition.{AddRowToPartitionMessage, ColumnListMessage, GetColumnsMessage}
+import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import de.hpi.svedeb.table.Partition._
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Ignore}
 
 class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitSender with FlatSpecLike with BeforeAndAfterAll {
@@ -11,15 +11,40 @@ class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitS
     TestKit.shutdownActorSystem(system)
   }
 
-  "A new partition actor" should "not contain columns" in {
+  "An empty partition actor" should "not contain columns" in {
     val partition = system.actorOf(Partition.props())
-    partition ! GetColumnsMessage
-    expectMsg(ColumnListMessage(List.empty[ActorRef]))
+    partition ! ListColumns
+    expectMsg(ColumnList(List.empty[String]))
   }
 
   ignore should "throw an error when rows are added" in {
     val partition = system.actorOf(Partition.props())
-    partition ! AddRowToPartitionMessage(List("someValue"))
+    partition ! AddRow(List("someValue"))
     expectMsg()
+  }
+
+  it should "add a column" in {
+    val partition = system.actorOf(Partition.props())
+    partition ! AddColumn("someColumn")
+    expectMsg(ColumnAdded())
+  }
+
+  "A partition actor" should "be initialized with columns" in {
+    val column = TestProbe()
+    val partition = system.actorOf(Partition.props(List(column.ref)))
+
+    partition ! ListColumns
+    expectMsgPF() { case m: ColumnList => m.columns.size == 1 }
+  }
+
+  it should "add a column" in {
+    val column = TestProbe()
+    val partition = system.actorOf(Partition.props(List(column.ref)))
+
+    partition ! AddColumn("someColumn")
+    expectMsg(ColumnAdded())
+
+    partition ! ListColumns
+    expectMsgPF() { case m: ColumnList => m.columns.size == 2 }
   }
 }
