@@ -1,9 +1,10 @@
 package de.hpi.svedeb.table
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
+import akka.actor.Status.Failure
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import de.hpi.svedeb.table.Partition._
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Ignore}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 
 class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitSender with FlatSpecLike with BeforeAndAfterAll {
 
@@ -11,40 +12,48 @@ class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitS
     TestKit.shutdownActorSystem(system)
   }
 
-  "An empty partition actor" should "not contain columns" in {
-    val partition = system.actorOf(Partition.props())
-    partition ! ListColumns
-    expectMsg(ColumnList(List.empty[String]))
-  }
-
-  ignore should "throw an error when rows are added" in {
-    val partition = system.actorOf(Partition.props())
-    partition ! AddRow(List("someValue"))
-    expectMsg()
-  }
-
-  it should "add a column" in {
-    val partition = system.actorOf(Partition.props())
-    partition ! AddColumn("someColumn")
-    expectMsg(ColumnAdded())
-  }
-
   "A partition actor" should "be initialized with columns" in {
-    val column = TestProbe()
-    val partition = system.actorOf(Partition.props(List(column.ref)))
+    val column = TestProbe("someColumn")
+    val partition = system.actorOf(Partition.props(List("someColumn")))
 
-    partition ! ListColumns
+    partition ! ListColumns()
     expectMsgPF() { case m: ColumnList => m.columns.size == 1 }
   }
 
-  it should "add a column" in {
-    val column = TestProbe()
-    val partition = system.actorOf(Partition.props(List(column.ref)))
+  it should "return its columns names" in {
+    val column = TestProbe("someColumn")
+    val partition = system.actorOf(Partition.props(List("someColumn")))
 
-    partition ! AddColumn("someColumn")
-    expectMsg(ColumnAdded())
-
-    partition ! ListColumns
-    expectMsgPF() { case m: ColumnList => m.columns.size == 2 }
+    partition ! ListColumns()
+    expectMsgPF() { case m: ColumnList => m.columns.size == 1 }
   }
+
+  it should "return a column ref" in {
+    val partition = system.actorOf(Partition.props(List("someColumn")))
+
+    partition ! GetColumn("someColumn")
+    expectMsgPF() { case m: RetrievedColumn => m.column.path.toStringWithoutAddress == "someColumn" }
+  }
+
+  it should "add a row with one column" in {
+    val partition = system.actorOf(Partition.props(List("someColumn")))
+
+    partition ! AddRow(List("someValue"))
+    expectMsg(RowAdded())
+  }
+
+  it should "add a row with multiple columns" in {
+    val partition = system.actorOf(Partition.props(List("column1", "column2")))
+
+    partition ! AddRow(List("value1", "value2"))
+    expectMsg(RowAdded())
+  }
+
+  ignore should "throw an error when row is added that does not match table columns" in {
+    val partition = system.actorOf(Partition.props())
+    partition ! AddRow(List("someValue"))
+    expectMsg(Failure(new Exception("Wrong number of columns")))
+  }
+
+
 }

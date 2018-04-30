@@ -2,8 +2,12 @@ package de.hpi.svedeb.table
 
 import akka.actor.{Actor, ActorRef, Props}
 import akka.event.Logging
-import de.hpi.svedeb.table.Partition.{AddColumn, GetColumn}
+import akka.pattern.{ask, pipe}
+import akka.util.Timeout
+import de.hpi.svedeb.table.Partition.{AddRow, GetColumn, RetrievedColumn}
 import de.hpi.svedeb.table.Table._
+
+import scala.concurrent.Future
 
 object Table {
 
@@ -24,16 +28,20 @@ object Table {
 }
 
 class Table(columns: List[String], partitionSize: Int) extends Actor {
+  import context.dispatcher
   val log = Logging(context.system, this)
 
-  override def receive: Receive = active(List.empty[ActorRef])
+  // Initialize with single partition
+  override def receive: Receive = {
+    val newPartition = context.actorOf(Partition.props(columns))
+    active(List(newPartition))
+  }
 
   private def active(partitions: List[ActorRef]): Receive = {
-    case AddColumnToTable(name) => sender() ! addColumn(partitions, name)
     case AddRowToTable(row) => addRow(partitions, row)
-    case ListColumnsInTable => sender() ! listColumns()
-    case GetColumnFromTable(columnName) => sender() ! getColumns(partitions, columnName)
-    case GetPartitions => sender() ! PartitionsInTable(partitions)
+    case ListColumnsInTable() => sender() ! listColumns()
+    case GetColumnFromTable(columnName) => pipe(getColumns(partitions, columnName)) to sender()
+    case GetPartitions() => sender() ! PartitionsInTable(partitions)
     case x => log.error("Message not understood: {}", x)
   }
 
@@ -42,34 +50,30 @@ class Table(columns: List[String], partitionSize: Int) extends Actor {
     ColumnList(columns)
   }
 
-  private def getColumns(partitions: List[ActorRef], columnName: String): List[ActorRef] = ???
+  private def getColumns(partitions: List[ActorRef], columnName: String): Future[ActorsForColumn] = {
+    import scala.concurrent.duration._
+    implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
 
-  private def addPartition(partitions: List[ActorRef]): List[ActorRef] = {
-    val newPartition = context.actorOf(Partition.props())
-    newPartition :: partitions
+    val listOfFutures = partitions.map(p => ask(p, GetColumn(columnName)).mapTo[RetrievedColumn])
+    val foo = Future.sequence(listOfFutures)
+    val bar = foo.map(list => list.map(c => c.column)).map(c => ActorsForColumn(c))
+    bar
   }
 
-  private def addColumn(partitions: List[ActorRef], name: String): ColumnAddedToTable = {
-    partitions.foreach(p => p ! AddColumn(name))
-    ColumnAddedToTable()
-  }
+//  private def addPartition(partitions: List[ActorRef]): List[ActorRef] = {
+//    val newPartition = context.actorOf(Partition.props(columns))
+//    newPartition :: partitions
+//  }
 
   private def addRow(partitions: List[ActorRef], row: List[String]): Unit = {
     // TODO: decide which partition to publish to
     log.debug("Going to add row to table: {}", row)
 
-    if (partitions.isEmpty) {
-      log.debug("No partitions - going to create first partition")
-      context.become(active(addPartition(partitions)))
-
-      // Retry to add row
-      self ! AddRowToTable(row)
-    } else {
-      log.debug("Append to head of partitions")
-      // Least recently used partition is the head of the list
-      // Let partition respond with `PartitionFullMessage` if partition is full
-      partitions.head ! AddRowToTable(row)
-    }
+    log.debug("Append to head of partitions")
+    // Least recently used partition is the head of the list
+    // Let partition respond with `PartitionFullMessage` if partition is full
+    partitions.head ! AddRow(row)
+    sender() ! RowAddedToTable()
   }
 }
 

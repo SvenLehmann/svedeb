@@ -2,70 +2,66 @@ package de.hpi.svedeb.table
 
 import akka.actor.{Actor, ActorRef, Props}
 import akka.event.Logging
+import akka.pattern.{ask, pipe}
+import akka.util.Timeout
 import de.hpi.svedeb.table.Column.AppendValue
 import de.hpi.svedeb.table.Partition._
+
+import scala.concurrent.Future
 
 object Partition {
   case class ListColumns()
   case class GetColumn(name: String)
-  case class AddColumn(name: String)
-  case class DropColumn(name: String)
   case class AddRow(row: List[String])
 
   // Result events
   case class ColumnList(columns: List[String])
-  case class Column(column: ActorRef)
-  case class ColumnAdded()
-  case class ColumnDropped()
+  case class RetrievedColumn(column: ActorRef)
   case class RowAdded()
 
-  def props(initialColumns: List[ActorRef] = List.empty[ActorRef]): Props = Props(new Partition(initialColumns))
+  def props(columns: List[String] = List.empty[String]): Props = Props(new Partition(columns))
 }
 
-class Partition(initialColumns: List[ActorRef]) extends Actor {
-  val log = Logging(context.system, this)
+class Partition(columnNames: List[String]) extends Actor {
+  import context.dispatcher
 
-  override def receive: Receive = active(initialColumns)
+  private val log = Logging(context.system, this)
 
-  private def active(columns: List[ActorRef]): Receive = {
-    case ListColumns => sender() ! listColumns(columns)
-    case GetColumn(name) => sender() ! getColumn(columns, name)
-    case AddColumn(name) => sender() ! addColumn(columns, name)
-    case DropColumn(name) => sender() ! dropColumn(columns, name)
-    case AddRow(row) => sender() ! addRow(columns, row)
-    case _ => log.error("Message not understood")
+  // Columns are initialized at actor creation time and cannot be mutated later on.
+  private val columnRefs = columnNames.map(name => context.actorOf(Column.props(name)))
+
+  override def receive: Receive = {
+    case ListColumns() => sender() ! listColumns()
+    case GetColumn(name) => sender() ! getColumn(name)
+    case AddRow(row) => pipe(addRow(row)) to sender()
+    case x => log.error("Message not understood: {}", x)
   }
 
-  private def getColumn(columns: List[ActorRef], name: String): ActorRef = {
-    columns.filter(actorRef => actorRef.path.name != name).head
+  private def getColumn(name: String): RetrievedColumn = {
+    val column = columnRefs.filter(actorRef => actorRef.path.name != name).head
+    RetrievedColumn(column)
   }
-  private def listColumns(columns: List[ActorRef]): ColumnList = {
-    val foo = columns.map(actorRef => actorRef.path.name)
-    ColumnList(foo)
-  }
-
-  // TODO: Must be synchronized with all other partitions of this table
-  private def addColumn(columns: List[ActorRef], name: String): ColumnAdded = {
-    log.debug("Adding new column to partition with name: {}", name)
-    val newColumn = context.actorOf(Column.props(name), name)
-    context.become(active(newColumn :: columns))
-    ColumnAdded()
+  private def listColumns(): ColumnList = {
+    log.debug("{}", columnRefs.map(actorRef => actorRef.path.toString))
+    val columnNames = columnRefs.map(actorRef => actorRef.path.name)
+    ColumnList(columnNames)
   }
 
-  // TODO: Must be synchronized with all other partitions of this table
-  private def dropColumn(columns: List[ActorRef], name: String): ColumnDropped = {
-    log.debug("Dropping column from partition with name: {}", name)
-    context.become(active(columns.filter(actorRef => actorRef.path.name != name)))
-    ColumnDropped()
-  }
-
-  private def addRow(columns: List[ActorRef], row: List[String]): RowAdded = {
+  private def addRow(row: List[String]): Future[RowAdded] = {
     log.debug("Adding row to partition: {}", row)
-    // TODO: verify that value is appended to correct column
-    // TODO: size of columns and row must be equal
-    for((column, value) <- columns zip row) yield column ! AppendValue(value)
 
-    // TODO: send RowAdded after all columns confirmed insert
-    RowAdded()
+    if (columnRefs.size != row.size) {
+      Future.failed(new Exception("Wrong number of columns"))
+    } else {
+      // TODO: verify that value is appended to correct column
+      for((column, value) <- columnRefs zip row) yield column ! AppendValue(value)
+
+      import scala.concurrent.duration._
+      implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
+
+      val listOfFutures = columnRefs.zip(row).map{ case (column, value) => ask(column, AppendValue(value))}
+      Future.sequence(listOfFutures).map(_ => RowAdded())
+    }
   }
+
 }
