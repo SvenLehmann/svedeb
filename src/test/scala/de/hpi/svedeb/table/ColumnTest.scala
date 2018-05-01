@@ -36,4 +36,17 @@ class ColumnTest extends TestKit(ActorSystem("ColumnTest")) with ImplicitSender 
     expectMsg(ValueAppended())
     expectMsg(ScannedValues(List("value1", "value2", "value3")))
   }
+
+  it should "return column size" in {
+    val column = system.actorOf(Column.props("SomeColumnName"))
+    column ! AppendValue("value1")
+    column ! AppendValue("value2")
+    column ! AppendValue("value3")
+
+    column ! GetNumberOfRows()
+    expectMsg(ValueAppended())
+    expectMsg(ValueAppended())
+    expectMsg(ValueAppended())
+    expectMsg(NumberOfRows(3))
+  }
 }

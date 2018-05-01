@@ -60,11 +60,6 @@ class Table(columns: List[String], partitionSize: Int) extends Actor {
     bar
   }
 
-//  private def addPartition(partitions: List[ActorRef]): List[ActorRef] = {
-//    val newPartition = context.actorOf(Partition.props(columns))
-//    newPartition :: partitions
-//  }
-
   private def addRow(partitions: List[ActorRef], row: List[String]): Unit = {
     // TODO: decide which partition to publish to
     log.debug("Going to add row to table: {}", row)

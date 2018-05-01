@@ -23,11 +23,11 @@ class TableTest extends TestKit(ActorSystem("TableTest")) with ImplicitSender wi
     assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 1 })
   }
 
-  /*ignore should "retrieve columns" in {
+  ignore should "retrieve columns" in {
     val table = system.actorOf(Table.props(List("columnA"), 10))
     table ! GetColumnFromTable("columnA")
     expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 1 }
-  }*/
+  }
 
   it should "add a row" in {
     val table = system.actorOf(Table.props(List("columnA", "columnB"), 10))
@@ -39,11 +39,12 @@ class TableTest extends TestKit(ActorSystem("TableTest")) with ImplicitSender wi
     print("executing test")
     val table = system.actorOf(Table.props(List("columnA"), 2))
     table ! AddRowToTable(List("value1"))
-    table ! AddRowToTable(List("value2"))
-    table ! AddRowToTable(List("value3"))
+    expectMsg(RowAddedToTable())
 
+    table ! AddRowToTable(List("value2"))
     expectMsg(RowAddedToTable())
-    expectMsg(RowAddedToTable())
+
+    table ! AddRowToTable(List("value3"))
     expectMsg(RowAddedToTable())
 
     table ! GetPartitions()

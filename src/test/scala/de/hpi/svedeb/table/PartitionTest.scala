@@ -2,9 +2,7 @@ package de.hpi.svedeb.table
 
 import akka.actor.ActorSystem
 import akka.actor.Status.Failure
-import akka.pattern.{ask, pipe}
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import akka.util.Timeout
 import de.hpi.svedeb.table.Column.{ColumnName, GetColumnName}
 import de.hpi.svedeb.table.Partition._
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
@@ -55,21 +53,31 @@ class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitS
     expectMsg(RowAdded())
   }
 
-  ignore should "throw an error when row is added that does not match table columns" in {
-    val partition = system.actorOf(Partition.props())
-    partition ! AddRow(List("someValue"))
-    expectMsg(Failure(new Exception("Wrong number of columns")))
+  it should "add multiple rows with multiple columns" in {
+    val partition = system.actorOf(Partition.props(List("column1", "column2")))
+
+    partition ! AddRow(List("value1", "value2"))
+    partition ! AddRow(List("value3", "value4"))
+    expectMsg(RowAdded())
+    expectMsg(RowAdded())
   }
 
   it should "return Partition Full" in {
     val partition = system.actorOf(Partition.props(List("column1", "column2"), 1))
 
     partition ! AddRow(List("value1", "value2"))
-    partition ! AddRow(List("value3", "value4"))
-
     expectMsg(RowAdded())
+
+    partition ! AddRow(List("value3", "value4"))
     expectMsg(PartitionFull())
   }
+
+  ignore should "throw an error when row is added that does not match table columns" in {
+    val partition = system.actorOf(Partition.props())
+    partition ! AddRow(List("someValue"))
+    expectMsg(Failure(new Exception("Wrong number of columns")))
+  }
+
 
 
 }

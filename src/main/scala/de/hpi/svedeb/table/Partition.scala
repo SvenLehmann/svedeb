@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorRef, Props}
 import akka.event.Logging
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
-import de.hpi.svedeb.table.Column.{AppendValue, GetNumberOfRows, NumberOfRows, ValueAppended}
+import de.hpi.svedeb.table.Column.{AppendValue, ValueAppended}
 import de.hpi.svedeb.table.Partition._
 
 import scala.concurrent.Future
@@ -31,10 +31,12 @@ class Partition(columnNames: List[String], partitionSize: Int) extends Actor {
   // Columns are initialized at actor creation time and cannot be mutated later on.
   private val columnRefs = columnNames.map(name => context.actorOf(Column.props(name)))
 
-  override def receive: Receive = {
+  override def receive: Receive = active(0)
+
+  private def active(rowCount: Int): Receive = {
     case ListColumns() => sender() ! listColumns()
     case GetColumn(name) => sender() ! getColumn(name)
-    case AddRow(row) => pipe(addRow(row)) to sender()
+    case AddRow(row) => pipe(addRow(rowCount, row)) to sender()
     case ValueAppended() => ()
     case x => log.error("Message not understood: {}", x)
   }
@@ -49,25 +51,21 @@ class Partition(columnNames: List[String], partitionSize: Int) extends Actor {
     ColumnList(columnNames)
   }
 
-  private def addRow(row: List[String]): Future[RowAdded] = {
+  private def addRow(rowCount: Int, row: List[String]): Future[RowAdded] = {
     log.debug("Adding row to partition: {}", row)
+
     import scala.concurrent.duration._
     implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
 
-    val response = ask(columnRefs.head, GetNumberOfRows())
-    val f = response.map{ case NumberOfRows(size) => size }
-    f.flatMap(size => handle(size, row))
-  }
+    log.info("Partition size is {}, size of partition is {}", partitionSize, rowCount)
 
-  private def handle(size: Int, row: List[String]): Future[RowAdded] = {
-    import scala.concurrent.duration._
-    implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
-
-    if (size >= partitionSize) {
+    if (rowCount >= partitionSize) {
       log.info("Partition full")
       sender() ! PartitionFull()
-      Future.failed(new Exception("Partition full"))
+      return Future.failed(new Exception("Partition full"))
     }
+
+    log.info("row fits in partition, going to add")
 
     if (columnRefs.size != row.size) {
       Future.failed(new Exception("Wrong number of columns"))
@@ -75,8 +73,20 @@ class Partition(columnNames: List[String], partitionSize: Int) extends Actor {
       // TODO: verify that value is appended to correct column
       for((column, value) <- columnRefs zip row) yield column ! AppendValue(value)
 
-      val listOfFutures = columnRefs.zip(row).map{ case (column, value) => ask(column, AppendValue(value))}
-      Future.sequence(listOfFutures).map(_ => RowAdded())
+      val listOfFutures = columnRefs.zip(row).map{ case (column, value) =>
+        log.info("Going to add value {} into column {}", value, column)
+        ask(column, AppendValue(value)).mapTo[ValueAppended]
+      }
+      listOfFutures.foreach(f => log.info("Is future successfully completed? {}", f.isCompleted))
+
+      Future.sequence(listOfFutures).map(f => {
+        log.info("ValueAppended list {}", f)
+        log.info("received all column futures")
+
+        val newRowCount = rowCount + 1
+        context.become(active(newRowCount))
+        RowAdded()
+      })
     }
   }
 
