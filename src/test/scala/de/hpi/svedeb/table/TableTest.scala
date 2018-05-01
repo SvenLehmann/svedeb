@@ -20,14 +20,14 @@ class TableTest extends TestKit(ActorSystem("TableTest")) with ImplicitSender wi
   it should "retrieve partition" in {
     val table = system.actorOf(Table.props(List("columnA"), 10))
     table ! GetPartitions()
-    expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 1 }
+    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 1 })
   }
 
-  ignore should "retrieve columns" in {
+  /*ignore should "retrieve columns" in {
     val table = system.actorOf(Table.props(List("columnA"), 10))
     table ! GetColumnFromTable("columnA")
     expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 1 }
-  }
+  }*/
 
   it should "add a row" in {
     val table = system.actorOf(Table.props(List("columnA", "columnB"), 10))
@@ -36,6 +36,7 @@ class TableTest extends TestKit(ActorSystem("TableTest")) with ImplicitSender wi
   }
 
   it should "create a new partition if existing ones are full" in {
+    print("executing test")
     val table = system.actorOf(Table.props(List("columnA"), 2))
     table ! AddRowToTable(List("value1"))
     table ! AddRowToTable(List("value2"))
@@ -46,10 +47,10 @@ class TableTest extends TestKit(ActorSystem("TableTest")) with ImplicitSender wi
     expectMsg(RowAddedToTable())
 
     table ! GetPartitions()
-    expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 2 }
+    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 2 })
 
     table ! GetColumnFromTable("columnA")
-    expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 2 }
+    assert(expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 2 })
   }
 
   it should "fail to add wrong row definition" in {

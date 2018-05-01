@@ -2,7 +2,10 @@ package de.hpi.svedeb.table
 
 import akka.actor.ActorSystem
 import akka.actor.Status.Failure
+import akka.pattern.{ask, pipe}
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import akka.util.Timeout
+import de.hpi.svedeb.table.Column.{ColumnName, GetColumnName}
 import de.hpi.svedeb.table.Partition._
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 
@@ -17,7 +20,7 @@ class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitS
     val partition = system.actorOf(Partition.props(List("someColumn")))
 
     partition ! ListColumns()
-    expectMsgPF() { case m: ColumnList => m.columns.size == 1 }
+    assert(expectMsgPF() { case m: ColumnList => m.columns.size == 1 })
   }
 
   it should "return its columns names" in {
@@ -25,14 +28,17 @@ class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitS
     val partition = system.actorOf(Partition.props(List("someColumn")))
 
     partition ! ListColumns()
-    expectMsgPF() { case m: ColumnList => m.columns.size == 1 }
+    assert(expectMsgPF() { case m: ColumnList => m.columns.size == 1 })
   }
 
   it should "return a column ref" in {
     val partition = system.actorOf(Partition.props(List("someColumn")))
 
     partition ! GetColumn("someColumn")
-    expectMsgPF() { case m: RetrievedColumn => m.column.path.toStringWithoutAddress == "someColumn" }
+    assert(expectMsgPF() { case m: RetrievedColumn => {
+      m.column ! GetColumnName()
+      expectMsgPF() { case m: ColumnName => m.name == "someColumn"}
+    } })
   }
 
   it should "add a row with one column" in {
@@ -53,6 +59,16 @@ class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitS
     val partition = system.actorOf(Partition.props())
     partition ! AddRow(List("someValue"))
     expectMsg(Failure(new Exception("Wrong number of columns")))
+  }
+
+  it should "return Partition Full" in {
+    val partition = system.actorOf(Partition.props(List("column1", "column2"), 1))
+
+    partition ! AddRow(List("value1", "value2"))
+    partition ! AddRow(List("value3", "value4"))
+
+    expectMsg(RowAdded())
+    expectMsg(PartitionFull())
   }
 
 
