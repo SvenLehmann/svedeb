@@ -1,15 +1,10 @@
 package de.hpi.svedeb.table
 
-import akka.actor.ActorSystem
-import akka.testkit.{ImplicitSender, TestKit}
+import akka.testkit.TestKit
+import de.hpi.svedeb.AbstractTest
 import de.hpi.svedeb.table.Table._
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 
-class TableTest extends TestKit(ActorSystem("TableTest")) with ImplicitSender with FlatSpecLike with BeforeAndAfterAll {
-
-  override def afterAll: Unit = {
-    TestKit.shutdownActorSystem(system)
-  }
+class TableTest extends AbstractTest("TableTest") {
 
   "A new table actor" should "store columns" in {
     val table = system.actorOf(Table.props(List("columnA", "columnB"), 10))
@@ -23,10 +18,10 @@ class TableTest extends TestKit(ActorSystem("TableTest")) with ImplicitSender wi
     assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 1 })
   }
 
-  ignore should "retrieve columns" in {
+  it should "retrieve columns" in {
     val table = system.actorOf(Table.props(List("columnA"), 10))
     table ! GetColumnFromTable("columnA")
-    expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 1 }
+    assert(expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 1 })
   }
 
   it should "add a row" in {
@@ -59,7 +54,4 @@ class TableTest extends TestKit(ActorSystem("TableTest")) with ImplicitSender wi
     table ! AddRowToTable(List("value1", "value2"))
 
   }
-
-
-
 }

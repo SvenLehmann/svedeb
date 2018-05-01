@@ -1,17 +1,12 @@
 package de.hpi.svedeb.table
 
-import akka.actor.ActorSystem
 import akka.actor.Status.Failure
-import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import akka.testkit.{TestKit, TestProbe}
+import de.hpi.svedeb.AbstractTest
 import de.hpi.svedeb.table.Column.{ColumnName, GetColumnName}
 import de.hpi.svedeb.table.Partition._
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 
-class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitSender with FlatSpecLike with BeforeAndAfterAll {
-
-  override def afterAll: Unit = {
-    TestKit.shutdownActorSystem(system)
-  }
+class PartitionTest extends AbstractTest("PartitionTest") {
 
   "A partition actor" should "be initialized with columns" in {
     val column = TestProbe("someColumn")
@@ -30,13 +25,13 @@ class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitS
   }
 
   it should "return a column ref" in {
-    val partition = system.actorOf(Partition.props(List("someColumn")))
+    val partition = system.actorOf(Partition.props(List("someColumn", "someOtherColumn")))
 
-    partition ! GetColumn("someColumn")
-    assert(expectMsgPF() { case m: RetrievedColumn => {
+    partition ! GetColumn("someOtherColumn")
+    assert(expectMsgPF() { case m: RetrievedColumn =>
       m.column ! GetColumnName()
-      expectMsgPF() { case m: ColumnName => m.name == "someColumn"}
-    } })
+      expectMsgPF() { case m: ColumnName => m.name == "someOtherColumn"}
+    })
   }
 
   it should "add a row with one column" in {
@@ -72,12 +67,10 @@ class PartitionTest extends TestKit(ActorSystem("PartitionTest")) with ImplicitS
     expectMsg(PartitionFull())
   }
 
-  ignore should "throw an error when row is added that does not match table columns" in {
+  it should "throw an error when row is added that does not match table columns" in {
     val partition = system.actorOf(Partition.props())
     partition ! AddRow(List("someValue"))
-    expectMsg(Failure(new Exception("Wrong number of columns")))
+    expectMsgType[Failure]
   }
-
-
 
 }

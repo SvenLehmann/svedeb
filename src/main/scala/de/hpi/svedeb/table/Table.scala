@@ -1,6 +1,6 @@
 package de.hpi.svedeb.table
 
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.event.Logging
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
@@ -27,13 +27,12 @@ object Table {
   case class PartitionsInTable(partitions: List[ActorRef])
 }
 
-class Table(columns: List[String], partitionSize: Int) extends Actor {
+class Table(columns: List[String], partitionSize: Int) extends Actor with ActorLogging {
   import context.dispatcher
-  val log = Logging(context.system, this)
 
   // Initialize with single partition
   override def receive: Receive = {
-    val newPartition = context.actorOf(Partition.props(columns, partitionSize))
+    val newPartition = context.actorOf(Partition.props(columns, partitionSize), "partition0")
     active(List(newPartition))
   }
 
@@ -67,8 +66,6 @@ class Table(columns: List[String], partitionSize: Int) extends Actor {
     log.debug("Append to head of partitions")
     // Least recently used partition is the head of the list
     // Let partition respond with `PartitionFullMessage` if partition is full
-    log.info(sender().path.toString)
-
     tryToAddRow(sender(), partitions, row)
   }
 
@@ -83,7 +80,7 @@ class Table(columns: List[String], partitionSize: Int) extends Actor {
         sender ! RowAddedToTable()
       case PartitionFull() =>
         log.info("Creating new partition")
-        val newPartition = context.actorOf(Partition.props(columns, partitionSize))
+        val newPartition = context.actorOf(Partition.props(columns, partitionSize), "partition" + partitions.size)
         val updatedPartitions = newPartition :: partitions
         context.become(active(updatedPartitions))
         tryToAddRow(sender, updatedPartitions, row)

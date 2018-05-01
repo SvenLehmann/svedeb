@@ -1,7 +1,6 @@
 package de.hpi.svedeb.table
 
-import akka.actor.{Actor, Props}
-import akka.event.Logging
+import akka.actor.{Actor, ActorLogging, Props}
 import de.hpi.svedeb.table.Column._
 
 object Column {
@@ -19,9 +18,7 @@ object Column {
   def props(name: String): Props = Props(new Column(name))
 }
 
-class Column(name: String) extends Actor {
-  val log = Logging(context.system, this)
-
+class Column(name: String) extends Actor with ActorLogging {
   override def receive: Receive = active(List.empty[String])
 
   private def active(values: List[String]): Receive = {

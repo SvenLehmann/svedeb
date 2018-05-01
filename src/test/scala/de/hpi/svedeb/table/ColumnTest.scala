@@ -1,15 +1,10 @@
 package de.hpi.svedeb.table
 
-import akka.actor.ActorSystem
-import akka.testkit.{ImplicitSender, TestKit}
+import akka.testkit.TestKit
+import de.hpi.svedeb.AbstractTest
 import de.hpi.svedeb.table.Column._
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 
-class ColumnTest extends TestKit(ActorSystem("ColumnTest")) with ImplicitSender with FlatSpecLike with BeforeAndAfterAll {
-
-  override def afterAll: Unit = {
-    TestKit.shutdownActorSystem(system)
-  }
+class ColumnTest extends AbstractTest("ColumnTest") {
 
   "A column actor" should "be empty at start" in {
     val column = system.actorOf(Column.props("SomeColumnName"))
