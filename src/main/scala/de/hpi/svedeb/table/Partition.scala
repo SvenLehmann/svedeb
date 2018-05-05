@@ -11,22 +11,24 @@ import scala.concurrent.Future
 object Partition {
   case class ListColumns()
   case class GetColumn(name: String)
-  case class AddRow(row: List[String])
+  case class AddRow(row: RowType)
 
   // Result events
   case class ColumnList(columns: List[String])
-  case class RetrievedColumn(column: ActorRef)
+  case class ColumnRetrieved(column: ActorRef)
   case class RowAdded()
   case class PartitionFull()
 
-  def props(columns: List[String] = List.empty[String], partitionSize: Int = 10): Props = Props(new Partition(columns, partitionSize))
+  def props(partitionId: Int,
+            columnNames: List[String] = List.empty[String],
+            partitionSize: Int = 10): Props = Props(new Partition(partitionId, columnNames, partitionSize))
 }
 
-class Partition(columnNames: List[String], partitionSize: Int) extends Actor with ActorLogging {
+class Partition(partitionId: Int, columnNames: List[String], partitionSize: Int) extends Actor with ActorLogging {
   import context.dispatcher
 
   // Columns are initialized at actor creation time and cannot be mutated later on.
-  private val columnRefs = columnNames.map(name => context.actorOf(Column.props(name), name))
+  private val columnRefs = columnNames.zipWithIndex.map{case (name, index) => context.actorOf(Column.props(index, name), name)}
 
   override def receive: Receive = active(0)
 
@@ -41,7 +43,7 @@ class Partition(columnNames: List[String], partitionSize: Int) extends Actor wit
   private def retrieveColumn(name: String): Unit = {
     columnRefs.map(r => r.path.toStringWithoutAddress).foreach(s => log.info(s))
     val column = columnRefs.filter(actorRef => actorRef.path.toStringWithoutAddress.endsWith(name)).head
-    sender() ! RetrievedColumn(column)
+    sender() ! ColumnRetrieved(column)
   }
 
   private def listColumns(): Unit = {
@@ -50,11 +52,11 @@ class Partition(columnNames: List[String], partitionSize: Int) extends Actor wit
     sender() ! ColumnList(columnNames)
   }
 
-  private def tryToAddRow(rowCount: Int, row: List[String]): Unit = {
+  private def tryToAddRow(rowCount: Int, row: RowType): Unit = {
     if (rowCount >= partitionSize) {
       log.info("Partition full")
       sender() ! PartitionFull()
-    } else if (columnRefs.size != row.size) {
+    } else if (columnRefs.size != row.row.size) {
       val future = Future.failed(new Exception("Wrong number of columns"))
       pipe(future) to sender()
     } else {
@@ -62,14 +64,14 @@ class Partition(columnNames: List[String], partitionSize: Int) extends Actor wit
     }
   }
 
-  private def addRow(rowCount: Int, row: List[String]): Unit = {
+  private def addRow(rowCount: Int, row: RowType): Unit = {
     log.debug("Adding row to partition: {}", row)
 
     import scala.concurrent.duration._
     implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
 
     // TODO: verify that value is appended to correct column
-    val listOfFutures = columnRefs.zip(row).map { case (column, value) =>
+    val listOfFutures = columnRefs.zip(row.row).map { case (column, value) =>
       log.info("Going to add value {} into column {}", value, column)
       ask(column, AppendValue(value))
     }

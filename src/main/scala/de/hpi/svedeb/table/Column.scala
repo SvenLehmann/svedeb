@@ -5,33 +5,38 @@ import de.hpi.svedeb.table.Column._
 
 object Column {
   case class AppendValue(value: String)
-  case class Scan()
+  case class Scan(predicate: String => Boolean)
   case class GetColumnName()
   case class GetNumberOfRows()
 
   // Result events
-  case class ScannedValues(values: List[String])
+  case class ScannedValues(values: ColumnType)
   case class ValueAppended()
   case class ColumnName(name: String)
   case class NumberOfRows(size: Int)
 
-  def props(name: String): Props = Props(new Column(name))
+  def props(columnId: Int, name: String): Props = Props(new Column(columnId, name))
 }
 
-class Column(name: String) extends Actor with ActorLogging {
-  override def receive: Receive = active(List.empty[String])
+class Column(columnId: Int, name: String) extends Actor with ActorLogging {
+  override def receive: Receive = active(ColumnType())
 
-  private def active(values: List[String]): Receive = {
+  def scan(values: ColumnType, predicate: String => Boolean): Unit = {
+    val scannedValues = values.values.filter(predicate)
+    sender() ! ScannedValues(ColumnType(scannedValues))
+  }
+
+  private def active(values: ColumnType): Receive = {
     case AppendValue(value: String) => addRow(values, value)
-    case Scan() => sender() ! ScannedValues(values)
+    case Scan(predicate) => scan(values, predicate)
     case GetColumnName() => sender() ! ColumnName(name)
-    case GetNumberOfRows() => sender() ! NumberOfRows(values.size)
+    case GetNumberOfRows() => sender() ! NumberOfRows(values.size())
     case x => log.error("Message not understood: {}", x)
   }
 
-  private def addRow(values: List[String], value: String): Unit = {
+  private def addRow(values: ColumnType, value: String): Unit = {
     log.debug("Appending value: {}", value)
-    context.become(active(values :+ value))
+    context.become(active(values.append(value)))
 
     sender() ! ValueAppended()
   }

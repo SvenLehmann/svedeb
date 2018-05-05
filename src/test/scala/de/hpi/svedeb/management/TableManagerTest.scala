@@ -1,7 +1,8 @@
-package de.hpi.svedeb
+package de.hpi.svedeb.management
 
 import akka.actor.Status.Failure
-import de.hpi.svedeb.TableManager._
+import de.hpi.svedeb.AbstractTest
+import de.hpi.svedeb.management.TableManager._
 
 class TableManagerTest extends AbstractTest("PartitionTest") {
 

@@ -26,20 +26,20 @@ class TableTest extends AbstractTest("TableTest") {
 
   it should "add a row" in {
     val table = system.actorOf(Table.props(List("columnA", "columnB"), 10))
-    table ! AddRowToTable(List("valueA", "valueB"))
+    table ! AddRowToTable(RowType(List("valueA", "valueB")))
     expectMsg(RowAddedToTable())
   }
 
   it should "create a new partition if existing ones are full" in {
     print("executing test")
     val table = system.actorOf(Table.props(List("columnA"), 2))
-    table ! AddRowToTable(List("value1"))
+    table ! AddRowToTable(RowType(List("value1")))
     expectMsg(RowAddedToTable())
 
-    table ! AddRowToTable(List("value2"))
+    table ! AddRowToTable(RowType(List("value2")))
     expectMsg(RowAddedToTable())
 
-    table ! AddRowToTable(List("value3"))
+    table ! AddRowToTable(RowType(List("value3")))
     expectMsg(RowAddedToTable())
 
     table ! GetPartitions()
@@ -51,7 +51,7 @@ class TableTest extends AbstractTest("TableTest") {
 
   it should "fail to add wrong row definition" in {
     val table = system.actorOf(Table.props(List("columnA"), 2))
-    table ! AddRowToTable(List("value1", "value2"))
+    table ! AddRowToTable(RowType(List("value1", "value2")))
 
   }
 }

@@ -11,10 +11,10 @@ import scala.concurrent.Future
 
 object Table {
 
-  def props(columns: List[String], partitionSize: Int): Props = Props(new Table(columns, partitionSize))
+  def props(columnNames: List[String], partitionSize: Int): Props = Props(new Table(columnNames, partitionSize))
 
   case class AddColumnToTable(name: String)
-  case class AddRowToTable(row: List[String])
+  case class AddRowToTable(row: RowType)
   case class ListColumnsInTable()
   case class GetColumnFromTable(columnName: String)
   case class GetPartitions()
@@ -22,17 +22,17 @@ object Table {
   // Result events
   case class ColumnAddedToTable()
   case class RowAddedToTable()
-  case class ColumnList(columns: List[String])
+  case class ColumnList(columnNames: List[String])
   case class ActorsForColumn(columnActors: List[ActorRef])
   case class PartitionsInTable(partitions: List[ActorRef])
 }
 
-class Table(columns: List[String], partitionSize: Int) extends Actor with ActorLogging {
+class Table(columnNames: List[String], partitionSize: Int) extends Actor with ActorLogging {
   import context.dispatcher
 
   // Initialize with single partition
   override def receive: Receive = {
-    val newPartition = context.actorOf(Partition.props(columns, partitionSize), "partition0")
+    val newPartition = context.actorOf(Partition.props(0, columnNames, partitionSize), "partition0")
     active(List(newPartition))
   }
 
@@ -45,22 +45,21 @@ class Table(columns: List[String], partitionSize: Int) extends Actor with ActorL
   }
 
   private def listColumns(): ColumnList = {
-    log.info("Listing columns: {}", columns)
-    ColumnList(columns)
+    log.info("Listing columns: {}", columnNames)
+    ColumnList(columnNames)
   }
 
   private def getColumns(partitions: List[ActorRef], columnName: String): Future[ActorsForColumn] = {
     import scala.concurrent.duration._
     implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
 
-    val listOfFutures = partitions.map(p => ask(p, GetColumn(columnName)).mapTo[RetrievedColumn])
+    val listOfFutures = partitions.map(p => ask(p, GetColumn(columnName)).mapTo[ColumnRetrieved])
     val foo = Future.sequence(listOfFutures)
     val bar = foo.map(list => list.map(c => c.column)).map(c => ActorsForColumn(c))
     bar
   }
 
-  private def addRow(partitions: List[ActorRef], row: List[String]): Unit = {
-    // TODO: decide which partition to publish to
+  private def addRow(partitions: List[ActorRef], row: RowType): Unit = {
     log.debug("Going to add row to table: {}", row)
 
     log.debug("Append to head of partitions")
@@ -69,7 +68,7 @@ class Table(columns: List[String], partitionSize: Int) extends Actor with ActorL
     tryToAddRow(sender(), partitions, row)
   }
 
-  private def tryToAddRow(sender: ActorRef, partitions: List[ActorRef], row: List[String]): Unit = {
+  private def tryToAddRow(sender: ActorRef, partitions: List[ActorRef], row: RowType): Unit = {
     import scala.concurrent.duration._
     implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
 
@@ -80,7 +79,8 @@ class Table(columns: List[String], partitionSize: Int) extends Actor with ActorL
         sender ! RowAddedToTable()
       case PartitionFull() =>
         log.info("Creating new partition")
-        val newPartition = context.actorOf(Partition.props(columns, partitionSize), "partition" + partitions.size)
+        val newPartitionId = partitions.size
+        val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize), "partition" + newPartitionId)
         val updatedPartitions = newPartition :: partitions
         context.become(active(updatedPartitions))
         tryToAddRow(sender, updatedPartitions, row)
