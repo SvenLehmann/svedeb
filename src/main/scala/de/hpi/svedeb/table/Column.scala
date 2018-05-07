@@ -5,11 +5,13 @@ import de.hpi.svedeb.table.Column._
 
 object Column {
   case class AppendValue(value: String)
-  case class Scan(predicate: String => Boolean)
+  case class Filter(predicate: String => Boolean)
+  case class Scan(indizes: Option[Seq[Int]])
   case class GetColumnName()
   case class GetNumberOfRows()
 
   // Result events
+  case class FilteredIndizes(indizes: Seq[Int])
   case class ScannedValues(values: ColumnType)
   case class ValueAppended()
   case class ColumnName(name: String)
@@ -21,14 +23,24 @@ object Column {
 class Column(columnId: Int, name: String) extends Actor with ActorLogging {
   override def receive: Receive = active(ColumnType())
 
-  def scan(values: ColumnType, predicate: String => Boolean): Unit = {
-    val scannedValues = values.values.filter(predicate)
-    sender() ! ScannedValues(ColumnType(scannedValues))
+  def filter(values: ColumnType, predicate: String => Boolean): Unit = {
+    val filteredIndizes = values.filterByPredicate(predicate)
+    sender() ! FilteredIndizes(filteredIndizes)
+  }
+
+  def scan(values: ColumnType, indizes: Option[Seq[Int]]): Unit = {
+    if (indizes.isDefined) {
+      val scannedValues = values.filterByIndizes(indizes.get)
+      sender() ! ScannedValues(scannedValues)
+    } else {
+      sender() ! ScannedValues(values)
+    }
   }
 
   private def active(values: ColumnType): Receive = {
     case AppendValue(value: String) => addRow(values, value)
-    case Scan(predicate) => scan(values, predicate)
+    case Filter(predicate) => filter(values, predicate)
+    case Scan(indizes) => scan(values, indizes)
     case GetColumnName() => sender() ! ColumnName(name)
     case GetNumberOfRows() => sender() ! NumberOfRows(values.size())
     case x => log.error("Message not understood: {}", x)

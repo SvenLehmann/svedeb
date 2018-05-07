@@ -1,10 +1,10 @@
 package de.hpi.svedeb.management
 
 import akka.actor.Status.Failure
-import de.hpi.svedeb.AbstractTest
+import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.management.TableManager._
 
-class TableManagerTest extends AbstractTest("PartitionTest") {
+class TableManagerTest extends AbstractActorTest("PartitionTest") {
 
   "A new TableManager" should "not contain tables" in {
     val tableManager = system.actorOf(TableManager.props())

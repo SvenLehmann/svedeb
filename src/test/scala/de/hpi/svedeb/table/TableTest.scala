@@ -1,10 +1,10 @@
 package de.hpi.svedeb.table
 
 import akka.testkit.TestKit
-import de.hpi.svedeb.AbstractTest
+import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.table.Table._
 
-class TableTest extends AbstractTest("TableTest") {
+class TableTest extends AbstractActorTest("TableTest") {
 
   "A new table actor" should "store columns" in {
     val table = system.actorOf(Table.props(List("columnA", "columnB"), 10))

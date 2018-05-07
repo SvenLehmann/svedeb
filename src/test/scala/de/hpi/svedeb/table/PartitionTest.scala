@@ -2,11 +2,11 @@ package de.hpi.svedeb.table
 
 import akka.actor.Status.Failure
 import akka.testkit.{TestKit, TestProbe}
-import de.hpi.svedeb.AbstractTest
+import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.table.Column.{ColumnName, GetColumnName}
 import de.hpi.svedeb.table.Partition._
 
-class PartitionTest extends AbstractTest("PartitionTest") {
+class PartitionTest extends AbstractActorTest("PartitionTest") {
 
   "A partition actor" should "be initialized with columns" in {
     val column = TestProbe("someColumn")

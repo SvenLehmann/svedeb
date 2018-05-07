@@ -2,11 +2,10 @@ package de.hpi.svedeb.operators
 
 import akka.actor.{ActorRef, Props}
 import de.hpi.svedeb.management.TableManager.{FetchTable, TableFetched}
-import de.hpi.svedeb.operators.AbstractOperatorWorker.QueryResult
 import de.hpi.svedeb.operators.ScanOperator.{Scan, ScanState}
 import de.hpi.svedeb.table.Column.ScannedValues
-import de.hpi.svedeb.table.{Column, ColumnType}
 import de.hpi.svedeb.table.Table.{ActorsForColumn, ColumnList, GetColumnFromTable, ListColumnsInTable}
+import de.hpi.svedeb.table.{Column, ColumnType}
 
 object ScanOperator {
   case class Scan(tableName: String)
@@ -44,7 +43,7 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
   }
 
   private def scanColumns(state: ScanState, actors: List[ActorRef]): Unit = {
-    actors.foreach(actor => actor ! Column.Scan(_ => true))
+    actors.foreach(actor => actor ! Column.Scan(None))
   }
 
   private def saveColumnPart(state: ScanState, column: ColumnType): Unit = {
