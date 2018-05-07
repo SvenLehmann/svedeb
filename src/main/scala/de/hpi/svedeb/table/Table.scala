@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.event.Logging
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
-import de.hpi.svedeb.table.Partition.{ColumnList => _, _}
+import de.hpi.svedeb.table.Partition.{ColumnNameList => _, _}
 import de.hpi.svedeb.table.Table._
 
 import scala.concurrent.Future
@@ -23,8 +23,8 @@ object Table {
   case class ColumnAddedToTable()
   case class RowAddedToTable()
   case class ColumnList(columnNames: List[String])
-  case class ActorsForColumn(columnActors: List[ActorRef])
-  case class PartitionsInTable(partitions: List[ActorRef])
+  case class ActorsForColumn(columnActors: Seq[ActorRef])
+  case class PartitionsInTable(partitions: Seq[ActorRef])
 }
 
 class Table(columnNames: List[String], partitionSize: Int) extends Actor with ActorLogging {
@@ -32,11 +32,11 @@ class Table(columnNames: List[String], partitionSize: Int) extends Actor with Ac
 
   // Initialize with single partition
   override def receive: Receive = {
-    val newPartition = context.actorOf(Partition.props(0, columnNames, partitionSize), "partition0")
-    active(List(newPartition))
+    val newPartition = context.actorOf(Partition.props(columnNames, partitionSize), "partition0")
+    active(Seq(newPartition))
   }
 
-  private def active(partitions: List[ActorRef]): Receive = {
+  private def active(partitions: Seq[ActorRef]): Receive = {
     case AddRowToTable(row) => addRow(partitions, row)
     case ListColumnsInTable() => sender() ! listColumns()
     case GetColumnFromTable(columnName) => pipe(getColumns(partitions, columnName)) to sender()
@@ -49,7 +49,7 @@ class Table(columnNames: List[String], partitionSize: Int) extends Actor with Ac
     ColumnList(columnNames)
   }
 
-  private def getColumns(partitions: List[ActorRef], columnName: String): Future[ActorsForColumn] = {
+  private def getColumns(partitions: Seq[ActorRef], columnName: String): Future[ActorsForColumn] = {
     import scala.concurrent.duration._
     implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
 
@@ -59,20 +59,16 @@ class Table(columnNames: List[String], partitionSize: Int) extends Actor with Ac
     bar
   }
 
-  private def addRow(partitions: List[ActorRef], row: RowType): Unit = {
+  private def addRow(partitions: Seq[ActorRef], row: RowType): Unit = {
     log.debug("Going to add row to table: {}", row)
-
-    log.debug("Append to head of partitions")
-    // Least recently used partition is the head of the list
-    // Let partition respond with `PartitionFullMessage` if partition is full
     tryToAddRow(sender(), partitions, row)
   }
 
-  private def tryToAddRow(sender: ActorRef, partitions: List[ActorRef], row: RowType): Unit = {
+  private def tryToAddRow(sender: ActorRef, partitions: Seq[ActorRef], row: RowType): Unit = {
     import scala.concurrent.duration._
     implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
 
-    val response = ask(partitions.head, AddRow(row))
+    val response = ask(partitions.last, AddRow(row))
     response.foreach {
       case RowAdded() =>
         log.info("Adding to existing partition")
@@ -80,8 +76,8 @@ class Table(columnNames: List[String], partitionSize: Int) extends Actor with Ac
       case PartitionFull() =>
         log.info("Creating new partition")
         val newPartitionId = partitions.size
-        val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize), "partition" + newPartitionId)
-        val updatedPartitions = newPartition :: partitions
+        val newPartition = context.actorOf(Partition.props(columnNames, partitionSize), "partition" + newPartitionId)
+        val updatedPartitions = partitions :+ newPartition
         context.become(active(updatedPartitions))
         tryToAddRow(sender, updatedPartitions, row)
     }

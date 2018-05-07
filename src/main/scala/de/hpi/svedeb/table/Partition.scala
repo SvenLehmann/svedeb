@@ -9,47 +9,57 @@ import de.hpi.svedeb.table.Partition._
 import scala.concurrent.Future
 
 object Partition {
-  case class ListColumns()
+  case class ListColumnNames()
   case class GetColumn(name: String)
+  case class GetColumns()
   case class AddRow(row: RowType)
 
   // Result events
-  case class ColumnList(columns: List[String])
+  case class ColumnNameList(columns: Seq[String])
   case class ColumnRetrieved(column: ActorRef)
+  case class ColumnsRetrieved(column: Map[String, ActorRef])
   case class RowAdded()
   case class PartitionFull()
 
-  def props(partitionId: Int,
-            columnNames: List[String] = List.empty[String],
-            partitionSize: Int = 10): Props = Props(new Partition(partitionId, columnNames, partitionSize))
+  def props(columnNames: Seq[String] = List.empty[String], partitionSize: Int = 10): Props = {
+    val columns = columnNames.map(name => (name, ColumnType(IndexedSeq.empty[String]))).toMap
+    Props(new Partition(columns, partitionSize))
+  }
+
+  def props(columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(columns, partitionSize))
 }
 
-class Partition(partitionId: Int, columnNames: List[String], partitionSize: Int) extends Actor with ActorLogging {
+class Partition(columns: Map[String, ColumnType], partitionSize: Int) extends Actor with ActorLogging {
   import context.dispatcher
 
   // Columns are initialized at actor creation time and cannot be mutated later on.
-  private val columnRefs = columnNames.zipWithIndex.map{case (name, index) => context.actorOf(Column.props(index, name), name)}
+  private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(name, values), name)) }
 
   override def receive: Receive = active(0)
 
+  def retrieveColumns(): Unit = {
+    sender() ! ColumnsRetrieved(columnRefs)
+  }
+
   private def active(rowCount: Int): Receive = {
-    case ListColumns() => listColumns()
+    case ListColumnNames() => listColumns()
     case GetColumn(name) => retrieveColumn(name)
+    case GetColumns() => retrieveColumns()
     case AddRow(row) => tryToAddRow(rowCount, row)
     case ValueAppended() => ()
     case x => log.error("Message not understood: {}", x)
   }
 
   private def retrieveColumn(name: String): Unit = {
-    columnRefs.map(r => r.path.toStringWithoutAddress).foreach(s => log.info(s))
-    val column = columnRefs.filter(actorRef => actorRef.path.toStringWithoutAddress.endsWith(name)).head
+    columnRefs.keys.foreach(s => log.info(s))
+    val column = columnRefs(name)
     sender() ! ColumnRetrieved(column)
   }
 
   private def listColumns(): Unit = {
-    log.debug("{}", columnRefs.map(actorRef => actorRef.path.toString))
-    val columnNames = columnRefs.map(actorRef => actorRef.path.name)
-    sender() ! ColumnList(columnNames)
+    log.debug("{}", columnRefs.keys.toSeq)
+    val columnNames = columnRefs.keys.toSeq
+    sender() ! ColumnNameList(columnNames)
   }
 
   private def tryToAddRow(rowCount: Int, row: RowType): Unit = {
@@ -71,7 +81,7 @@ class Partition(partitionId: Int, columnNames: List[String], partitionSize: Int)
     implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
 
     // TODO: verify that value is appended to correct column
-    val listOfFutures = columnRefs.zip(row.row).map { case (column, value) =>
+    val listOfFutures = columnRefs.zip(row.row).map { case ((_, column), value) =>
       log.info("Going to add value {} into column {}", value, column)
       ask(column, AppendValue(value))
     }

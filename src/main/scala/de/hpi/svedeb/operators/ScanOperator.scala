@@ -38,12 +38,12 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
     tableRef ! ListColumnsInTable()
   }
 
-  private def fetchColumns(state: ScanState, columnNames: List[String]): Unit = {
+  private def fetchColumns(state: ScanState, columnNames: Seq[String]): Unit = {
     columnNames.foreach(name => state.table ! GetColumnFromTable(name))
   }
 
-  private def scanColumns(state: ScanState, actors: List[ActorRef]): Unit = {
-    actors.foreach(actor => actor ! Column.Scan(None))
+  private def scanColumns(state: ScanState, actors: Seq[ActorRef]): Unit = {
+    actors.foreach(actor => actor ! Column.ScanColumn(None))
   }
 
   private def saveColumnPart(state: ScanState, column: ColumnType): Unit = {
@@ -63,6 +63,6 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
     case TableFetched(tableRef) => fetchColumnNames(state, tableRef)
     case ColumnList(columnNames) => fetchColumns(state, columnNames)
     case ActorsForColumn(actors) => scanColumns(state, actors)
-    case ScannedValues(column) => saveColumnPart(state, column)
+    case ScannedValues(name, column) => saveColumnPart(state, column)
   }
 }

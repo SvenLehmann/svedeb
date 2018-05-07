@@ -5,44 +5,44 @@ import de.hpi.svedeb.table.Column._
 
 object Column {
   case class AppendValue(value: String)
-  case class Filter(predicate: String => Boolean)
-  case class Scan(indizes: Option[Seq[Int]])
+  case class FilterColumn(predicate: String => Boolean)
+  case class ScanColumn(indizes: Option[Seq[Int]])
   case class GetColumnName()
-  case class GetNumberOfRows()
+  case class GetColumnSize()
 
   // Result events
-  case class FilteredIndizes(indizes: Seq[Int])
-  case class ScannedValues(values: ColumnType)
+  case class FilteredRowIndizes(indizes: Seq[Int])
+  case class ScannedValues(columnName: String, values: ColumnType)
   case class ValueAppended()
   case class ColumnName(name: String)
-  case class NumberOfRows(size: Int)
+  case class ColumnSize(size: Int)
 
-  def props(columnId: Int, name: String): Props = Props(new Column(columnId, name))
+  def props(name: String, values: ColumnType = ColumnType(IndexedSeq.empty[String])): Props = Props(new Column(name, values))
 }
 
-class Column(columnId: Int, name: String) extends Actor with ActorLogging {
-  override def receive: Receive = active(ColumnType())
+class Column(name: String, initialValues: ColumnType) extends Actor with ActorLogging {
+  override def receive: Receive = active(initialValues)
 
   def filter(values: ColumnType, predicate: String => Boolean): Unit = {
     val filteredIndizes = values.filterByPredicate(predicate)
-    sender() ! FilteredIndizes(filteredIndizes)
+    sender() ! FilteredRowIndizes(filteredIndizes)
   }
 
   def scan(values: ColumnType, indizes: Option[Seq[Int]]): Unit = {
     if (indizes.isDefined) {
       val scannedValues = values.filterByIndizes(indizes.get)
-      sender() ! ScannedValues(scannedValues)
+      sender() ! ScannedValues(name, scannedValues)
     } else {
-      sender() ! ScannedValues(values)
+      sender() ! ScannedValues(name, values)
     }
   }
 
   private def active(values: ColumnType): Receive = {
     case AppendValue(value: String) => addRow(values, value)
-    case Filter(predicate) => filter(values, predicate)
-    case Scan(indizes) => scan(values, indizes)
+    case FilterColumn(predicate) => filter(values, predicate)
+    case ScanColumn(indizes) => scan(values, indizes)
     case GetColumnName() => sender() ! ColumnName(name)
-    case GetNumberOfRows() => sender() ! NumberOfRows(values.size())
+    case GetColumnSize() => sender() ! ColumnSize(values.size())
     case x => log.error("Message not understood: {}", x)
   }
 

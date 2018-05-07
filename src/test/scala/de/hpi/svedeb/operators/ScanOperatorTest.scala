@@ -18,7 +18,8 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     scanOperator ! Scan("SomeTable")
 
     val table = TestProbe()
-    val column = TestProbe()
+    val columnA = TestProbe()
+    val columnB = TestProbe()
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case FetchTable(name) ⇒ sender ! TableFetched(table.ref); TestActor.KeepRunning
@@ -26,11 +27,14 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
 
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ListColumnsInTable() ⇒ sender ! ColumnList(List("a", "b")); TestActor.KeepRunning
-      case GetColumnFromTable(name) => sender ! ActorsForColumn(List(column.ref)); TestActor.KeepRunning
+      case GetColumnFromTable(name) => sender ! ActorsForColumn(List(columnA.ref, columnB.ref)); TestActor.KeepRunning
     })
 
-    column.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case Column.Scan(None) => sender ! ScannedValues(ColumnType(IndexedSeq("1", "2", "3"))); TestActor.KeepRunning
+    columnA.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case Column.ScanColumn(None) => sender ! ScannedValues("a", ColumnType(IndexedSeq("1", "2", "3"))); TestActor.KeepRunning
+    })
+    columnB.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case Column.ScanColumn(None) => sender ! ScannedValues("a", ColumnType(IndexedSeq("1", "2", "3"))); TestActor.KeepRunning
     })
 
 
