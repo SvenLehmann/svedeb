@@ -1,7 +1,6 @@
 package de.hpi.svedeb.table
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import akka.event.Logging
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
 import de.hpi.svedeb.table.Partition.{ColumnNameList => _, _}
@@ -11,7 +10,7 @@ import scala.concurrent.Future
 
 object Table {
 
-  def props(columnNames: List[String], partitionSize: Int, initialPartitions: List[ActorRef] = List.empty[ActorRef]): Props = Props(new Table(columnNames, partitionSize, initialPartitions))
+  def props(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq[ActorRef] = Seq.empty[ActorRef]): Props = Props(new Table(columnNames, partitionSize, initialPartitions))
 
   case class AddColumnToTable(name: String)
   case class AddRowToTable(row: RowType)
@@ -22,12 +21,12 @@ object Table {
   // Result events
   case class ColumnAddedToTable()
   case class RowAddedToTable()
-  case class ColumnList(columnNames: List[String])
+  case class ColumnList(columnNames: Seq[String])
   case class ActorsForColumn(columnActors: Seq[ActorRef])
   case class PartitionsInTable(partitions: Seq[ActorRef])
 }
 
-class Table(columnNames: List[String], partitionSize: Int, initialPartitions: List[ActorRef]) extends Actor with ActorLogging {
+class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq[ActorRef]) extends Actor with ActorLogging {
   import context.dispatcher
 
   // Initialize with single partition

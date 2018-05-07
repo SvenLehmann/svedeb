@@ -11,7 +11,7 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
 
   "A partition actor" should "be initialized with columns" in {
     val column = TestProbe("someColumn")
-    val partition = system.actorOf(Partition.props(List("someColumn")))
+    val partition = system.actorOf(Partition.props(Seq("someColumn")))
 
     partition ! ListColumnNames()
     assert(expectMsgPF() { case m: ColumnNameList => m.columns.size == 1 })
@@ -30,14 +30,14 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
 
   it should "return its columns names" in {
     val column = TestProbe("someColumn")
-    val partition = system.actorOf(Partition.props(List("someColumn")))
+    val partition = system.actorOf(Partition.props(Seq("someColumn")))
 
     partition ! ListColumnNames()
     assert(expectMsgPF() { case m: ColumnNameList => m.columns.size == 1 })
   }
 
   it should "return a column ref" in {
-    val partition = system.actorOf(Partition.props(List("someColumn", "someOtherColumn")))
+    val partition = system.actorOf(Partition.props(Seq("someColumn", "someOtherColumn")))
 
     partition ! GetColumn("someOtherColumn")
     assert(expectMsgPF() { case m: ColumnRetrieved =>
@@ -47,41 +47,41 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "add a row with one column" in {
-    val partition = system.actorOf(Partition.props(List("someColumn")))
+    val partition = system.actorOf(Partition.props(Seq("someColumn")))
 
-    partition ! AddRow(RowType(List("someValue")))
+    partition ! AddRow(RowType(Seq("someValue")))
     expectMsg(RowAdded())
   }
 
   it should "add a row with multiple columns" in {
-    val partition = system.actorOf(Partition.props(List("column1", "column2")))
+    val partition = system.actorOf(Partition.props(Seq("column1", "column2")))
 
-    partition ! AddRow(RowType(List("value1", "value2")))
+    partition ! AddRow(RowType(Seq("value1", "value2")))
     expectMsg(RowAdded())
   }
 
   it should "add multiple rows with multiple columns" in {
-    val partition = system.actorOf(Partition.props(List("column1", "column2")))
+    val partition = system.actorOf(Partition.props(Seq("column1", "column2")))
 
-    partition ! AddRow(RowType(List("value1", "value2")))
-    partition ! AddRow(RowType(List("value3", "value4")))
+    partition ! AddRow(RowType(Seq("value1", "value2")))
+    partition ! AddRow(RowType(Seq("value3", "value4")))
     expectMsg(RowAdded())
     expectMsg(RowAdded())
   }
 
   it should "return Partition Full" in {
-    val partition = system.actorOf(Partition.props(List("column1", "column2"), 1))
+    val partition = system.actorOf(Partition.props(Seq("column1", "column2"), 1))
 
-    partition ! AddRow(RowType(List("value1", "value2")))
+    partition ! AddRow(RowType(Seq("value1", "value2")))
     expectMsg(RowAdded())
 
-    partition ! AddRow(RowType(List("value3", "value4")))
+    partition ! AddRow(RowType(Seq("value3", "value4")))
     expectMsg(PartitionFull())
   }
 
   it should "throw an error when row is added that does not match table columns" in {
     val partition = system.actorOf(Partition.props())
-    partition ! AddRow(RowType(List("someValue")))
+    partition ! AddRow(RowType(Seq("someValue")))
     expectMsgType[Failure]
   }
 

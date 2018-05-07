@@ -1,15 +1,13 @@
 package de.hpi.svedeb.operators
 
 import akka.actor.{ActorRef, Props}
-import akka.japi.Predicate
 import de.hpi.svedeb.management.TableManager.{FetchTable, TableFetched}
 import de.hpi.svedeb.operators.AbstractOperatorWorker.QueryResult
 import de.hpi.svedeb.operators.ScanOperator.{Scan, ScanState}
 import de.hpi.svedeb.operators.ScanWorker.{ScanJob, ScanWorkerResult}
-import de.hpi.svedeb.table.Column.ScannedValues
 import de.hpi.svedeb.table.Partition.{ColumnNameList, ListColumnNames}
+import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table._
-import de.hpi.svedeb.table.{Column, ColumnType, Partition, Table}
 
 object ScanOperator {
   case class Scan(tableName: String, columnName: String, predicate: String => Boolean)
@@ -22,7 +20,7 @@ object ScanOperator {
                        predicate: String => Boolean,
                        numberOfPartitions: Int,
                        columnNames: Option[Seq[String]] = None,
-                       results: List[ActorRef] = List.empty[ActorRef]) {
+                       results: Seq[ActorRef] = Seq.empty[ActorRef]) {
     def addResult(partition: ActorRef): ScanState = {
       val newResults = results :+ partition
       ScanState(sender, table, columnName, predicate, numberOfPartitions, columnNames, newResults)
@@ -73,14 +71,14 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
     context.become(active(newState))
 
     if (newState.results.size == newState.numberOfPartitions && state.columnNames.isDefined) {
-      log.info("Received all partial results.")
+      log.debug("Received all partial results.")
       // We received all results for the columns
       createNewTable(newState)
     }
   }
 
   private def createNewTable(state: ScanOperator.ScanState) : Unit = {
-    val table = context.actorOf(Table.props(state.columnNames.get.toList, 10, state.results))
+    val table = context.actorOf(Table.props(state.columnNames.get, 10, state.results))
     state.sender ! QueryResult(table)
   }
 

@@ -10,16 +10,16 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
     val tableManager = system.actorOf(TableManager.props())
     tableManager ! ListTables()
 
-    expectMsg(TableList(List.empty[String]))
+    expectMsg(TableList(Seq.empty[String]))
   }
 
   it should "add a table" in {
     val tableManager = system.actorOf(TableManager.props())
-    tableManager ! AddTable("SomeTable", List("columnA", "columnB"))
+    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"))
     expectMsgType[TableAdded]
 
     tableManager ! ListTables()
-    expectMsg(TableList(List("SomeTable")))
+    expectMsg(TableList(Seq("SomeTable")))
   }
 
   it should "drop a table" in {
@@ -29,7 +29,7 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
     tableManager ! RemoveTable("SomeTable")
     expectMsgType[TableRemoved]
 
-    tableManager ! AddTable("SomeTable", List("columnA", "columnB"))
+    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"))
     expectMsgType[TableAdded]
 
     tableManager ! RemoveTable("SomeTable")
@@ -38,7 +38,7 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
 
   it should "fetch a table" in {
     val tableManager = system.actorOf(TableManager.props())
-    tableManager ! AddTable("SomeTable", List("columnA", "columnB"))
+    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"))
     expectMsgType[TableAdded]
 
     tableManager ! FetchTable("SomeTable")

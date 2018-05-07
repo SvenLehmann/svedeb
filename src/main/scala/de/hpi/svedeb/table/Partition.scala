@@ -21,7 +21,7 @@ object Partition {
   case class RowAdded()
   case class PartitionFull()
 
-  def props(columnNames: Seq[String] = List.empty[String], partitionSize: Int = 10): Props = {
+  def props(columnNames: Seq[String] = Seq.empty[String], partitionSize: Int = 10): Props = {
     val columns = columnNames.map(name => (name, ColumnType(IndexedSeq.empty[String]))).toMap
     Props(new Partition(columns, partitionSize))
   }

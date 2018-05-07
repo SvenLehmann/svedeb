@@ -3,7 +3,6 @@ package de.hpi.svedeb.operators
 import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.management.TableManager.{FetchTable, TableFetched}
 import de.hpi.svedeb.operators.ScanWorker.{ScanJob, ScanWorkerResult}
 import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndizes, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.ColumnType
@@ -15,7 +14,7 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
     val column = TestProbe()
     column.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ScanColumn(indizes) => sender ! ScannedValues("columnA", ColumnType(IndexedSeq("a", "b"))); TestActor.KeepRunning
-      case FilterColumn(predicate) ⇒ sender ! FilteredRowIndizes(List(0, 1)); TestActor.KeepRunning
+      case FilterColumn(predicate) ⇒ sender ! FilteredRowIndizes(Seq(0, 1)); TestActor.KeepRunning
     })
 
     val partition = TestProbe()
@@ -40,7 +39,7 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
     val columnA = TestProbe()
     columnA.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ScanColumn(indizes) => sender ! ScannedValues("columnA", ColumnType(IndexedSeq("b"))); TestActor.KeepRunning
-      case FilterColumn(predicate) ⇒ sender ! FilteredRowIndizes(List(1)); TestActor.KeepRunning
+      case FilterColumn(predicate) ⇒ sender ! FilteredRowIndizes(Seq(1)); TestActor.KeepRunning
     })
 
     val columnB = TestProbe()

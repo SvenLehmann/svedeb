@@ -1,5 +1,5 @@
 package de.hpi.svedeb.table
 
-case class RowType(row: List[String]) {
+case class RowType(row: Seq[String]) {
 
 }

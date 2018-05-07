@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import de.hpi.svedeb.operators.TableWorker.{CreateTable, DropTable}
 
 object TableWorker {
-  case class CreateTable(name: String, columnNames: List[String])
+  case class CreateTable(name: String, columnNames: Seq[String])
   case class DropTable(name: String)
 
   case class TableCreated()
