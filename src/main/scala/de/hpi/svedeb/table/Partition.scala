@@ -17,7 +17,7 @@ object Partition {
   // Result events
   case class ColumnNameList(columns: Seq[String])
   case class ColumnRetrieved(column: ActorRef)
-  case class ColumnsRetrieved(column: Map[String, ActorRef])
+  case class ColumnsRetrieved(columns: Map[String, ActorRef])
   case class RowAdded()
   case class PartitionFull()
 

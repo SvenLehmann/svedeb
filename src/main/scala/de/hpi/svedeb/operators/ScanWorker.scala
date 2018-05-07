@@ -32,26 +32,31 @@ class ScanWorker(partition: ActorRef) extends Actor with ActorLogging {
   private def beginScanJob(state: ScanJobState, columnName: String, predicate: String => Boolean): Unit = {
     val newState = ScanJobState(Some(sender()), Some(columnName), None, Some(predicate), state.result)
     context.become(active(newState))
+    log.info("Executing Scan job.")
 
     partition ! GetColumns()
   }
 
   private def filterColumn(state: ScanJobState, columnRefs: Map[String, ActorRef]): Unit = {
+    log.info("Executing filter job.")
     val newState = ScanJobState(state.sender, state.columnName, Some(columnRefs), state.predicate, state.result)
     context.become(active(newState))
 
     columnRefs(state.columnName.get) ! FilterColumn(state.predicate.get)
   }
 
-  def scanColumn(state: ScanJobState, indizes: Seq[Int]): Unit = {
+  def scanColumns(state: ScanJobState, indizes: Seq[Int]): Unit = {
+    log.info("Scanning columns.")
     state.columnRefs.get.foreach { case (_, columnRef) => columnRef ! ScanColumn(Some(indizes)) }
   }
 
   def storePartialResult(state: ScanJobState, columnName: String, values: ColumnType): Unit = {
+    log.info("Storing partial result.")
     val newState = state.addResultForColumn(columnName, values)
     context.become(active(newState))
 
     if (newState.result.size == newState.columnRefs.size) {
+      log.info("Received all partial results.")
       // We received all results for the columns
       val partition = context.actorOf(Partition.props(newState.result, 10))
       newState.sender.get ! ScanWorkerResult(partition)
@@ -61,7 +66,7 @@ class ScanWorker(partition: ActorRef) extends Actor with ActorLogging {
   private def active(state: ScanJobState): Receive = {
     case ScanJob(columnName, predicate) => beginScanJob(state, columnName, predicate)
     case ColumnsRetrieved(columnRefs) => filterColumn(state, columnRefs)
-    case FilteredRowIndizes(indizes) => scanColumn(state, indizes)
+    case FilteredRowIndizes(indizes) => scanColumns(state, indizes)
     case ScannedValues(columnName, values) => storePartialResult(state, columnName, values)
   }
 }
