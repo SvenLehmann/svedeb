@@ -11,7 +11,7 @@ import scala.concurrent.Future
 
 object Table {
 
-  def props(columnNames: List[String], partitionSize: Int): Props = Props(new Table(columnNames, partitionSize))
+  def props(columnNames: List[String], partitionSize: Int, initialPartitions: List[ActorRef] = List.empty[ActorRef]): Props = Props(new Table(columnNames, partitionSize, initialPartitions))
 
   case class AddColumnToTable(name: String)
   case class AddRowToTable(row: RowType)
@@ -27,13 +27,17 @@ object Table {
   case class PartitionsInTable(partitions: Seq[ActorRef])
 }
 
-class Table(columnNames: List[String], partitionSize: Int) extends Actor with ActorLogging {
+class Table(columnNames: List[String], partitionSize: Int, initialPartitions: List[ActorRef]) extends Actor with ActorLogging {
   import context.dispatcher
 
   // Initialize with single partition
   override def receive: Receive = {
-    val newPartition = context.actorOf(Partition.props(columnNames, partitionSize), "partition0")
-    active(Seq(newPartition))
+    if (initialPartitions.isEmpty) {
+      val newPartition = context.actorOf(Partition.props(columnNames, partitionSize), "partition0")
+      active(Seq(newPartition))
+    } else {
+      active(initialPartitions)
+    }
   }
 
   private def active(partitions: Seq[ActorRef]): Receive = {

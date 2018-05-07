@@ -15,7 +15,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
 
   "A ScanOperator actor" should "scan whole table" in {
     val scanOperator = system.actorOf(ScanOperator.props(tableManager.ref))
-    scanOperator ! Scan("SomeTable")
+    scanOperator ! Scan("SomeTable", "columnA", _ => true)
 
     val table = TestProbe()
     val columnA = TestProbe()
@@ -36,7 +36,5 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     columnB.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case Column.ScanColumn(None) => sender ! ScannedValues("a", ColumnType(IndexedSeq("1", "2", "3"))); TestActor.KeepRunning
     })
-
-
   }
 }
