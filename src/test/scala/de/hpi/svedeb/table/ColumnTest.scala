@@ -11,6 +11,12 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     expectMsg(FilteredRowIndizes(Seq.empty[Int]))
   }
 
+  it should "be initialized with values" in {
+    val column = system.actorOf(Column.props("SomeColumnName", ColumnType(IndexedSeq("a", "b"))))
+    column ! ScanColumn(None)
+    expectMsgPF(){ case m: ScannedValues => m.values.size() == 2 && m.values == IndexedSeq("a", "b")}
+  }
+
   it should "insert a new value" in {
     val column = system.actorOf(Column.props("SomeColumnName"))
 

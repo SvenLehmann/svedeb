@@ -3,8 +3,9 @@ package de.hpi.svedeb.table
 import akka.actor.Status.Failure
 import akka.testkit.{TestKit, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.table.Column.{ColumnName, GetColumnName}
+import de.hpi.svedeb.table.Column.{ColumnName, GetColumnName, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition._
+import org.scalatest.Matchers._
 
 class PartitionTest extends AbstractActorTest("PartitionTest") {
 
@@ -14,6 +15,17 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
 
     partition ! ListColumnNames()
     assert(expectMsgPF() { case m: ColumnNameList => m.columns.size == 1 })
+  }
+
+  it should "be initialized with values" in {
+    val partition = system.actorOf(Partition.props(Map("someColumn" -> ColumnType(IndexedSeq("a"))), 10))
+
+    partition ! GetColumns()
+    val nameList = expectMsgType[ColumnsRetrieved]
+    nameList.columns.size shouldEqual 1
+
+    nameList.columns.foreach{ case (name, actorRef) => actorRef ! ScanColumn(None)}
+    assert(expectMsgPF() { case m: ScannedValues => m.values == ColumnType(IndexedSeq("a")) })
   }
 
   it should "return its columns names" in {

@@ -6,6 +6,7 @@ import de.hpi.svedeb.table.Column._
 object Column {
   case class AppendValue(value: String)
   case class FilterColumn(predicate: String => Boolean)
+  // None returns all values
   case class ScanColumn(indizes: Option[Seq[Int]])
   case class GetColumnName()
   case class GetColumnSize()
