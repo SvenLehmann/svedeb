@@ -9,6 +9,7 @@ import de.hpi.svedeb.table.ColumnType
 import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
 import org.scalatest.Matchers._
 
+// TODO: Consider splitting up this test into multiple smaller ones that do not have so many dependencies
 class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
   "A scan worker" should "return scanned partition" in {
     val column = TestProbe()

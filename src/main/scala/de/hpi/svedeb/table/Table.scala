@@ -3,7 +3,7 @@ package de.hpi.svedeb.table
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
-import de.hpi.svedeb.table.Partition.{ColumnNameList => _, _}
+import de.hpi.svedeb.table.Partition._
 import de.hpi.svedeb.table.Table._
 
 import scala.concurrent.Future

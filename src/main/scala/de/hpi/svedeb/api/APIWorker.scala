@@ -6,9 +6,10 @@ import de.hpi.svedeb.operators.AbstractOperatorWorker.QueryResult
 import de.hpi.svedeb.operators.GetTableOperator.GetTable
 import de.hpi.svedeb.operators.{GetTableOperator, ScanOperator}
 import de.hpi.svedeb.operators.ScanOperator.Scan
+import de.hpi.svedeb.queryplan.QueryPlan.QueryPlanNode
 
 object APIWorker {
-  case class Execute(queryPlan: Any)
+  case class Execute(queryPlan: QueryPlanNode)
 
   case class QueryFinished(resultTable: ActorRef)
 
@@ -21,6 +22,12 @@ object APIWorker {
   def props(tableManager: ActorRef): Props = Props(new APIWorker(tableManager))
 }
 
+
+/*
+ * TODO: Translate QueryPlan to Operator hierarchy
+ * TODO: Save intermediate results as attribute in QueryPlanNode
+ * TODO: Consider using common messages for invoking operators, e.g. Execute
+ */
 class APIWorker(tableManager: ActorRef) extends Actor with ActorLogging {
   override def receive: Receive = active(APIWorkerState(0, null))
 

@@ -3,15 +3,15 @@ package de.hpi.svedeb.operators
 import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.management.TableManager.{FetchTable, TableFetched}
 import de.hpi.svedeb.operators.AbstractOperatorWorker.QueryResult
 import de.hpi.svedeb.operators.ScanOperator.Scan
-import de.hpi.svedeb.table.{Column, ColumnType}
 import de.hpi.svedeb.table.Column.{FilteredRowIndizes, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition.{ColumnNameList, ColumnsRetrieved, GetColumns, ListColumnNames}
 import de.hpi.svedeb.table.Table._
+import de.hpi.svedeb.table.{Column, ColumnType}
 import org.scalatest.Matchers._
 
+// TODO: Consider splitting up this test into multiple smaller ones that do not have so many dependencies
 class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
 
   "A ScanOperator actor" should "scan whole table" in {

@@ -8,6 +8,7 @@ import de.hpi.svedeb.operators.AbstractOperatorWorker.QueryResult
 import de.hpi.svedeb.operators.GetTableOperator.GetTable
 import org.scalatest.Matchers._
 
+
 class GetTableOperatorTest extends AbstractActorTest("GetTableOperator") {
 
   "A GetTableOperator" should "retrieve a table" in {

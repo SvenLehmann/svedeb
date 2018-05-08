@@ -4,6 +4,7 @@ package de.hpi.svedeb.table
   * ColumnType is optimized for index-lookups.
   * We assume that filtering by index will happen more often than scanning the sequence.
   * In an usual query only one column will be scanned, whereas all the other columns need to be filtered by index.
+  * TODO: Evaluate whether this is true
   *
   * @param values the sequence of values
   */

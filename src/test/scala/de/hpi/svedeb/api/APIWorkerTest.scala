@@ -9,6 +9,7 @@ import de.hpi.svedeb.table.Table
 
 class APIWorkerTest extends AbstractActorTest("APIWorker") {
 
+  // TODO: This test should not actually invoke the whole query execution
   "An APIWorker" should "query an empty table" in {
     val tableManager = TestProbe()
     val table = system.actorOf(Table.props(Seq("a", "b"), 10))
@@ -18,7 +19,8 @@ class APIWorkerTest extends AbstractActorTest("APIWorker") {
     })
 
     val apiWorker = system.actorOf(APIWorker.props(tableManager.ref))
-    apiWorker ! Execute()
+    // TODO: add actual query plan
+    apiWorker ! Execute(null)
 
     val query = expectMsgType[QueryFinished]
   }
