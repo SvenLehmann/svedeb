@@ -15,7 +15,7 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
   "A scan worker" should "return scanned partition" in {
     val column = TestProbe("Column")
     column.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case ScanColumn(indizes) => sender ! ScannedValues("columnA", ColumnType(IndexedSeq("a", "b"))); TestActor.KeepRunning
+      case ScanColumn(indizes) => sender ! ScannedValues("columnA", ColumnType("a", "b")); TestActor.KeepRunning
       case FilterColumn(predicate) ⇒ sender ! FilteredRowIndizes(Seq(0, 1)); TestActor.KeepRunning
     })
 
@@ -34,19 +34,19 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
     columns.columns.foreach{ case (_, columnRef) => columnRef ! ScanColumn(None)}
 
     val scannedValues = expectMsgType[ScannedValues]
-    scannedValues.values shouldEqual ColumnType(IndexedSeq("a", "b"))
+    scannedValues.values shouldEqual ColumnType("a", "b")
   }
 
   it should "return filtered partition" in {
     val columnA = TestProbe("ColumnA")
     columnA.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case ScanColumn(indizes) => sender ! ScannedValues("columnA", ColumnType(IndexedSeq("b"))); TestActor.KeepRunning
+      case ScanColumn(indizes) => sender ! ScannedValues("columnA", ColumnType("b")); TestActor.KeepRunning
       case FilterColumn(predicate) ⇒ sender ! FilteredRowIndizes(Seq(1)); TestActor.KeepRunning
     })
 
     val columnB = TestProbe("ColumnB")
     columnB.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case ScanColumn(indizes) => sender ! ScannedValues("columnB", ColumnType(IndexedSeq("d"))); TestActor.KeepRunning
+      case ScanColumn(indizes) => sender ! ScannedValues("columnB", ColumnType("d")); TestActor.KeepRunning
     })
 
     val partition = TestProbe("Partition")

@@ -1,7 +1,7 @@
 package de.hpi.svedeb.operators
 
 import akka.actor.{ActorRef, Props}
-import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
+import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.ScanOperator.ScanState
 import de.hpi.svedeb.operators.workers.ScanWorker
 import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult}
@@ -12,28 +12,23 @@ object ScanOperator {
   def props(table: ActorRef, columnName: String, predicate: String => Boolean): Props = Props(new ScanOperator(table, columnName, predicate))
 
   private case class ScanState(sender: ActorRef,
-                       columnName: String,
-                       predicate: String => Boolean,
-                       numberOfPartitions: Int,
-                       columnNames: Option[Seq[String]] = None,
-                       results: Seq[ActorRef] = Seq.empty[ActorRef]) {
+                               columnName: String,
+                               predicate: String => Boolean,
+                               numberOfPartitions: Int,
+                               columnNames: Option[Seq[String]] = None,
+                               results: Seq[ActorRef] = Seq.empty[ActorRef]) {
     def addResult(partition: ActorRef): ScanState = {
       val newResults = results :+ partition
       ScanState(sender, columnName, predicate, numberOfPartitions, columnNames, newResults)
     }
   }
+
 }
 
-/*
- * 1. Get Table Actor
- * 2. Get Columns
- * 3. Scan
- * 4. Build result
- */
-class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boolean) extends AbstractOperatorWorker {
+class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boolean) extends AbstractOperator {
   override def receive: Receive = active(ScanState(ActorRef.noSender, null, null, 0))
 
-  private def scan(state: ScanState, columnName: String, predicate: String => Boolean): Unit = {
+  private def initializeScan(state: ScanState, columnName: String, predicate: String => Boolean): Unit = {
     val newState = ScanState(sender(), columnName, predicate, 0)
     context.become(active(newState))
 
@@ -42,7 +37,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     table ! ListColumnsInTable()
   }
 
-  private def runScanJobs(state: ScanOperator.ScanState, partitions: Seq[ActorRef]) : Unit = {
+  private def invokeScanJobs(state: ScanOperator.ScanState, partitions: Seq[ActorRef]): Unit = {
     log.debug("Invoking scan workers")
     // TODO consider using router instead
     val newState = ScanState(state.sender, state.columnName, state.predicate, partitions.size, state.columnNames, state.results)
@@ -51,7 +46,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     partitions.map(partition => context.actorOf(ScanWorker.props(partition))).foreach(worker => worker ! ScanJob(state.columnName, state.predicate))
   }
 
-  private def storeColumnNames(state: ScanOperator.ScanState, columnNames: Seq[String]) : Unit = {
+  private def storeColumnNames(state: ScanOperator.ScanState, columnNames: Seq[String]): Unit = {
     log.debug("Storing column names")
 
     val newState = ScanState(state.sender, state.columnName, state.predicate, state.numberOfPartitions, Some(columnNames), state.results)
@@ -62,7 +57,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     }
   }
 
-  private def storePartialResult(state: ScanOperator.ScanState, partition: ActorRef) : Unit = {
+  private def storePartialResult(state: ScanOperator.ScanState, partition: ActorRef): Unit = {
     log.debug("Storing partial result")
 
     val newState = state.addResult(partition)
@@ -75,16 +70,16 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     }
   }
 
-  private def createNewTable(state: ScanOperator.ScanState) : Unit = {
+  private def createNewTable(state: ScanOperator.ScanState): Unit = {
     val table = context.actorOf(Table.props(state.columnNames.get, 10, state.results))
     log.debug("Created output table, sending to {}", state.sender)
     state.sender ! QueryResult(table)
   }
 
   private def active(state: ScanState): Receive = {
-    case Execute() => scan(state, columnName, predicate)
+    case Execute() => initializeScan(state, columnName, predicate)
     case ColumnList(columnNames) => storeColumnNames(state, columnNames)
-    case PartitionsInTable(partitions) => runScanJobs(state, partitions)
+    case PartitionsInTable(partitions) => invokeScanJobs(state, partitions)
     case ScanWorkerResult(partition) => storePartialResult(state, partition)
   }
 }

@@ -26,19 +26,19 @@ class TableTest extends AbstractActorTest("TableTest") {
 
   it should "add a row" in {
     val table = system.actorOf(Table.props(Seq("columnA", "columnB"), 10))
-    table ! AddRowToTable(RowType(Seq("valueA", "valueB")))
+    table ! AddRowToTable(RowType("valueA", "valueB"))
     expectMsg(RowAddedToTable())
   }
 
   it should "create a new partition if existing ones are full" in {
     val table = system.actorOf(Table.props(Seq("columnA"), 2))
-    table ! AddRowToTable(RowType(Seq("value1")))
+    table ! AddRowToTable(RowType("value1"))
     expectMsg(RowAddedToTable())
 
-    table ! AddRowToTable(RowType(Seq("value2")))
+    table ! AddRowToTable(RowType("value2"))
     expectMsg(RowAddedToTable())
 
-    table ! AddRowToTable(RowType(Seq("value3")))
+    table ! AddRowToTable(RowType("value3"))
     expectMsg(RowAddedToTable())
 
     table ! GetPartitions()
@@ -50,7 +50,7 @@ class TableTest extends AbstractActorTest("TableTest") {
 
   it should "fail to add wrong row definition" in {
     val table = system.actorOf(Table.props(Seq("columnA"), 2))
-    table ! AddRowToTable(RowType(Seq("value1", "value2")))
+    table ! AddRowToTable(RowType("value1", "value2"))
 
   }
 }

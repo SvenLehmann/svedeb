@@ -2,10 +2,9 @@ package de.hpi.svedeb.operators
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
 
-object AbstractOperatorWorker {
+object AbstractOperator {
   case class Execute()
-
   case class QueryResult(resultTable: ActorRef)
 }
 
-abstract class AbstractOperatorWorker extends Actor with ActorLogging {}
+trait AbstractOperator extends Actor with ActorLogging

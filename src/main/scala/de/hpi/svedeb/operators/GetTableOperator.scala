@@ -1,8 +1,8 @@
 package de.hpi.svedeb.operators
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{ActorRef, Props}
 import de.hpi.svedeb.management.TableManager.{FetchTable, TableFetched}
-import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
+import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.GetTableOperator.State
 
 object GetTableOperator {
@@ -11,7 +11,7 @@ object GetTableOperator {
   def props(tableManager: ActorRef, tableName: String): Props = Props(new GetTableOperator(tableManager, tableName))
 }
 
-class GetTableOperator(tableManager: ActorRef, tableName: String) extends AbstractOperatorWorker {
+class GetTableOperator(tableManager: ActorRef, tableName: String) extends AbstractOperator {
   override def receive: Receive = active(State(ActorRef.noSender))
 
   def fetchTable(): Unit = {

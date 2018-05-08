@@ -2,8 +2,8 @@ package de.hpi.svedeb.api
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.api.QueryPlanExecutor.{APIWorkerState, QueryFinished, Run}
-import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
-import de.hpi.svedeb.operators.{AbstractOperatorWorker, GetTableOperator, ScanOperator}
+import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
+import de.hpi.svedeb.operators.{GetTableOperator, ScanOperator}
 import de.hpi.svedeb.queryplan.QueryPlan.QueryPlanNode
 
 object QueryPlanExecutor {

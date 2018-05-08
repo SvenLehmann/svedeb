@@ -18,7 +18,7 @@ object Column {
   case class ColumnName(name: String)
   case class ColumnSize(size: Int)
 
-  def props(name: String, values: ColumnType = ColumnType(IndexedSeq.empty[String])): Props = Props(new Column(name, values))
+  def props(name: String, values: ColumnType = ColumnType()): Props = Props(new Column(name, values))
 }
 
 class Column(name: String, initialValues: ColumnType) extends Actor with ActorLogging {

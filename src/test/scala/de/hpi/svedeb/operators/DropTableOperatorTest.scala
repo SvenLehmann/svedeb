@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.management.TableManager.{RemoveTable, TableRemoved}
-import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
+import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 
 class DropTableOperatorTest extends AbstractActorTest("DropTableOperator") {
 

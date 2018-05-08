@@ -2,16 +2,16 @@ package de.hpi.svedeb.operators
 
 import akka.actor.{ActorRef, Props}
 import de.hpi.svedeb.management.TableManager.{AddTable, TableAdded}
-import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
+import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.CreateTableOperator.State
 
 object CreateTableOperator {
   def props(tableManager: ActorRef, tableName: String, columnNames: Seq[String]): Props = Props(new CreateTableOperator(tableManager, tableName, columnNames))
 
-  case class State(sender: ActorRef)
+  private case class State(sender: ActorRef)
 }
 
-class CreateTableOperator(tableManager: ActorRef, tableName: String, columnNames: Seq[String]) extends AbstractOperatorWorker {
+class CreateTableOperator(tableManager: ActorRef, tableName: String, columnNames: Seq[String]) extends AbstractOperator {
   override def receive: Receive = active(State(ActorRef.noSender))
 
   def execute(): Unit = {

@@ -15,7 +15,7 @@ class ColumnTypeTest extends AbstractTest {
   }
 
   it should "filter by predicate" in {
-    val columnType = ColumnType(IndexedSeq("a", "b", "a", "c"))
+    val columnType = ColumnType("a", "b", "a", "c")
 
     val indizesForA = columnType.filterByPredicate(x => x == "a")
     indizesForA shouldEqual Seq(0, 2)
@@ -25,11 +25,11 @@ class ColumnTypeTest extends AbstractTest {
   }
 
   it should "filter by indizes" in {
-    val columnType = ColumnType(IndexedSeq("a", "b", "a", "c"))
+    val columnType = ColumnType("a", "b", "a", "c")
 
     val indizes = Seq(0, 1)
     val filteredColumn = columnType.filterByIndizes(indizes)
-    filteredColumn shouldEqual ColumnType(IndexedSeq("a", "b"))
+    filteredColumn shouldEqual ColumnType("a", "b")
   }
 
 }

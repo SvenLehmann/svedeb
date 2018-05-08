@@ -3,7 +3,7 @@ package de.hpi.svedeb.operators
 import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
+import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.table.Column.{FilteredRowIndizes, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition.{ColumnNameList, ColumnsRetrieved, GetColumns, ListColumnNames}
 import de.hpi.svedeb.table.Table._
@@ -35,10 +35,10 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
 
     columnA.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case Column.FilterColumn(predicate) => sender ! FilteredRowIndizes(Seq(0, 1, 2)); TestActor.KeepRunning
-      case Column.ScanColumn(_) => sender ! ScannedValues("a", ColumnType(IndexedSeq("1", "2", "3"))); TestActor.KeepRunning
+      case Column.ScanColumn(_) => sender ! ScannedValues("a", ColumnType("1", "2", "3")); TestActor.KeepRunning
     })
     columnB.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case Column.ScanColumn(_) => sender ! ScannedValues("b", ColumnType(IndexedSeq("1", "2", "3"))); TestActor.KeepRunning
+      case Column.ScanColumn(_) => sender ! ScannedValues("b", ColumnType("1", "2", "3")); TestActor.KeepRunning
     })
 
     scanOperator ! Execute()
@@ -56,7 +56,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     returnedColumnA.columnActors.head ! ScanColumn(None)
     val scannedValuesA = expectMsgType[ScannedValues]
     scannedValuesA.values.size() shouldEqual 3
-    scannedValuesA.values shouldEqual ColumnType(IndexedSeq("1", "2", "3"))
+    scannedValuesA.values shouldEqual ColumnType("1", "2", "3")
 
     operatorResult.resultTable ! GetColumnFromTable("b")
     val returnedColumnB = expectMsgType[ActorsForColumn]
@@ -65,7 +65,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     returnedColumnB.columnActors.head ! ScanColumn(None)
     val scannedValuesB = expectMsgType[ScannedValues]
     scannedValuesB.values.size() shouldEqual 3
-    scannedValuesB.values shouldEqual ColumnType(IndexedSeq("1", "2", "3"))
+    scannedValuesB.values shouldEqual ColumnType("1", "2", "3")
   }
 
   it should "do something" in {

@@ -2,16 +2,16 @@ package de.hpi.svedeb.operators
 
 import akka.actor.{ActorRef, Props}
 import de.hpi.svedeb.management.TableManager.{RemoveTable, TableRemoved}
-import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
-import de.hpi.svedeb.operators.CreateTableOperator.State
+import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
+import de.hpi.svedeb.operators.DropTableOperator.State
 
 object DropTableOperator {
   def props(tableManager: ActorRef, tableName: String): Props = Props(new DropTableOperator(tableManager, tableName))
 
-  case class State(sender: ActorRef)
+  private case class State(sender: ActorRef)
 }
 
-class DropTableOperator(tableManager: ActorRef, tableName: String) extends AbstractOperatorWorker {
+class DropTableOperator(tableManager: ActorRef, tableName: String) extends AbstractOperator {
   override def receive: Receive = active(State(ActorRef.noSender))
 
   def execute(): Unit = {

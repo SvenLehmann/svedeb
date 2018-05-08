@@ -12,9 +12,9 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
   }
 
   it should "be initialized with values" in {
-    val column = system.actorOf(Column.props("SomeColumnName", ColumnType(IndexedSeq("a", "b"))))
+    val column = system.actorOf(Column.props("SomeColumnName", ColumnType("a", "b")))
     column ! ScanColumn(None)
-    expectMsgPF(){ case m: ScannedValues => m.values.size() == 2 && m.values == IndexedSeq("a", "b")}
+    expectMsgPF(){ case m: ScannedValues => m.values.size() == 2 && m.values == Seq("a", "b")}
   }
 
   it should "insert a new value" in {
@@ -47,7 +47,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     expectMsg(ValueAppended())
     expectMsg(ValueAppended())
     expectMsg(ValueAppended())
-    expectMsg(ScannedValues("SomeColumnName", ColumnType(IndexedSeq("value2", "value3"))))
+    expectMsg(ScannedValues("SomeColumnName", ColumnType("value2", "value3")))
   }
 
   it should "scan its values without indizes" in {
@@ -60,7 +60,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     expectMsg(ValueAppended())
     expectMsg(ValueAppended())
     expectMsg(ValueAppended())
-    expectMsg(ScannedValues("SomeColumnName", ColumnType(IndexedSeq("value1", "value2", "value3"))))
+    expectMsg(ScannedValues("SomeColumnName", ColumnType("value1", "value2", "value3")))
   }
 
   it should "return column size" in {

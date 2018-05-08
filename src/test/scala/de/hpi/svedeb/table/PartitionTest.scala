@@ -1,7 +1,7 @@
 package de.hpi.svedeb.table
 
 import akka.actor.Status.Failure
-import akka.testkit.{TestKit, TestProbe}
+import akka.testkit.TestProbe
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.table.Column.{ColumnName, GetColumnName, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition._
@@ -18,14 +18,14 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "be initialized with values" in {
-    val partition = system.actorOf(Partition.props(Map("someColumn" -> ColumnType(IndexedSeq("a"))), 10))
+    val partition = system.actorOf(Partition.props(Map("someColumn" -> ColumnType("a")), 10))
 
     partition ! GetColumns()
     val nameList = expectMsgType[ColumnsRetrieved]
     nameList.columns.size shouldEqual 1
 
     nameList.columns.foreach{ case (name, actorRef) => actorRef ! ScanColumn(None)}
-    assert(expectMsgPF() { case m: ScannedValues => m.values == ColumnType(IndexedSeq("a")) })
+    assert(expectMsgPF() { case m: ScannedValues => m.values == ColumnType("a") })
   }
 
   it should "return its columns names" in {
@@ -49,22 +49,22 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
   it should "add a row with one column" in {
     val partition = system.actorOf(Partition.props(Seq("someColumn")))
 
-    partition ! AddRow(RowType(Seq("someValue")))
+    partition ! AddRow(RowType("someValue"))
     expectMsg(RowAdded())
   }
 
   it should "add a row with multiple columns" in {
     val partition = system.actorOf(Partition.props(Seq("column1", "column2")))
 
-    partition ! AddRow(RowType(Seq("value1", "value2")))
+    partition ! AddRow(RowType("value1", "value2"))
     expectMsg(RowAdded())
   }
 
   it should "add multiple rows with multiple columns" in {
     val partition = system.actorOf(Partition.props(Seq("column1", "column2")))
 
-    partition ! AddRow(RowType(Seq("value1", "value2")))
-    partition ! AddRow(RowType(Seq("value3", "value4")))
+    partition ! AddRow(RowType("value1", "value2"))
+    partition ! AddRow(RowType("value3", "value4"))
     expectMsg(RowAdded())
     expectMsg(RowAdded())
   }
@@ -72,16 +72,16 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
   it should "return Partition Full" in {
     val partition = system.actorOf(Partition.props(Seq("column1", "column2"), 1))
 
-    partition ! AddRow(RowType(Seq("value1", "value2")))
+    partition ! AddRow(RowType("value1", "value2"))
     expectMsg(RowAdded())
 
-    partition ! AddRow(RowType(Seq("value3", "value4")))
+    partition ! AddRow(RowType("value3", "value4"))
     expectMsg(PartitionFull())
   }
 
   it should "throw an error when row is added that does not match table columns" in {
     val partition = system.actorOf(Partition.props())
-    partition ! AddRow(RowType(Seq("someValue")))
+    partition ! AddRow(RowType("someValue"))
     expectMsgType[Failure]
   }
 

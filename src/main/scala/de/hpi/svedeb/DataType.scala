@@ -1,6 +1,5 @@
 package de.hpi.svedeb
 
-
 /*
  * TODO: Unused for now as we have to find out how to use TypedActors correctly.
  */
