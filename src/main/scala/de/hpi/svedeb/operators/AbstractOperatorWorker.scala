@@ -6,4 +6,4 @@ object AbstractOperatorWorker {
   case class QueryResult(resultTable: ActorRef)
 }
 
-abstract class AbstractOperatorWorker(tableManager: ActorRef) extends Actor with ActorLogging {}
+abstract class AbstractOperatorWorker extends Actor with ActorLogging {}

@@ -10,12 +10,11 @@ import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table._
 
 object ScanOperator {
-  case class Scan(tableName: String, columnName: String, predicate: String => Boolean)
+  case class Scan(columnName: String, predicate: String => Boolean)
 
-  def props(tableManager: ActorRef): Props = Props(new ScanOperator(tableManager))
+  def props(table: ActorRef): Props = Props(new ScanOperator(table))
 
   case class ScanState(sender: ActorRef,
-                       table: ActorRef,
                        columnName: String,
                        predicate: String => Boolean,
                        numberOfPartitions: Int,
@@ -23,7 +22,7 @@ object ScanOperator {
                        results: Seq[ActorRef] = Seq.empty[ActorRef]) {
     def addResult(partition: ActorRef): ScanState = {
       val newResults = results :+ partition
-      ScanState(sender, table, columnName, predicate, numberOfPartitions, columnNames, newResults)
+      ScanState(sender, columnName, predicate, numberOfPartitions, columnNames, newResults)
     }
   }
 }
@@ -34,26 +33,22 @@ object ScanOperator {
  * 3. Scan
  * 4. Build result
  */
-class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableManager) {
-  override def receive: Receive = active(ScanState(null, null, null, null, 0))
+class ScanOperator(table: ActorRef) extends AbstractOperatorWorker {
+  override def receive: Receive = active(ScanState(null, null, null, 0))
 
-  private def scan(state: ScanState, table: String, columnName: String, predicate: String => Boolean): Unit = {
-    val newState = ScanState(sender(), null, columnName, predicate, 0)
+  private def scan(state: ScanState, columnName: String, predicate: String => Boolean): Unit = {
+    val newState = ScanState(sender(), columnName, predicate, 0)
     context.become(active(newState))
 
-    tableManager ! FetchTable(table)
-  }
-
-  private def fetchPartitions(state: ScanOperator.ScanState, tableRef: ActorRef) : Unit = {
     log.debug("Fetching partitions and column names")
-    tableRef ! GetPartitions()
-    tableRef ! ListColumnsInTable()
+    table ! GetPartitions()
+    table ! ListColumnsInTable()
   }
 
   private def runScanJobs(state: ScanOperator.ScanState, partitions: Seq[ActorRef]) : Unit = {
     log.debug("Invoking scan workers")
     // TODO consider using router instead
-    val newState = ScanState(state.sender, state.table, state.columnName, state.predicate, partitions.size, state.columnNames, state.results)
+    val newState = ScanState(state.sender, state.columnName, state.predicate, partitions.size, state.columnNames, state.results)
     context.become(active(newState))
 
     partitions.map(partition => context.actorOf(ScanWorker.props(partition))).foreach(worker => worker ! ScanJob(state.columnName, state.predicate))
@@ -62,7 +57,7 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
   private def storeColumnNames(state: ScanOperator.ScanState, columnNames: Seq[String]) : Unit = {
     log.debug("Storing column names")
 
-    val newState = ScanState(state.sender, state.table, state.columnName, state.predicate, state.numberOfPartitions, Some(columnNames), state.results)
+    val newState = ScanState(state.sender, state.columnName, state.predicate, state.numberOfPartitions, Some(columnNames), state.results)
     context.become(active(newState))
 
     if (newState.results.size == newState.numberOfPartitions && state.columnNames.isDefined) {
@@ -90,8 +85,7 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
   }
 
   private def active(state: ScanState): Receive = {
-    case Scan(table, columnName, predicate) => scan(state, table, columnName, predicate)
-    case TableFetched(tableRef) => fetchPartitions(state, tableRef)
+    case Scan(columnName, predicate) => scan(state, columnName, predicate)
     case ColumnList(columnNames) => storeColumnNames(state, columnNames)
     case PartitionsInTable(partitions) => runScanJobs(state, partitions)
     case ScanWorkerResult(partition) => storePartialResult(state, partition)

@@ -14,19 +14,14 @@ import org.scalatest.Matchers._
 
 class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
 
-  val tableManager = TestProbe()
-
   "A ScanOperator actor" should "scan whole table" in {
-    val scanOperator = system.actorOf(ScanOperator.props(tableManager.ref))
-
     val table = TestProbe()
+
+    val scanOperator = system.actorOf(ScanOperator.props(table.ref))
+
     val partition = TestProbe()
     val columnA = TestProbe()
     val columnB = TestProbe()
-
-    tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case FetchTable(name) ⇒ sender ! TableFetched(table.ref); TestActor.KeepRunning
-    })
 
     partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ListColumnNames() => sender ! ColumnNameList(Seq("a", "b")); TestActor.KeepRunning
@@ -47,7 +42,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
       case Column.ScanColumn(_) => sender ! ScannedValues("b", ColumnType(IndexedSeq("1", "2", "3"))); TestActor.KeepRunning
     })
 
-    scanOperator ! Scan("SomeTable", "a", _ => true)
+    scanOperator ! Scan("a", _ => true)
     val operatorResult = expectMsgType[QueryResult]
     operatorResult.resultTable ! ListColumnsInTable()
     expectMsg(ColumnList(Seq("a", "b")))
