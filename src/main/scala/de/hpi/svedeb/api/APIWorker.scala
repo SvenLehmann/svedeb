@@ -3,6 +3,7 @@ package de.hpi.svedeb.api
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.api.APIWorker.{APIWorkerState, Execute, QueryFinished}
 import de.hpi.svedeb.operators.AbstractOperatorWorker.QueryResult
+import de.hpi.svedeb.operators.GetTableOperator.GetTable
 import de.hpi.svedeb.operators.{GetTableOperator, ScanOperator}
 import de.hpi.svedeb.operators.ScanOperator.Scan
 
@@ -25,14 +26,18 @@ class APIWorker(tableManager: ActorRef) extends Actor with ActorLogging {
 
 
   def buildInitialOperator(state: APIWorkerState, queryPlan: Any): Unit = {
+    log.debug("Building initial operator")
+
     val newState = APIWorkerState(1, sender())
     context.become(active(newState))
 
     // GetTable
     val getTableOperator = context.actorOf(GetTableOperator.props(tableManager))
+    getTableOperator ! GetTable("SomeTable")
   }
 
   def handleQueryResult(state: APIWorkerState, resultTable: ActorRef): Unit = {
+    log.debug("handling query result")
 
     if (state.stage == 1) {
       // Scan
