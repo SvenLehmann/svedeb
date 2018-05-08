@@ -1,36 +1,32 @@
 package de.hpi.svedeb.api
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import de.hpi.svedeb.api.APIWorker.{APIWorkerState, Execute, QueryFinished}
-import de.hpi.svedeb.operators.AbstractOperatorWorker.QueryResult
-import de.hpi.svedeb.operators.GetTableOperator.GetTable
-import de.hpi.svedeb.operators.{GetTableOperator, ScanOperator}
-import de.hpi.svedeb.operators.ScanOperator.Scan
+import de.hpi.svedeb.api.QueryPlanExecutor.{APIWorkerState, QueryFinished, Run}
+import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
+import de.hpi.svedeb.operators.{AbstractOperatorWorker, GetTableOperator, ScanOperator}
 import de.hpi.svedeb.queryplan.QueryPlan.QueryPlanNode
 
-object APIWorker {
-  case class Execute(queryPlan: QueryPlanNode)
+object QueryPlanExecutor {
+  case class Run(queryPlan: QueryPlanNode)
 
   case class QueryFinished(resultTable: ActorRef)
 
-  case class APIWorkerState(stage: Int, sender: ActorRef) {
+  private case class APIWorkerState(stage: Int, sender: ActorRef) {
     def increaseStage(): APIWorkerState = {
       APIWorkerState(stage + 1, sender)
     }
   }
 
-  def props(tableManager: ActorRef): Props = Props(new APIWorker(tableManager))
+  def props(tableManager: ActorRef): Props = Props(new QueryPlanExecutor(tableManager))
 }
-
 
 /*
  * TODO: Translate QueryPlan to Operator hierarchy
  * TODO: Save intermediate results as attribute in QueryPlanNode
  * TODO: Consider using common messages for invoking operators, e.g. Execute
  */
-class APIWorker(tableManager: ActorRef) extends Actor with ActorLogging {
-  override def receive: Receive = active(APIWorkerState(0, null))
-
+class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging {
+  override def receive: Receive = active(APIWorkerState(0, ActorRef.noSender))
 
   def buildInitialOperator(state: APIWorkerState, queryPlan: Any): Unit = {
     log.debug("Building initial operator")
@@ -39,8 +35,8 @@ class APIWorker(tableManager: ActorRef) extends Actor with ActorLogging {
     context.become(active(newState))
 
     // GetTable
-    val getTableOperator = context.actorOf(GetTableOperator.props(tableManager))
-    getTableOperator ! GetTable("SomeTable")
+    val getTableOperator = context.actorOf(GetTableOperator.props(tableManager, "SomeTable"))
+    getTableOperator ! Execute()
   }
 
   def handleQueryResult(state: APIWorkerState, resultTable: ActorRef): Unit = {
@@ -48,8 +44,8 @@ class APIWorker(tableManager: ActorRef) extends Actor with ActorLogging {
 
     if (state.stage == 1) {
       // Scan
-      val scanOperator = context.actorOf(ScanOperator.props(resultTable))
-      scanOperator ! Scan("a", x => x == "Foo")
+      val scanOperator = context.actorOf(ScanOperator.props(resultTable, "a", x => x == "Foo"))
+      scanOperator ! Execute()
     } else if (state.stage == 2) {
       state.sender ! QueryFinished(resultTable)
     }
@@ -59,7 +55,7 @@ class APIWorker(tableManager: ActorRef) extends Actor with ActorLogging {
   }
 
   private def active(state: APIWorkerState): Receive = {
-    case Execute(queryPlan) => buildInitialOperator(state, queryPlan)
+    case Run(queryPlan) => buildInitialOperator(state, queryPlan)
     case QueryResult(resultTable) => handleQueryResult(state, resultTable)
   }
 }

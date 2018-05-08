@@ -3,7 +3,8 @@ package de.hpi.svedeb.operators
 import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.operators.ScanWorker.{ScanJob, ScanWorkerResult}
+import de.hpi.svedeb.operators.workers.ScanWorker
+import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult}
 import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndizes, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.ColumnType
 import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}

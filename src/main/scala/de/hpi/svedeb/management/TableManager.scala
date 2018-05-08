@@ -11,7 +11,7 @@ object TableManager {
   case class ListTables()
   case class FetchTable(name: String)
 
-  case class TableAdded()
+  case class TableAdded(table: ActorRef)
   case class TableRemoved()
   case class TableList(tableNames: Seq[String])
   case class TableFetched(table: ActorRef)
@@ -24,10 +24,10 @@ class TableManager extends Actor with ActorLogging {
 
   private def addTable(tables: Map[String, ActorRef], name: String, columnNames: Seq[String]): Unit = {
     log.info("Adding Table")
-    val table = context.actorOf(Table.props(columnNames, 10), "name")
+    val table = context.actorOf(Table.props(columnNames, 10), name)
     val newTables = tables + (name -> table)
     context.become(active(newTables))
-    sender() ! TableAdded()
+    sender() ! TableAdded(table)
   }
 
   def removeTable(tables: Map[String, ActorRef], name: String): Unit = {

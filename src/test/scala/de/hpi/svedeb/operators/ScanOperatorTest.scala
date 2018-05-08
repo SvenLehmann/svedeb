@@ -3,8 +3,7 @@ package de.hpi.svedeb.operators
 import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.operators.AbstractOperatorWorker.QueryResult
-import de.hpi.svedeb.operators.ScanOperator.Scan
+import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
 import de.hpi.svedeb.table.Column.{FilteredRowIndizes, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition.{ColumnNameList, ColumnsRetrieved, GetColumns, ListColumnNames}
 import de.hpi.svedeb.table.Table._
@@ -17,7 +16,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
   "A ScanOperator actor" should "scan whole table" in {
     val table = TestProbe()
 
-    val scanOperator = system.actorOf(ScanOperator.props(table.ref))
+    val scanOperator = system.actorOf(ScanOperator.props(table.ref, "a", _ => true))
 
     val partition = TestProbe()
     val columnA = TestProbe()
@@ -42,7 +41,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
       case Column.ScanColumn(_) => sender ! ScannedValues("b", ColumnType(IndexedSeq("1", "2", "3"))); TestActor.KeepRunning
     })
 
-    scanOperator ! Scan("a", _ => true)
+    scanOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
     operatorResult.resultTable ! ListColumnsInTable()
     expectMsg(ColumnList(Seq("a", "b")))
