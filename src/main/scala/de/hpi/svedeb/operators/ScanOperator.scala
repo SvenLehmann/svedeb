@@ -45,12 +45,14 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
   }
 
   private def fetchPartitions(state: ScanOperator.ScanState, tableRef: ActorRef) : Unit = {
+    log.debug("Fetching partitions and column names")
     tableRef ! GetPartitions()
-    tableRef ! ListColumnNames()
+    tableRef ! ListColumnsInTable()
   }
 
   private def runScanJobs(state: ScanOperator.ScanState, partitions: Seq[ActorRef]) : Unit = {
-    // TODO use router instead
+    log.debug("Invoking scan workers")
+    // TODO consider using router instead
     val newState = ScanState(state.sender, state.table, state.columnName, state.predicate, partitions.size, state.columnNames, state.results)
     context.become(active(newState))
 
@@ -58,6 +60,8 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
   }
 
   private def storeColumnNames(state: ScanOperator.ScanState, columnNames: Seq[String]) : Unit = {
+    log.debug("Storing column names")
+
     val newState = ScanState(state.sender, state.table, state.columnName, state.predicate, state.numberOfPartitions, Some(columnNames), state.results)
     context.become(active(newState))
 
@@ -67,6 +71,8 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
   }
 
   private def storePartialResult(state: ScanOperator.ScanState, partition: ActorRef) : Unit = {
+    log.debug("Storing partial result")
+
     val newState = state.addResult(partition)
     context.become(active(newState))
 
@@ -79,13 +85,14 @@ class ScanOperator(tableManager: ActorRef) extends AbstractOperatorWorker(tableM
 
   private def createNewTable(state: ScanOperator.ScanState) : Unit = {
     val table = context.actorOf(Table.props(state.columnNames.get, 10, state.results))
+    log.debug("Created output table, sending to {}", state.sender)
     state.sender ! QueryResult(table)
   }
 
   private def active(state: ScanState): Receive = {
     case Scan(table, columnName, predicate) => scan(state, table, columnName, predicate)
     case TableFetched(tableRef) => fetchPartitions(state, tableRef)
-    case ColumnNameList(columnNames) => storeColumnNames(state, columnNames)
+    case ColumnList(columnNames) => storeColumnNames(state, columnNames)
     case PartitionsInTable(partitions) => runScanJobs(state, partitions)
     case ScanWorkerResult(partition) => storePartialResult(state, partition)
   }

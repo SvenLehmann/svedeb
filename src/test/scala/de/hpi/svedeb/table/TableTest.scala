@@ -31,7 +31,6 @@ class TableTest extends AbstractActorTest("TableTest") {
   }
 
   it should "create a new partition if existing ones are full" in {
-    print("executing test")
     val table = system.actorOf(Table.props(Seq("columnA"), 2))
     table ! AddRowToTable(RowType(Seq("value1")))
     expectMsg(RowAddedToTable())

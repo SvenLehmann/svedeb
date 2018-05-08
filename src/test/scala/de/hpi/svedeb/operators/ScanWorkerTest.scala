@@ -59,12 +59,15 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
 
     scanWorker ! ScanJob("columnA", value => value == "b")
     val workerResult = expectMsgType[ScanWorkerResult]
+
     workerResult.partiton ! GetColumns()
-
     val columns = expectMsgType[ColumnsRetrieved]
-    columns.columns.foreach{ case (_, columnRef) => columnRef ! ScanColumn(None)}
 
+    columns.columns.size shouldEqual 2
+
+    columns.columns.foreach{ case (_, columnRef) => columnRef ! ScanColumn(None)}
     val scannedValues = expectMsgType[ScannedValues]
+
     scannedValues.values.size() shouldEqual 1
   }
 }

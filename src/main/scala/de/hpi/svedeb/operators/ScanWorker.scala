@@ -51,11 +51,11 @@ class ScanWorker(partition: ActorRef) extends Actor with ActorLogging {
   }
 
   def storePartialResult(state: ScanJobState, columnName: String, values: ColumnType): Unit = {
-    log.info("Storing partial result.")
+    log.info("Storing partial result for column {}.", columnName)
     val newState = state.addResultForColumn(columnName, values)
     context.become(active(newState))
 
-    if (newState.result.size == newState.columnRefs.size) {
+    if (newState.result.size == newState.columnRefs.get.size) {
       log.info("Received all partial results.")
       // We received all results for the columns
       val partition = context.actorOf(Partition.props(newState.result, 10))
