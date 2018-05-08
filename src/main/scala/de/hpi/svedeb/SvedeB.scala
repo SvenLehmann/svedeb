@@ -18,7 +18,7 @@ object SvedeB {
 class SvedeB extends Actor with ActorLogging {
 
   private val tableManager = context.actorOf(TableManager.props())
-  private val api = context.actorOf(API.props())
+  private val api = context.actorOf(API.props(tableManager))
 
   override def receive: Receive = {
     case Shutdown() => ???

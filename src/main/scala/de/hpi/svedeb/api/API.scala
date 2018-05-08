@@ -1,11 +1,11 @@
 package de.hpi.svedeb.api
 
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 
 object API {
-  def props(): Props = Props(new API())
+  def props(tableManager: ActorRef): Props = Props(new API(tableManager))
 }
 
-class API extends Actor with ActorLogging {
+class API(tableManager: ActorRef) extends Actor with ActorLogging {
   override def receive: Receive = ???
 }
