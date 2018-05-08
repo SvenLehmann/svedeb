@@ -10,7 +10,7 @@ import org.scalatest.Matchers._
 class PartitionTest extends AbstractActorTest("PartitionTest") {
 
   "A partition actor" should "be initialized with columns" in {
-    val column = TestProbe("someColumn")
+    val column = TestProbe("SomeColumn")
     val partition = system.actorOf(Partition.props(Seq("someColumn")))
 
     partition ! ListColumnNames()
@@ -29,7 +29,7 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "return its columns names" in {
-    val column = TestProbe("someColumn")
+    val column = TestProbe("SomeColumn")
     val partition = system.actorOf(Partition.props(Seq("someColumn")))
 
     partition ! ListColumnNames()

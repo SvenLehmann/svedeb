@@ -1,12 +1,12 @@
 package de.hpi.svedeb.operators
 
 import akka.actor.{ActorRef, Props}
-import de.hpi.svedeb.management.TableManager.{AddTable, RemoveTable, TableAdded, TableRemoved}
+import de.hpi.svedeb.management.TableManager.{RemoveTable, TableRemoved}
 import de.hpi.svedeb.operators.AbstractOperatorWorker.{Execute, QueryResult}
 import de.hpi.svedeb.operators.CreateTableOperator.State
 
 object DropTableOperator {
-  def props(tableManager: ActorRef, tableName: String, columnNames: Seq[String]): Props = Props(new CreateTableOperator(tableManager, tableName, columnNames))
+  def props(tableManager: ActorRef, tableName: String): Props = Props(new DropTableOperator(tableManager, tableName))
 
   case class State(sender: ActorRef)
 }

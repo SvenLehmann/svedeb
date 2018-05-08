@@ -11,7 +11,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 
   // TODO: This test should not actually invoke the whole query execution
   "An APIWorker" should "query an empty table" in {
-    val tableManager = TestProbe()
+    val tableManager = TestProbe("TableManager")
     val table = system.actorOf(Table.props(Seq("a", "b"), 10))
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {

@@ -11,8 +11,8 @@ import org.scalatest.Matchers._
 class GetTableOperatorTest extends AbstractActorTest("GetTableOperator") {
 
   "A GetTableOperator" should "retrieve a table" in {
-    val tableManager = TestProbe()
-    val table = TestProbe()
+    val tableManager = TestProbe("TableManager")
+    val table = TestProbe("Table")
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case FetchTable(_) => sender ! TableFetched(table.ref); TestActor.KeepRunning

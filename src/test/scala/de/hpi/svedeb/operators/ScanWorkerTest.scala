@@ -13,13 +13,13 @@ import org.scalatest.Matchers._
 // TODO: Consider splitting up this test into multiple smaller ones that do not have so many dependencies
 class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
   "A scan worker" should "return scanned partition" in {
-    val column = TestProbe()
+    val column = TestProbe("Column")
     column.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ScanColumn(indizes) => sender ! ScannedValues("columnA", ColumnType(IndexedSeq("a", "b"))); TestActor.KeepRunning
       case FilterColumn(predicate) ⇒ sender ! FilteredRowIndizes(Seq(0, 1)); TestActor.KeepRunning
     })
 
-    val partition = TestProbe()
+    val partition = TestProbe("Partition")
     partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case GetColumns() ⇒ sender ! ColumnsRetrieved(Map("columnA" -> column.ref)); TestActor.KeepRunning
     })
@@ -38,18 +38,18 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
   }
 
   it should "return filtered partition" in {
-    val columnA = TestProbe()
+    val columnA = TestProbe("ColumnA")
     columnA.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ScanColumn(indizes) => sender ! ScannedValues("columnA", ColumnType(IndexedSeq("b"))); TestActor.KeepRunning
       case FilterColumn(predicate) ⇒ sender ! FilteredRowIndizes(Seq(1)); TestActor.KeepRunning
     })
 
-    val columnB = TestProbe()
+    val columnB = TestProbe("ColumnB")
     columnB.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ScanColumn(indizes) => sender ! ScannedValues("columnB", ColumnType(IndexedSeq("d"))); TestActor.KeepRunning
     })
 
-    val partition = TestProbe()
+    val partition = TestProbe("Partition")
     partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case GetColumns() ⇒ {
         val columnMap = Map("columnA" -> columnA.ref, "columnB" -> columnB.ref)
