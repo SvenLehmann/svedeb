@@ -1,7 +1,7 @@
 package de.hpi.svedeb.queryplan
 
 object QueryPlan {
-  abstract case class QueryPlanNode()
+  abstract class QueryPlanNode()
   case class GetTable(tableName: String) extends QueryPlanNode
   case class Scan(input: QueryPlanNode, columnName: String, predicate: String => Boolean) extends QueryPlanNode
 
