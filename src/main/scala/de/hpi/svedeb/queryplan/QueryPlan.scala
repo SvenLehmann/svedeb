@@ -28,53 +28,97 @@ object QueryPlan {
 
     // Not needed at the moment but got the feeling it could be useful
     def findNextStepWithException(actor: ActorRef): QueryPlanNode = {
-      val excludedNode = findNodeWithWorker(actor)
+//      val excludedNode = findNodeWithWorker(actor)
       this match {
         case GetTable(_) =>
-          if (resultTable == ActorRef.noSender && !this.equals(excludedNode)) this
+          if (resultTable == ActorRef.noSender && !assignedWorker.equals(actor)) this
           else EmptyNode()
         case Scan(input, _, _) =>
-          if (resultTable == ActorRef.noSender) input.findNextStep()
+          if (resultTable == ActorRef.noSender) handleNestingWithException(input, actor)
           else EmptyNode()
         case DropTable(_) =>
-          if (resultTable == ActorRef.noSender && !this.equals(excludedNode)) this
+          if (resultTable == ActorRef.noSender && !assignedWorker.equals(actor)) this
+          else EmptyNode()
+        case CreateTable(_, _) =>
+          if (resultTable == ActorRef.noSender && !assignedWorker.equals(actor)) this
           else EmptyNode()
         case EmptyNode() => EmptyNode()
       }
     }
 
     def findNodeWithWorker(workerRef: ActorRef): QueryPlanNode = {
-      // TODO: I dont think this behaves as I planned it to. Validate!
       if (assignedWorker == workerRef) {
         return this
       }
 
       this match {
-        case GetTable(_) =>
-          if (assignedWorker.equals(workerRef)) this
-          else EmptyNode()
-        case Scan(input, _, _) =>
-          if (assignedWorker == workerRef) input.findNodeWithWorker(workerRef)
-          else EmptyNode()
-        case EmptyNode() => this
+        case Scan(input, _, _) => input.findNodeWithWorker(workerRef)
+        case InsertRow(table, _) => table.findNodeWithWorker(workerRef)
+        case _ => throw new Exception("Smthg went wrong")
       }
+    }
+
+    def nextStage(lastWorker: ActorRef, resultTable: ActorRef, nextWorker: ActorRef, nextStep: QueryPlanNode): QueryPlanNode = {
+      updateAssignedWorker(nextWorker, nextStep)
+      saveIntermediateResult(lastWorker, resultTable)
+      this
     }
 
     def saveIntermediateResult(worker: ActorRef, intermediateResult: ActorRef): QueryPlanNode = {
       val node = findNodeWithWorker(worker)
-      node.resultTable = intermediateResult
+      if (node == this) {
+        resultTable = intermediateResult
+      } else {
+        node.saveIntermediateResult(worker, intermediateResult)
+      }
       this
     }
 
-    def updateAssignedWorker(worker: ActorRef): QueryPlanNode = {
-      assignedWorker = worker
+    def updateAssignedWorker(worker: ActorRef, node: QueryPlanNode): QueryPlanNode = {
+      val foundNode: QueryPlanNode = findNode(node)
+      foundNode.updateAssignedWorker(worker)
       this
+    }
+
+    def updateAssignedWorker(worker: ActorRef) : Unit = {
+      assignedWorker = worker
+    }
+
+    def findNode(node: QueryPlanNode): QueryPlanNode = {
+      this match {
+        case GetTable(_) =>
+          if (this == node) this
+          else EmptyNode()
+        case Scan(input, _, _) =>
+          if (this == node) this
+          else input.findNode(node)
+        case CreateTable(_, _) =>
+          if (this == node) this
+          else EmptyNode()
+        case DropTable(_) =>
+          if (this == node) this
+          else EmptyNode()
+        case InsertRow(table, _) =>
+          if (this == node) this
+          else table.findNode(node)
+        case EmptyNode() => this
+      }
     }
 
     def handleNesting(input: QueryPlanNode): QueryPlanNode = {
       val nextStep = input.findNextStep()
       nextStep match {
         case EmptyNode() => this
+        case _ => nextStep
+      }
+    }
+
+    def handleNestingWithException(input: QueryPlanNode, actorRef: ActorRef): QueryPlanNode = {
+      val nextStep = input.findNextStepWithException(actorRef)
+      nextStep match {
+        case EmptyNode() =>
+          if (assignedWorker != actorRef) this
+          else EmptyNode()
         case _ => nextStep
       }
     }

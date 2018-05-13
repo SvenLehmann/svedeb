@@ -13,19 +13,24 @@ object QueryPlanExecutor {
   case class QueryFinished(resultTable: ActorRef)
 
   private case class APIWorkerState(queryPlan: QueryPlanNode, sender: ActorRef) {
-    def saveIntermediateResult(currentWorker: ActorRef, resultTable: ActorRef): APIWorkerState = {
+    /*def saveIntermediateResult(currentWorker: ActorRef, resultTable: ActorRef): APIWorkerState = {
       val newQueryPlan = queryPlan.saveIntermediateResult(currentWorker, resultTable)
       APIWorkerState(newQueryPlan, sender)
     }
 
     def assignWorker(worker: ActorRef, node: QueryPlanNode): APIWorkerState = {
-      val newQueryPlan = node.updateAssignedWorker(worker)
+      val newQueryPlan = queryPlan.updateAssignedWorker(worker, node)
       APIWorkerState(newQueryPlan, sender)
+    }*/
+
+    def assignWorkerAndSender(worker: ActorRef, node: QueryPlanNode, initialQueryPlan: QueryPlanNode, newSender: ActorRef): APIWorkerState = {
+      val newQueryPlan = initialQueryPlan.updateAssignedWorker(worker, node)
+      APIWorkerState(newQueryPlan, newSender)
     }
 
-    def assignWorkerAndSender(worker: ActorRef, node: QueryPlanNode, newSender: ActorRef): APIWorkerState = {
-      val newQueryPlan = node.updateAssignedWorker(worker)
-      APIWorkerState(newQueryPlan, newSender)
+    def nextStage(lastWorker: ActorRef, resultTable: ActorRef, nextWorker: ActorRef, nextStep: QueryPlanNode): APIWorkerState = {
+      val newQueryPlan = queryPlan.nextStage(lastWorker, resultTable, nextWorker, nextStep)
+      APIWorkerState(newQueryPlan, sender)
     }
   }
 
@@ -43,42 +48,40 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
     var operator: ActorRef = ActorRef.noSender
     nextStep match {
       case GetTable(tableName: String) =>
-        operator = context.actorOf(GetTableOperator.props(tableManager, tableName), name = "tableOperator")
+        operator = context.actorOf(GetTableOperator.props(tableManager, tableName), name = "getTableOperator")
       case CreateTable(tableName: String, columnNames: List[String]) =>
-        operator = context.actorOf(CreateTableOperator.props(tableManager, tableName, columnNames))
+        operator = context.actorOf(CreateTableOperator.props(tableManager, tableName, columnNames), name = "createTableOperator")
       case DropTable(tableName: String) =>
-        operator = context.actorOf(DropTableOperator.props(tableManager, tableName))
+        operator = context.actorOf(DropTableOperator.props(tableManager, tableName), name = "dropTableOperator")
       case _ => throw new Exception("Incorrect first operator")
     }
     operator ! Execute()
-    val newState = state.assignWorkerAndSender(operator, queryPlan, sender())
+
+    val newState = state.assignWorkerAndSender(operator, nextStep, queryPlan, sender())
     context.become(active(newState))
   }
 
   def handleQueryResult(state: APIWorkerState, resultTable: ActorRef): Unit = {
     log.debug("handling query result")
 
-    val newState = state.saveIntermediateResult(sender(), resultTable)
-    context.become(active(newState))
-
-//    val nextStep = state.queryPlan.findNextStepWithException(sender())
-    val nextStep = state.queryPlan.findNextStep()
+    val nextStep = state.queryPlan.findNextStepWithException(sender())
+//    val nextStep = state.queryPlan.findNextStep()
+    var operator = ActorRef.noSender
     nextStep match {
       case Scan(input: QueryPlanNode, columnName: String, predicate: (String => Boolean)) =>
-        val scanOperator = context.actorOf(ScanOperator.props(resultTable, columnName, predicate))
-        scanOperator ! Execute()
+        operator = context.actorOf(ScanOperator.props(resultTable, columnName, predicate))
       case InsertRow(table: QueryPlanNode, row: RowType) =>
-        val scanOperator = context.actorOf(InsertRowOperator.props(resultTable, row))
-        scanOperator ! Execute()
+        operator = context.actorOf(InsertRowOperator.props(resultTable, row))
       case EmptyNode() =>
         log.debug("sender: {}", state.sender)
-        state.sender ! QueryFinished(state.queryPlan.resultTable)
+        state.sender ! QueryFinished(resultTable)
+        return
       case _ => throw new Exception("Incorrect operator")
     }
-
-    // TODO: not sure if that overrides the new state from before
-    val newState2 = state.assignWorker(sender(), nextStep)
-    context.become(active(newState2))
+    operator ! Execute()
+    // TODO: second sender is probably not correct here
+    val newState = state.nextStage(sender(), resultTable, operator, nextStep)
+    context.become(active(newState))
   }
 
   private def active(state: APIWorkerState): Receive = {

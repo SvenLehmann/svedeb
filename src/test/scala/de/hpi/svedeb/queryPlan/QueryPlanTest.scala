@@ -1,5 +1,6 @@
 package de.hpi.svedeb.queryPlan
 
+import akka.actor.ActorRef
 import akka.testkit.TestProbe
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.queryplan.QueryPlan.{GetTable, Scan}
@@ -26,6 +27,9 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     secondNode.saveIntermediateResult(worker.ref, table.ref)
 
     assert(thirdNode.findNextStep() == thirdNode)
+
+    val newNode = Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y")
+    assert(newNode.findNextStep().isInstanceOf[GetTable])
   }
 
   it should "update the assigned worker" in {
@@ -44,5 +48,29 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     node.saveIntermediateResult(worker.ref, table.ref)
 
     assert(node.resultTable == table.ref)
+  }
+
+  it should "enter next stage" in {
+    val firstNode = GetTable("s")
+    val secondNode = Scan(firstNode, "a", _ => true)
+    val worker = TestProbe("worker")
+    val table = TestProbe("table")
+
+    firstNode.nextStage(worker.ref, table.ref, worker.ref, firstNode)
+    assert(firstNode.assignedWorker == worker.ref)
+    assert(firstNode.resultTable == table.ref)
+
+    secondNode.nextStage(worker.ref, table.ref, worker.ref, firstNode)
+    assert(firstNode.resultTable == table.ref)
+  }
+
+  it should "find node with sender" in {
+    val firstNode = GetTable("s")
+    val secondNode = Scan(firstNode, "a", _ => true)
+    val worker = TestProbe("worker")
+
+    firstNode.assignedWorker = worker.ref
+    assert(firstNode.findNodeWithWorker(worker.ref) == firstNode)
+    assert(secondNode.findNodeWithWorker(worker.ref) == firstNode)
   }
 }

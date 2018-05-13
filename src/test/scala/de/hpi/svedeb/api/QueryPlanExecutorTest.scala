@@ -10,6 +10,7 @@ import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Table.{ActorsForColumn, GetColumnFromTable}
 import de.hpi.svedeb.table.{ColumnType, Partition, RowType, Table}
 import org.scalatest.Matchers._
+import scala.concurrent.duration._
 
 class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 
@@ -24,29 +25,29 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
       case RemoveTable(_) => sender ! TableRemoved(); TestActor.KeepRunning
     })
 
-//    val queryPlan = Scan(GetTable("SomeTable"), "a", _ => true)
+    val queryPlan = Scan(GetTable("SomeTable"), "a", _ => true)
 //    val queryPlan = GetTable("S")
 //    val queryPlan = CreateTable("SomeOtherTable", Seq("x", "y"))
 //    val queryPlan = DropTable("SomeTable")
 //    val queryPlan = InsertRow(GetTable("SomeTable"), RowType("elementA", "elementB"))
-    val queryPlan = Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y")
+//    val queryPlan = Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y")
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref), name = "queryPlanExecutor")
     apiWorker ! Run(queryPlan)
 
-    val query = expectMsgType[QueryFinished]
+    val query = expectMsgType[QueryFinished](90 seconds)
   }
 
   it should "create an empty table" in {
     val tableManager = TestProbe("TableManager")
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case AddTable(_, _) => sender ! TableAdded(ActorRef.noSender); TestActor.KeepRunning
+      case AddTable(_, _) => sender ! TableAdded(system.actorOf(Table.props(Seq("a"), 10))); TestActor.KeepRunning
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
     apiWorker ! Run(CreateTable("SomeTable", Seq("a", "b")))
 
-    val query = expectMsgType[QueryFinished]
+    val query = expectMsgType[QueryFinished](60 seconds)
   }
 
   it should "query a non-empty table" in {
@@ -59,17 +60,9 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
-//    apiWorker ! Run(Vector(GetTable("SomeTable"), Scan("a", x => x == "x"), Scan("b", x => x == "y")))
+    apiWorker ! Run(Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y"))
 
-    val resultTable = expectMsgType[QueryFinished]
-    resultTable.resultTable ! GetColumnFromTable("a")
-
-    val resultColumnA = expectMsgType[ActorsForColumn]
-    resultColumnA.columnActors.head ! ScanColumn(None)
-
-    val contentColumnA = expectMsgType[ScannedValues]
-    contentColumnA.values.values.size shouldEqual 1
-    contentColumnA.values.values.head shouldEqual "x"
+    val resultTable = expectMsgType[QueryFinished](90 seconds)
 
     resultTable.resultTable ! GetColumnFromTable("b")
 
@@ -79,6 +72,17 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     val contentColumnB= expectMsgType[ScannedValues]
     contentColumnB.values.values.size shouldEqual 1
     contentColumnB.values.values.head shouldEqual "y"
+
+    resultTable.resultTable ! GetColumnFromTable("a")
+
+    val resultColumnA = expectMsgType[ActorsForColumn]
+    resultColumnA.columnActors.head ! ScanColumn(None)
+
+    val contentColumnA = expectMsgType[ScannedValues]
+    contentColumnA.values.values.size shouldEqual 1
+    contentColumnA.values.values.head shouldEqual "x"
+
+
 
   }
 }
