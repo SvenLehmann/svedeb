@@ -4,11 +4,11 @@ import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.api.QueryPlanExecutor.{QueryFinished, Run}
-import de.hpi.svedeb.management.TableManager.{AddTable, FetchTable, TableAdded, TableFetched}
-import de.hpi.svedeb.queryplan.QueryPlan.{CreateTable, GetTable, Scan}
+import de.hpi.svedeb.management.TableManager._
+import de.hpi.svedeb.queryplan.QueryPlan._
 import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Table.{ActorsForColumn, GetColumnFromTable}
-import de.hpi.svedeb.table.{ColumnType, Partition, Table}
+import de.hpi.svedeb.table.{ColumnType, Partition, RowType, Table}
 import org.scalatest.Matchers._
 
 class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
@@ -16,14 +16,22 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
   // TODO: This test should not actually invoke the whole query execution
   "An APIWorker" should "query an empty table" in {
     val tableManager = TestProbe("TableManager")
-    val table = system.actorOf(Table.props(Seq("a", "b"), 10))
+    val table = system.actorOf(Table.props(Seq("a", "b"), 10), name = "table")
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case FetchTable(_) => sender ! TableFetched(table); TestActor.KeepRunning
+      case AddTable(_, _) => sender ! TableAdded(table); TestActor.KeepRunning
+      case RemoveTable(_) => sender ! TableRemoved(); TestActor.KeepRunning
     })
 
-    val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
-    apiWorker ! Run(Vector(GetTable("SomeTable"), Scan("a", _ => true)))
+//    val queryPlan = Scan(GetTable("SomeTable"), "a", _ => true)
+//    val queryPlan = GetTable("S")
+//    val queryPlan = CreateTable("SomeOtherTable", Seq("x", "y"))
+//    val queryPlan = DropTable("SomeTable")
+//    val queryPlan = InsertRow(GetTable("SomeTable"), RowType("elementA", "elementB"))
+    val queryPlan = Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y")
+    val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref), name = "queryPlanExecutor")
+    apiWorker ! Run(queryPlan)
 
     val query = expectMsgType[QueryFinished]
   }
@@ -36,7 +44,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
-    apiWorker ! Run(Vector(CreateTable("SomeTable", Seq("a", "b"))))
+    apiWorker ! Run(CreateTable("SomeTable", Seq("a", "b")))
 
     val query = expectMsgType[QueryFinished]
   }
@@ -51,7 +59,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
-    apiWorker ! Run(Vector(GetTable("SomeTable"), Scan("a", x => x == "x"), Scan("b", x => x == "y")))
+//    apiWorker ! Run(Vector(GetTable("SomeTable"), Scan("a", x => x == "x"), Scan("b", x => x == "y")))
 
     val resultTable = expectMsgType[QueryFinished]
     resultTable.resultTable ! GetColumnFromTable("a")

@@ -4,6 +4,7 @@ import akka.actor.{ActorRef, Props}
 import de.hpi.svedeb.management.TableManager.{RemoveTable, TableRemoved}
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.DropTableOperator.State
+import de.hpi.svedeb.table.EmptyTable
 
 object DropTableOperator {
   def props(tableManager: ActorRef, tableName: String): Props = Props(new DropTableOperator(tableManager, tableName))
@@ -22,7 +23,7 @@ class DropTableOperator(tableManager: ActorRef, tableName: String) extends Abstr
   }
 
   def handleTableAdded(state: State): Unit = {
-    state.sender ! QueryResult(ActorRef.noSender)
+    state.sender ! QueryResult(context.actorOf(EmptyTable.props()))
   }
 
   def active(state: State): Receive = {
