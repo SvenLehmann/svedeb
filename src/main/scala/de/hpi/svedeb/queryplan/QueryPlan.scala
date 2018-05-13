@@ -11,7 +11,7 @@ object QueryPlan {
           if (resultTable == ActorRef.noSender) this
           else EmptyNode()
         case Scan(input, _, _) =>
-          if (resultTable == ActorRef.noSender) input.findNextStep()
+          if (resultTable == ActorRef.noSender) handleNesting(input)
           else EmptyNode()
         case CreateTable(_, _) =>
           if (resultTable == ActorRef.noSender) this
@@ -20,7 +20,7 @@ object QueryPlan {
           if (resultTable == ActorRef.noSender) this
           else EmptyNode()
         case InsertRow(table, _) =>
-          if (resultTable == ActorRef.noSender) table.findNextStep()
+          if (resultTable == ActorRef.noSender) handleNesting(table)
           else EmptyNode()
         case EmptyNode() => this
       }
@@ -69,6 +69,14 @@ object QueryPlan {
     def updateAssignedWorker(worker: ActorRef): QueryPlanNode = {
       assignedWorker = worker
       this
+    }
+
+    def handleNesting(input: QueryPlanNode): QueryPlanNode = {
+      val nextStep = input.findNextStep()
+      nextStep match {
+        case EmptyNode() => this
+        case _ => nextStep
+      }
     }
   }
   case class GetTable(tableName: String) extends QueryPlanNode
