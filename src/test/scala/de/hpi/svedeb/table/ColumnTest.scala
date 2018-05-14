@@ -6,26 +6,26 @@ import de.hpi.svedeb.table.Column._
 class ColumnTest extends AbstractActorTest("ColumnTest") {
 
   "A column actor" should "be empty at start" in {
-    val column = system.actorOf(Column.props("SomeColumnName"))
+    val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! FilterColumn(_ => true)
     expectMsg(FilteredRowIndizes(Seq.empty[Int]))
   }
 
   it should "be initialized with values" in {
-    val column = system.actorOf(Column.props("SomeColumnName", ColumnType("a", "b")))
+    val column = system.actorOf(Column.props(0, "SomeColumnName", ColumnType("a", "b")))
     column ! ScanColumn(None)
     expectMsgPF(){ case m: ScannedValues => m.values.size() == 2 && m.values == Seq("a", "b")}
   }
 
   it should "insert a new value" in {
-    val column = system.actorOf(Column.props("SomeColumnName"))
+    val column = system.actorOf(Column.props(0, "SomeColumnName"))
 
     column ! AppendValue("SomeValue")
     expectMsg(ValueAppended())
   }
 
   it should "filter its values" in {
-    val column = system.actorOf(Column.props("SomeColumnName"))
+    val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! AppendValue("value1")
     column ! AppendValue("value2")
     column ! AppendValue("value3")
@@ -38,7 +38,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
   }
 
   it should "scan its values with indizes" in {
-    val column = system.actorOf(Column.props("SomeColumnName"))
+    val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! AppendValue("value1")
     column ! AppendValue("value2")
     column ! AppendValue("value3")
@@ -51,7 +51,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
   }
 
   it should "scan its values without indizes" in {
-    val column = system.actorOf(Column.props("SomeColumnName"))
+    val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! AppendValue("value1")
     column ! AppendValue("value2")
     column ! AppendValue("value3")
@@ -64,7 +64,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
   }
 
   it should "return column size" in {
-    val column = system.actorOf(Column.props("SomeColumnName"))
+    val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! AppendValue("value1")
     column ! AppendValue("value2")
     column ! AppendValue("value3")

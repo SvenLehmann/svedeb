@@ -24,7 +24,7 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
       case GetColumns() ⇒ sender ! ColumnsRetrieved(Map("columnA" -> column.ref)); TestActor.KeepRunning
     })
 
-    val scanWorker = system.actorOf(ScanWorker.props(partition.ref))
+    val scanWorker = system.actorOf(ScanWorker.props(partition.ref, 0))
 
     scanWorker ! ScanJob("columnA", _ => true)
     val workerResult = expectMsgType[ScanWorkerResult]
@@ -57,7 +57,7 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
       }; TestActor.KeepRunning
     })
 
-    val scanWorker = system.actorOf(ScanWorker.props(partition.ref))
+    val scanWorker = system.actorOf(ScanWorker.props(partition.ref, 0))
 
     scanWorker ! ScanJob("columnA", value => value == "b")
     val workerResult = expectMsgType[ScanWorkerResult]

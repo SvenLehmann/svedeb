@@ -1,5 +1,6 @@
 package de.hpi.svedeb.table
 
+import akka.actor.ActorRef
 import akka.actor.Status.Failure
 import akka.testkit.TestProbe
 import de.hpi.svedeb.AbstractActorTest
@@ -11,14 +12,14 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
 
   "A partition actor" should "be initialized with columns" in {
     val column = TestProbe("SomeColumn")
-    val partition = system.actorOf(Partition.props(Seq("someColumn")))
+    val partition = system.actorOf(Partition.props(0, Seq("someColumn")))
 
     partition ! ListColumnNames()
     assert(expectMsgPF() { case m: ColumnNameList => m.columns.size == 1 })
   }
 
   it should "be initialized with values" in {
-    val partition = system.actorOf(Partition.props(Map("someColumn" -> ColumnType("a")), 10))
+    val partition = system.actorOf(Partition.props(0, Map("someColumn" -> ColumnType("a")), 10))
 
     partition ! GetColumns()
     val nameList = expectMsgType[ColumnsRetrieved]
@@ -30,14 +31,14 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
 
   it should "return its columns names" in {
     val column = TestProbe("SomeColumn")
-    val partition = system.actorOf(Partition.props(Seq("someColumn")))
+    val partition = system.actorOf(Partition.props(0, Seq("someColumn")))
 
     partition ! ListColumnNames()
     assert(expectMsgPF() { case m: ColumnNameList => m.columns.size == 1 })
   }
 
   it should "return a column ref" in {
-    val partition = system.actorOf(Partition.props(Seq("someColumn", "someOtherColumn")))
+    val partition = system.actorOf(Partition.props(0, Seq("someColumn", "someOtherColumn")))
 
     partition ! GetColumn("someOtherColumn")
     assert(expectMsgPF() { case m: ColumnRetrieved =>
@@ -47,41 +48,42 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "add a row with one column" in {
-    val partition = system.actorOf(Partition.props(Seq("someColumn")))
+    val partition = system.actorOf(Partition.props(0, Seq("someColumn")))
 
-    partition ! AddRow(RowType("someValue"))
-    expectMsg(RowAdded())
+    partition ! AddRow(RowType("someValue"), ActorRef.noSender)
+    expectMsg(RowAdded(ActorRef.noSender))
   }
 
   it should "add a row with multiple columns" in {
-    val partition = system.actorOf(Partition.props(Seq("column1", "column2")))
+    val partition = system.actorOf(Partition.props(0, Seq("column1", "column2")))
 
-    partition ! AddRow(RowType("value1", "value2"))
-    expectMsg(RowAdded())
+    partition ! AddRow(RowType("value1", "value2"), ActorRef.noSender)
+    expectMsg(RowAdded(ActorRef.noSender))
   }
 
   it should "add multiple rows with multiple columns" in {
-    val partition = system.actorOf(Partition.props(Seq("column1", "column2")))
+    val partition = system.actorOf(Partition.props(0, Seq("column1", "column2")))
 
-    partition ! AddRow(RowType("value1", "value2"))
-    partition ! AddRow(RowType("value3", "value4"))
-    expectMsg(RowAdded())
-    expectMsg(RowAdded())
+    partition ! AddRow(RowType("value1", "value2"), ActorRef.noSender)
+    partition ! AddRow(RowType("value3", "value4"), ActorRef.noSender)
+    expectMsg(RowAdded(ActorRef.noSender))
+    expectMsg(RowAdded(ActorRef.noSender))
   }
 
   it should "return Partition Full" in {
-    val partition = system.actorOf(Partition.props(Seq("column1", "column2"), 1))
+    val partition = system.actorOf(Partition.props(0, Seq("column1", "column2"), 1))
 
-    partition ! AddRow(RowType("value1", "value2"))
-    expectMsg(RowAdded())
+    partition ! AddRow(RowType("value1", "value2"), ActorRef.noSender)
+    expectMsg(RowAdded(ActorRef.noSender))
 
-    partition ! AddRow(RowType("value3", "value4"))
-    expectMsg(PartitionFull())
+    val row = RowType("value3", "value4")
+    partition ! AddRow(row, ActorRef.noSender)
+    expectMsg(PartitionFull(row, ActorRef.noSender))
   }
 
   it should "throw an error when row is added that does not match table columns" in {
-    val partition = system.actorOf(Partition.props())
-    partition ! AddRow(RowType("someValue"))
+    val partition = system.actorOf(Partition.props(0))
+    partition ! AddRow(RowType("someValue"), ActorRef.noSender)
     expectMsgType[Failure]
   }
 

@@ -32,7 +32,7 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
   // Initialize with single partition
   override def receive: Receive = {
     if (initialPartitions.isEmpty) {
-      val newPartition = context.actorOf(Partition.props(columnNames, partitionSize), "partition0")
+      val newPartition = context.actorOf(Partition.props(0, columnNames, partitionSize), "partition0")
       active(Seq(newPartition))
     } else {
       active(initialPartitions)
@@ -40,10 +40,20 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
   }
 
   private def active(partitions: Seq[ActorRef]): Receive = {
-    case AddRowToTable(row) => addRow(partitions, row)
+    case AddRowToTable(row) => partitions.last ! AddRow(row, sender())
     case ListColumnsInTable() => sender() ! listColumns()
     case GetColumnFromTable(columnName) => pipe(getColumns(partitions, columnName)) to sender()
     case GetPartitions() => sender() ! PartitionsInTable(partitions)
+    case RowAdded(originalSender) =>
+      log.info("Adding to existing partition")
+      originalSender ! RowAddedToTable()
+    case PartitionFull(row, originalSender) =>
+      log.info("Creating new partition")
+      val newPartitionId = partitions.size
+      val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize), "partition" + newPartitionId)
+      val updatedPartitions = partitions :+ newPartition
+      context.become(active(updatedPartitions))
+      newPartition ! AddRow(row, originalSender)
     case x => log.error("Message not understood: {}", x)
   }
 
@@ -60,30 +70,6 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
     val foo = Future.sequence(listOfFutures)
     val bar = foo.map(list => list.map(c => c.column)).map(c => ActorsForColumn(c))
     bar
-  }
-
-  private def addRow(partitions: Seq[ActorRef], row: RowType): Unit = {
-    log.debug("Going to add row to table: {}", row)
-    tryToAddRow(sender(), partitions, row)
-  }
-
-  private def tryToAddRow(sender: ActorRef, partitions: Seq[ActorRef], row: RowType): Unit = {
-    import scala.concurrent.duration._
-    implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
-
-    val response = ask(partitions.last, AddRow(row))
-    response.foreach {
-      case RowAdded() =>
-        log.info("Adding to existing partition")
-        sender ! RowAddedToTable()
-      case PartitionFull() =>
-        log.info("Creating new partition")
-        val newPartitionId = partitions.size
-        val newPartition = context.actorOf(Partition.props(columnNames, partitionSize), "partition" + newPartitionId)
-        val updatedPartitions = partitions :+ newPartition
-        context.become(active(updatedPartitions))
-        tryToAddRow(sender, updatedPartitions, row)
-    }
   }
 }
 

@@ -22,10 +22,10 @@ object ScanWorker {
     }
   }
 
-  def props(partition: ActorRef): Props = Props(new ScanWorker(partition))
+  def props(partition: ActorRef, partitionId: Int): Props = Props(new ScanWorker(partition, partitionId))
 }
 
-class ScanWorker(partition: ActorRef) extends Actor with ActorLogging {
+class ScanWorker(partition: ActorRef, partitionId: Int) extends Actor with ActorLogging {
 
   override def receive: Receive = active(State(None, None, None, None))
 
@@ -58,7 +58,7 @@ class ScanWorker(partition: ActorRef) extends Actor with ActorLogging {
     if (newState.result.size == newState.columnRefs.get.size) {
       log.info("Received all partial results.")
       // We received all results for the columns
-      val partition = context.actorOf(Partition.props(newState.result, 10))
+      val partition = context.actorOf(Partition.props(partitionId, newState.result, 10))
       newState.sender.get ! ScanWorkerResult(partition)
     }
   }

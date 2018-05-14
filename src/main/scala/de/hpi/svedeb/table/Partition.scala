@@ -12,28 +12,28 @@ object Partition {
   case class ListColumnNames()
   case class GetColumn(name: String)
   case class GetColumns()
-  case class AddRow(row: RowType)
+  case class AddRow(row: RowType, originalSender: ActorRef)
 
   // Result events
   case class ColumnNameList(columns: Seq[String])
   case class ColumnRetrieved(column: ActorRef)
   case class ColumnsRetrieved(columns: Map[String, ActorRef])
-  case class RowAdded()
-  case class PartitionFull()
+  case class RowAdded(originalSender: ActorRef)
+  case class PartitionFull(row: RowType, originalSender: ActorRef)
 
-  def props(columnNames: Seq[String] = Seq.empty[String], partitionSize: Int = 10): Props = {
+  def props(id: Int, columnNames: Seq[String] = Seq.empty[String], partitionSize: Int = 10): Props = {
     val columns = columnNames.map(name => (name, ColumnType())).toMap
-    Props(new Partition(columns, partitionSize))
+    Props(new Partition(id, columns, partitionSize))
   }
 
-  def props(columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(columns, partitionSize))
+  def props(id: Int, columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(id, columns, partitionSize))
 }
 
-class Partition(columns: Map[String, ColumnType], partitionSize: Int) extends Actor with ActorLogging {
+class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) extends Actor with ActorLogging {
   import context.dispatcher
 
   // Columns are initialized at actor creation time and cannot be mutated later on.
-  private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(name, values), name)) }
+  private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(id, name, values), name)) }
 
   override def receive: Receive = active(0)
 
@@ -45,7 +45,7 @@ class Partition(columns: Map[String, ColumnType], partitionSize: Int) extends Ac
     case ListColumnNames() => listColumns()
     case GetColumn(name) => retrieveColumn(name)
     case GetColumns() => retrieveColumns()
-    case AddRow(row) => tryToAddRow(rowCount, row)
+    case AddRow(row, originalSender) => tryToAddRow(rowCount, row, originalSender)
     case ValueAppended() => ()
     case x => log.error("Message not understood: {}", x)
   }
@@ -62,19 +62,19 @@ class Partition(columns: Map[String, ColumnType], partitionSize: Int) extends Ac
     sender() ! ColumnNameList(columnNames)
   }
 
-  private def tryToAddRow(rowCount: Int, row: RowType): Unit = {
+  private def tryToAddRow(rowCount: Int, row: RowType, originalSender: ActorRef): Unit = {
     if (rowCount >= partitionSize) {
       log.info("Partition full")
-      sender() ! PartitionFull()
+      sender() ! PartitionFull(row, originalSender)
     } else if (columnRefs.size != row.row.size) {
       val future = Future.failed(new Exception("Wrong number of columns"))
       pipe(future) to sender()
     } else {
-      addRow(rowCount, row)
+      addRow(rowCount, row, originalSender)
     }
   }
 
-  private def addRow(rowCount: Int, row: RowType): Unit = {
+  private def addRow(rowCount: Int, row: RowType, originalSender: ActorRef): Unit = {
     log.debug("Adding row to partition: {}", row)
 
     import scala.concurrent.duration._
@@ -90,7 +90,7 @@ class Partition(columns: Map[String, ColumnType], partitionSize: Int) extends Ac
       .map(f => {
         log.info("Received all column futures: {}", f)
         context.become(active(rowCount + 1))
-        RowAdded()
+        RowAdded(originalSender)
       })
 
     pipe(eventualRowAdded) to sender()

@@ -2,6 +2,7 @@ package de.hpi.svedeb.table
 
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.table.Table._
+import org.scalatest.Matchers._
 
 // TODO: Add Table test helper to create table from raw data
 class TableTest extends AbstractActorTest("TableTest") {
@@ -25,7 +26,7 @@ class TableTest extends AbstractActorTest("TableTest") {
   }
 
   it should "add a row" in {
-    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), 10))
+    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), 10), "table")
     table ! AddRowToTable(RowType("valueA", "valueB"))
     expectMsg(RowAddedToTable())
   }
@@ -54,19 +55,18 @@ class TableTest extends AbstractActorTest("TableTest") {
 
   }
 
-//  "A table with multiple partitions" should "return rows in correct order" in {
-//    val table = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1))
-//
-//    (1 to 10).foreach(rowId => table ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
-//    (1 to 10).foreach(_ => expectMsg(RowAddedToTable()))
-//
-//    table ! GetPartitions()
-//    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 10 })
+  it should "return rows in correct order" in {
+    val table = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1))
 
-//    table ! GetColumnFromTable("columnA")
-//    assert(expectMsgPF() { case m: ActorsForColumn =>
-//      m.columnActors.size == 10 && m.col
-//
-//    })
-//  }
+    (1 to 10).foreach(rowId => table ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
+    (1 to 10).foreach(_ => expectMsg(RowAddedToTable()))
+
+    table ! GetPartitions()
+    val partitions = expectMsgType[PartitionsInTable]
+    partitions.partitions.size shouldEqual 10
+
+    table ! GetColumnFromTable("columnA")
+    val columnActors = expectMsgType[ActorsForColumn]
+    columnActors.columnActors.size shouldEqual 10
+  }
 }

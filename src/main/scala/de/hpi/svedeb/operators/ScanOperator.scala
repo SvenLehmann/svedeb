@@ -43,7 +43,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     val newState = ScanState(state.sender, state.columnName, state.predicate, partitions.size, state.columnNames, state.results)
     context.become(active(newState))
 
-    partitions.map(partition => context.actorOf(ScanWorker.props(partition))).foreach(worker => worker ! ScanJob(state.columnName, state.predicate))
+    partitions.zipWithIndex.map{ case (partition, index) => context.actorOf(ScanWorker.props(partition, index)) }.foreach(worker => worker ! ScanJob(state.columnName, state.predicate))
   }
 
   private def storeColumnNames(state: ScanOperator.ScanState, columnNames: Seq[String]): Unit = {

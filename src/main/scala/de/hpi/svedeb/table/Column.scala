@@ -18,10 +18,10 @@ object Column {
   case class ColumnName(name: String)
   case class ColumnSize(size: Int)
 
-  def props(name: String, values: ColumnType = ColumnType()): Props = Props(new Column(name, values))
+  def props(partitionId: Int, name: String, values: ColumnType = ColumnType()): Props = Props(new Column(partitionId, name, values))
 }
 
-class Column(name: String, initialValues: ColumnType) extends Actor with ActorLogging {
+class Column(partitionId: Int, name: String, initialValues: ColumnType) extends Actor with ActorLogging {
   override def receive: Receive = active(initialValues)
 
   def filter(values: ColumnType, predicate: String => Boolean): Unit = {
