@@ -52,20 +52,19 @@ class TableTest extends AbstractActorTest("TableTest") {
   it should "fail to add wrong row definition" in {
     val table = system.actorOf(Table.props(Seq("columnA"), 2))
     table ! AddRowToTable(RowType("value1", "value2"))
-
   }
 
   it should "return rows in correct order" in {
-    val table = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1))
+    val orderTable = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1), "orderTable")
 
-    (1 to 10).foreach(rowId => table ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
+    (1 to 10).foreach(rowId => orderTable ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
     (1 to 10).foreach(_ => expectMsg(RowAddedToTable()))
 
-    table ! GetPartitions()
+    orderTable ! GetPartitions()
     val partitions = expectMsgType[PartitionsInTable]
     partitions.partitions.size shouldEqual 10
 
-    table ! GetColumnFromTable("columnA")
+    orderTable ! GetColumnFromTable("columnA")
     val columnActors = expectMsgType[ActorsForColumn]
     columnActors.columnActors.size shouldEqual 10
   }

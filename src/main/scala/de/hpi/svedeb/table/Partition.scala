@@ -27,6 +27,8 @@ object Partition {
   }
 
   def props(id: Int, columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(id, columns, partitionSize))
+
+  private case class PartitionState(processingInsert: Boolean, rowCount: Int)
 }
 
 class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) extends Actor with ActorLogging {
@@ -35,17 +37,19 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
   // Columns are initialized at actor creation time and cannot be mutated later on.
   private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(id, name, values), name)) }
 
-  override def receive: Receive = active(0)
+  override def receive: Receive = active(PartitionState(false, 0))
 
   def retrieveColumns(): Unit = {
     sender() ! ColumnsRetrieved(columnRefs)
   }
 
-  private def active(rowCount: Int): Receive = {
+  private def active(state: PartitionState): Receive = {
     case ListColumnNames() => listColumns()
     case GetColumn(name) => retrieveColumn(name)
     case GetColumns() => retrieveColumns()
-    case AddRow(row, originalSender) => tryToAddRow(rowCount, row, originalSender)
+    case AddRow(row, originalSender) =>
+      if (state.processingInsert) self ! AddRow(row, originalSender)
+      else tryToAddRow(state, row, originalSender)
     case ValueAppended() => ()
     case x => log.error("Message not understood: {}", x)
   }
@@ -62,19 +66,21 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
     sender() ! ColumnNameList(columnNames)
   }
 
-  private def tryToAddRow(rowCount: Int, row: RowType, originalSender: ActorRef): Unit = {
-    if (rowCount >= partitionSize) {
-      log.info("Partition full")
+  private def tryToAddRow(state: PartitionState, row: RowType, originalSender: ActorRef): Unit = {
+    if (state.rowCount >= partitionSize) {
+      log.info("Partition full {}", row.row)
       sender() ! PartitionFull(row, originalSender)
     } else if (columnRefs.size != row.row.size) {
       val future = Future.failed(new Exception("Wrong number of columns"))
       pipe(future) to sender()
     } else {
-      addRow(rowCount, row, originalSender)
+      val newState = PartitionState(true, state.rowCount)
+      context.become(active(newState))
+      addRow(state, row, originalSender)
     }
   }
 
-  private def addRow(rowCount: Int, row: RowType, originalSender: ActorRef): Unit = {
+  private def addRow(state: PartitionState, row: RowType, originalSender: ActorRef): Unit = {
     log.debug("Adding row to partition: {}", row)
 
     import scala.concurrent.duration._
@@ -89,7 +95,8 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
     val eventualRowAdded = Future.sequence(listOfFutures)
       .map(f => {
         log.info("Received all column futures: {}", f)
-        context.become(active(rowCount + 1))
+        val newState = PartitionState(false, state.rowCount + 1)
+        context.become(active(newState))
         RowAdded(originalSender)
       })
 
