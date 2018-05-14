@@ -55,7 +55,6 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
   }
 
   private def retrieveColumn(name: String): Unit = {
-    columnRefs.keys.foreach(s => log.info(s))
     val column = columnRefs(name)
     sender() ! ColumnRetrieved(column)
   }

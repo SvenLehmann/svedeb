@@ -66,12 +66,28 @@ class TableTest extends AbstractActorTest("TableTest") {
     val partitions = expectMsgType[PartitionsInTable]
     partitions.partitions.size shouldEqual numberOfPartitions
 
-    orderTable ! GetColumnFromTable("columnA")
-    val columnActors = expectMsgType[ActorsForColumn]
-    columnActors.columnActors.size shouldEqual numberOfPartitions
+    def checkColumnValues(suffix: String): Seq[String] = {
+      orderTable ! GetColumnFromTable("column" + suffix.toUpperCase)
+      val columnActors = expectMsgType[ActorsForColumn]
+      columnActors.columnActors.size shouldEqual numberOfPartitions
 
-    columnActors.columnActors.foreach(columnActor => columnActor ! ScanColumn())
-    val valuesA = (1 to numberOfPartitions).map(_ => expectMsgType[ScannedValues]).flatMap(m => m.values.values)
-    valuesA.sorted shouldEqual Vector("a1", "a10", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9")
+      columnActors.columnActors.foreach(columnActor => columnActor ! ScanColumn())
+      val values = (1 to numberOfPartitions).map(_ => expectMsgType[ScannedValues]).sortBy(c => c.partitionId).flatMap(c => c.values.values)
+      // Verify correct values
+      values.sorted shouldEqual (1 to numberOfPartitions).map(index => suffix + index).toVector.sorted
+      values
+    }
+
+    val valuesA = checkColumnValues("a")
+    val valuesB = checkColumnValues("b")
+    val valuesC = checkColumnValues("c")
+    val valuesD = checkColumnValues("d")
+
+    def extractIndex(values: Seq[String]): Seq[Char] = values.map(v => v.charAt(1))
+
+    extractIndex(valuesA) shouldEqual extractIndex(valuesB)
+    extractIndex(valuesA) shouldEqual extractIndex(valuesC)
+    extractIndex(valuesA) shouldEqual extractIndex(valuesD)
+
   }
 }
