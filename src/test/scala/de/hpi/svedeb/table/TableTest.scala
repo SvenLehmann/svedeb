@@ -1,6 +1,7 @@
 package de.hpi.svedeb.table
 
 import de.hpi.svedeb.AbstractActorTest
+import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Table._
 import org.scalatest.Matchers._
 
@@ -54,18 +55,23 @@ class TableTest extends AbstractActorTest("TableTest") {
     table ! AddRowToTable(RowType("value1", "value2"))
   }
 
-  it should "return rows in correct order" in {
+  "A table with multiple partitions" should "insert rows correctly aligned" in {
+    val numberOfPartitions = 10
     val orderTable = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1), "orderTable")
 
-    (1 to 10).foreach(rowId => orderTable ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
-    (1 to 10).foreach(_ => expectMsg(RowAddedToTable()))
+    (1 to numberOfPartitions).foreach(rowId => orderTable ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
+    (1 to numberOfPartitions).foreach(_ => expectMsg(RowAddedToTable()))
 
     orderTable ! GetPartitions()
     val partitions = expectMsgType[PartitionsInTable]
-    partitions.partitions.size shouldEqual 10
+    partitions.partitions.size shouldEqual numberOfPartitions
 
     orderTable ! GetColumnFromTable("columnA")
     val columnActors = expectMsgType[ActorsForColumn]
-    columnActors.columnActors.size shouldEqual 10
+    columnActors.columnActors.size shouldEqual numberOfPartitions
+
+    columnActors.columnActors.foreach(columnActor => columnActor ! ScanColumn(None))
+    val valuesA = (1 to numberOfPartitions).map(_ => expectMsgType[ScannedValues]).flatMap(m => m.values.values)
+    valuesA.sorted shouldEqual Vector("a1", "a10", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9")
   }
 }
