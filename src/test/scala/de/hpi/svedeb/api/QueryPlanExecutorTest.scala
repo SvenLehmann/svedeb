@@ -32,9 +32,9 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 //    val queryPlan = InsertRow(GetTable("SomeTable"), RowType("elementA", "elementB"))
 //    val queryPlan = Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y")
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref), name = "queryPlanExecutor")
-    apiWorker ! Run(queryPlan)
+    apiWorker ! Run(0, queryPlan)
 
-    val query = expectMsgType[QueryFinished](90 seconds)
+    val query = expectMsgType[QueryFinished]
   }
 
   it should "create an empty table" in {
@@ -45,9 +45,9 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
-    apiWorker ! Run(CreateTable("SomeTable", Seq("a", "b")))
+    apiWorker ! Run(0, CreateTable("SomeTable", Seq("a", "b")))
 
-    val query = expectMsgType[QueryFinished](60 seconds)
+    val query = expectMsgType[QueryFinished]
   }
 
   it should "query a non-empty table" in {
@@ -60,9 +60,9 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
-    apiWorker ! Run(Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y"))
+    apiWorker ! Run(0, Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y"))
 
-    val resultTable = expectMsgType[QueryFinished](90 seconds)
+    val resultTable = expectMsgType[QueryFinished]
 
     resultTable.resultTable ! GetColumnFromTable("b")
 
@@ -81,8 +81,5 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     val contentColumnA = expectMsgType[ScannedValues]
     contentColumnA.values.values.size shouldEqual 1
     contentColumnA.values.values.head shouldEqual "x"
-
-
-
   }
 }

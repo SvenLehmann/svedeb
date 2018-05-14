@@ -53,4 +53,20 @@ class TableTest extends AbstractActorTest("TableTest") {
     table ! AddRowToTable(RowType("value1", "value2"))
 
   }
+
+//  "A table with multiple partitions" should "return rows in correct order" in {
+//    val table = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1))
+//
+//    (1 to 10).foreach(rowId => table ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
+//    (1 to 10).foreach(_ => expectMsg(RowAddedToTable()))
+//
+//    table ! GetPartitions()
+//    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 10 })
+
+//    table ! GetColumnFromTable("columnA")
+//    assert(expectMsgPF() { case m: ActorsForColumn =>
+//      m.columnActors.size == 10 && m.col
+//
+//    })
+//  }
 }

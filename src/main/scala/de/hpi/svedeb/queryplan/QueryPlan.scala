@@ -26,7 +26,6 @@ object QueryPlan {
       }
     }
 
-    // Not needed at the moment but got the feeling it could be useful
     def findNextStepWithException(actor: ActorRef): QueryPlanNode = {
 //      val excludedNode = findNodeWithWorker(actor)
       this match {
