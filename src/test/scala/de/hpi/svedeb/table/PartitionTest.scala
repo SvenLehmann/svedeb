@@ -25,7 +25,7 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
     val nameList = expectMsgType[ColumnsRetrieved]
     nameList.columns.size shouldEqual 1
 
-    nameList.columns.foreach{ case (name, actorRef) => actorRef ! ScanColumn(None)}
+    nameList.columns.foreach{ case (name, actorRef) => actorRef ! ScanColumn()}
     assert(expectMsgPF() { case m: ScannedValues => m.values == ColumnType("a") })
   }
 

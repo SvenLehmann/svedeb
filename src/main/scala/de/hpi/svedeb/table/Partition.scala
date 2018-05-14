@@ -50,7 +50,7 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
     case AddRow(row, originalSender) =>
       if (state.processingInsert) self forward AddRow(row, originalSender)
       else tryToAddRow(state, row, originalSender)
-    case ValueAppended() => ()
+    case ValueAppended(partitionId, columnName) => ()
     case x => log.error("Message not understood: {}", x)
   }
 

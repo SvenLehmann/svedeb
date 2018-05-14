@@ -34,11 +34,11 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     })
 
     columnA.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case Column.FilterColumn(predicate) => sender ! FilteredRowIndizes(Seq(0, 1, 2)); TestActor.KeepRunning
-      case Column.ScanColumn(_) => sender ! ScannedValues("a", ColumnType("1", "2", "3")); TestActor.KeepRunning
+      case Column.FilterColumn(predicate) => sender ! FilteredRowIndizes(0, "a", Seq(0, 1, 2)); TestActor.KeepRunning
+      case Column.ScanColumn(_) => sender ! ScannedValues(0, "a", ColumnType("1", "2", "3")); TestActor.KeepRunning
     })
     columnB.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case Column.ScanColumn(_) => sender ! ScannedValues("b", ColumnType("1", "2", "3")); TestActor.KeepRunning
+      case Column.ScanColumn(_) => sender ! ScannedValues(0, "b", ColumnType("1", "2", "3")); TestActor.KeepRunning
     })
 
     scanOperator ! Execute()
@@ -53,7 +53,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     val returnedColumnA = expectMsgType[ActorsForColumn]
     returnedColumnA.columnActors.size shouldEqual 1
 
-    returnedColumnA.columnActors.head ! ScanColumn(None)
+    returnedColumnA.columnActors.head ! ScanColumn()
     val scannedValuesA = expectMsgType[ScannedValues]
     scannedValuesA.values.size() shouldEqual 3
     scannedValuesA.values shouldEqual ColumnType("1", "2", "3")
@@ -62,7 +62,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     val returnedColumnB = expectMsgType[ActorsForColumn]
     returnedColumnB.columnActors.size shouldEqual 1
 
-    returnedColumnB.columnActors.head ! ScanColumn(None)
+    returnedColumnB.columnActors.head ! ScanColumn()
     val scannedValuesB = expectMsgType[ScannedValues]
     scannedValuesB.values.size() shouldEqual 3
     scannedValuesB.values shouldEqual ColumnType("1", "2", "3")

@@ -24,13 +24,13 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
   }
 
   def fetchData(columnActors: Seq[ActorRef]): Unit = {
-    columnActors.foreach(columnActor => columnActor ! ScanColumn(None))
+    columnActors.foreach(columnActor => columnActor ! ScanColumn())
   }
 
   override def receive: Receive = {
     case MaterializeTable(table) => fetchColumnNames(table)
     case ColumnList(columnNames) => fetchColumns(sender(), columnNames)
     case ActorsForColumn(columnActors) => fetchData(columnActors)
-    case ScannedValues(columnName, values) =>
+    case ScannedValues(partitionId, columnName, values) =>
   }
 }

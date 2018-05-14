@@ -67,7 +67,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     resultTable.resultTable ! GetColumnFromTable("b")
 
     val resultColumnB = expectMsgType[ActorsForColumn]
-    resultColumnB.columnActors.head ! ScanColumn(None)
+    resultColumnB.columnActors.head ! ScanColumn()
 
     val contentColumnB= expectMsgType[ScannedValues]
     contentColumnB.values.values.size shouldEqual 1
@@ -76,7 +76,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     resultTable.resultTable ! GetColumnFromTable("a")
 
     val resultColumnA = expectMsgType[ActorsForColumn]
-    resultColumnA.columnActors.head ! ScanColumn(None)
+    resultColumnA.columnActors.head ! ScanColumn()
 
     val contentColumnA = expectMsgType[ScannedValues]
     contentColumnA.values.values.size shouldEqual 1

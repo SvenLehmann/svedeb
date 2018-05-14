@@ -66,7 +66,7 @@ class ScanWorker(partition: ActorRef, partitionId: Int) extends Actor with Actor
   private def active(state: State): Receive = {
     case ScanJob(columnName, predicate) => beginScanJob(state, columnName, predicate)
     case ColumnsRetrieved(columnRefs) => filterColumn(state, columnRefs)
-    case FilteredRowIndizes(indizes) => scanColumns(state, indizes)
-    case ScannedValues(columnName, values) => storePartialResult(state, columnName, values)
+    case FilteredRowIndizes(_, columnName, indizes) => scanColumns(state, indizes)
+    case ScannedValues(_, columnName, values) => storePartialResult(state, columnName, values)
   }
 }

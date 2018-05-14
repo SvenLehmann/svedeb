@@ -8,12 +8,12 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
   "A column actor" should "be empty at start" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! FilterColumn(_ => true)
-    expectMsg(FilteredRowIndizes(Seq.empty[Int]))
+    expectMsg(FilteredRowIndizes(0, "SomeColumnName", Seq.empty[Int]))
   }
 
   it should "be initialized with values" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName", ColumnType("a", "b")))
-    column ! ScanColumn(None)
+    column ! ScanColumn()
     expectMsgPF(){ case m: ScannedValues => m.values.size() == 2 && m.values == Seq("a", "b")}
   }
 
@@ -21,7 +21,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
 
     column ! AppendValue("SomeValue")
-    expectMsg(ValueAppended())
+    expectMsg(ValueAppended(0, "SomeColumnName"))
   }
 
   it should "filter its values" in {
@@ -31,10 +31,10 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     column ! AppendValue("value3")
     column ! FilterColumn(_ => true)
 
-    expectMsg(ValueAppended())
-    expectMsg(ValueAppended())
-    expectMsg(ValueAppended())
-    expectMsg(FilteredRowIndizes(Seq(0, 1, 2)))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(FilteredRowIndizes(0, "SomeColumnName", Seq(0, 1, 2)))
   }
 
   it should "scan its values with indizes" in {
@@ -44,10 +44,10 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     column ! AppendValue("value3")
     column ! ScanColumn(Some(Seq(1, 2)))
 
-    expectMsg(ValueAppended())
-    expectMsg(ValueAppended())
-    expectMsg(ValueAppended())
-    expectMsg(ScannedValues("SomeColumnName", ColumnType("value2", "value3")))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ScannedValues(0, "SomeColumnName", ColumnType("value2", "value3")))
   }
 
   it should "scan its values without indizes" in {
@@ -55,12 +55,12 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     column ! AppendValue("value1")
     column ! AppendValue("value2")
     column ! AppendValue("value3")
-    column ! ScanColumn(None)
+    column ! ScanColumn()
 
-    expectMsg(ValueAppended())
-    expectMsg(ValueAppended())
-    expectMsg(ValueAppended())
-    expectMsg(ScannedValues("SomeColumnName", ColumnType("value1", "value2", "value3")))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ScannedValues(0, "SomeColumnName", ColumnType("value1", "value2", "value3")))
   }
 
   it should "return column size" in {
@@ -70,9 +70,9 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     column ! AppendValue("value3")
 
     column ! GetColumnSize()
-    expectMsg(ValueAppended())
-    expectMsg(ValueAppended())
-    expectMsg(ValueAppended())
-    expectMsg(ColumnSize(3))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ColumnSize(0, 3))
   }
 }
