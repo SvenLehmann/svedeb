@@ -25,12 +25,18 @@ object QueryPlanExecutor {
 
     def assignWorkerAndSender(worker: ActorRef, node: QueryPlanNode, queryId: Int, initialQueryPlan: QueryPlanNode, newSender: ActorRef): APIWorkerState = {
       val newQueryPlan = initialQueryPlan.updateAssignedWorker(worker, node)
-      APIWorkerState(newQueryPlan, newSender, Some(queryId))
+      if (newQueryPlan.isEmpty) {
+        throw new Exception("Could not assign worker and sender")
+      }
+      APIWorkerState(newQueryPlan.get, newSender, Some(queryId))
     }
 
     def nextStage(lastWorker: ActorRef, resultTable: ActorRef, nextWorker: ActorRef, nextStep: QueryPlanNode): APIWorkerState = {
       val newQueryPlan = queryPlan.nextStage(lastWorker, resultTable, nextWorker, nextStep)
-      APIWorkerState(newQueryPlan, sender, this.queryId)
+      if (newQueryPlan.isEmpty) {
+        throw new Exception("Could not find next stage")
+      }
+      APIWorkerState(newQueryPlan.get, sender, this.queryId)
     }
   }
 
@@ -44,7 +50,7 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
   override def receive: Receive = active(APIWorkerState(EmptyNode(), ActorRef.noSender))
 
   def buildInitialOperator(state: APIWorkerState, queryId: Int, queryPlan: QueryPlanNode): Unit = {
-    val nextStep = queryPlan.findNextStep()
+    val nextStep = queryPlan.findNextStep().get
     // TODO: Consider using overloaded method, e.g. each QuerPlanNode returns its respective Props object
     val operator: ActorRef = nextStep match {
       case GetTable(tableName: String) =>
@@ -65,10 +71,15 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
     log.debug("handling query result")
 
     val nextStep = state.queryPlan.findNextStepWithException(sender())
+
+    if (nextStep.isEmpty) {
+        throw new Exception("Could not find next step in execution")
+    }
+
 //    val nextStep = state.queryPlan.findNextStep()
     // TODO: Consider using overloaded method, e.g. each QuerPlanNode returns its respective Props object
     var operator = ActorRef.noSender
-    nextStep match {
+    nextStep.get match {
       case Scan(input: QueryPlanNode, columnName: String, predicate: (String => Boolean)) =>
         operator = context.actorOf(ScanOperator.props(resultTable, columnName, predicate))
       case InsertRow(table: QueryPlanNode, row: RowType) =>
@@ -79,7 +90,7 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
         return
       case _ => throw new Exception("Incorrect operator")
     }
-    val newState = state.nextStage(sender(), resultTable, operator, nextStep)
+    val newState = state.nextStage(sender(), resultTable, operator, nextStep.get)
     context.become(active(newState))
 
     operator ! Execute()
