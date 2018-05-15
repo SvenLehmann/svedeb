@@ -3,11 +3,18 @@ package de.hpi.svedeb.queryplan
 import akka.actor.ActorRef
 import de.hpi.svedeb.table.RowType
 
+import scala.annotation.tailrec
+
 object QueryPlan {
-  abstract class QueryPlanNode(var assignedWorker: ActorRef = ActorRef.noSender, var resultTable: ActorRef = ActorRef.noSender) {
+  abstract case class QueryPlanNode(var leftInput: Option[QueryPlanNode],
+                                    var rightInput: Option[QueryPlanNode],
+                                    var assignedWorker: ActorRef = ActorRef.noSender,
+                                    var resultTable: ActorRef = ActorRef.noSender) {
+
+
     /**
       * Checks whether this node has been executed.
-      * @return returns None if it is no potential next stage (e.g. because it has already been executed
+      * @return returns itself or None if it is no potential next stage (e.g. because it has already been executed)
       */
     def findNextStage(): Option[QueryPlanNode] = {
       resultTable match {
@@ -42,28 +49,52 @@ object QueryPlan {
       this
     }
 
-    def saveIntermediateResult(worker: ActorRef, intermediateResult: ActorRef): Option[QueryPlanNode] = {
-      val node = findNodeWithWorker(worker)
-      if (node.isDefined && node.get == this) {
-        resultTable = intermediateResult
-      } else if (node.isDefined) {
-        node.get.saveIntermediateResult(worker, intermediateResult)
-      }
-      Some(this)
-    }
-
-    def updateAssignedWorker(worker: ActorRef, node: QueryPlanNode): Option[QueryPlanNode] = {
-      val foundNode = findNode(node)
-      if (foundNode.isDefined) {
-        foundNode.get.updateAssignedWorker(worker)
-        Some(this)
+    @tailrec
+    final def traverseQueryPlanTree(function: QueryPlanNode => (QueryPlanNode, Boolean)): QueryPlanNode = {
+      val result = function(this)
+      if (result._2) {
+        result._1
       } else {
-        None
+        result._1.traverseQueryPlanTree(function)
       }
     }
 
-    def updateAssignedWorker(worker: ActorRef) : Unit = {
+    def saveIntermediateResult(worker: ActorRef, intermediateResult: ActorRef): QueryPlanNode = {
+      val optionalNode = findNodeWithWorker(worker)
+      if (optionalNode.isEmpty) {
+        throw new Exception("Could not find node for this worker")
+      }
+
+      traverseQueryPlanTree {
+        node =>
+          if (node.assignedWorker == worker) {
+            node.resultTable = intermediateResult
+            (node, true)
+          } else {
+            (node, false)
+          }
+      }
+
+      val node = optionalNode.get
+      if (node == this) {
+        resultTable = intermediateResult
+      } else {
+        optionalNode.get.saveIntermediateResult(worker, intermediateResult)
+      }
+      this
+    }
+
+    def updateAssignedWorker(worker: ActorRef, node: QueryPlanNode): QueryPlanNode = {
+      val foundNode = findNode(node)
+      if (foundNode.isEmpty) {
+        throw new Exception("Cannot update non-existing node")
+      }
+      foundNode.get.updateAssignedWorker(worker)
+    }
+
+    def updateAssignedWorker(worker: ActorRef) : QueryPlanNode = {
       assignedWorker = worker
+      this
     }
 
     def findNode(node: QueryPlanNode): Option[QueryPlanNode] = {
@@ -90,15 +121,15 @@ object QueryPlan {
     }
   }
 
-  case class GetTable(tableName: String) extends QueryPlanNode
-  case class Scan(input: QueryPlanNode, columnName: String, predicate: String => Boolean) extends QueryPlanNode {
+  case class GetTable(tableName: String) extends QueryPlanNode(None, None)
+  case class Scan(input: QueryPlanNode, columnName: String, predicate: String => Boolean) extends QueryPlanNode(Some(input), None) {
     override def findNextStage(): Option[QueryPlanNode] = if (resultTable == ActorRef.noSender) handleNesting(input) else None
     override def findNextStepWithException(actor: ActorRef): Option[QueryPlanNode] = if (resultTable == ActorRef.noSender) handleNestingWithException(input, actor) else None
     override def findNode(node: QueryPlanNode): Option[QueryPlanNode] = if (this == node) Some(this) else input.findNode(node)
   }
-  case class CreateTable(tableName: String, columnNames: Seq[String], partitionSize: Int) extends QueryPlanNode
-  case class DropTable(tableName: String) extends QueryPlanNode
-  case class InsertRow(table: QueryPlanNode, row: RowType) extends QueryPlanNode {
+  case class CreateTable(tableName: String, columnNames: Seq[String], partitionSize: Int) extends QueryPlanNode(None, None)
+  case class DropTable(tableName: String) extends QueryPlanNode(None, None)
+  case class InsertRow(table: QueryPlanNode, row: RowType) extends QueryPlanNode(Some(table), None) {
     override def findNextStage(): Option[QueryPlanNode] = if (resultTable == ActorRef.noSender) handleNesting(table) else None
     override def findNextStepWithException(actor: ActorRef): Option[QueryPlanNode] = if (resultTable == ActorRef.noSender) handleNestingWithException(table, actor) else None
     override def findNode(node: QueryPlanNode): Option[QueryPlanNode] = if (this == node) Some(this) else table.findNode(node)
