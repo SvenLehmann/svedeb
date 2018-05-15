@@ -13,8 +13,7 @@ import de.hpi.svedeb.table.Table._
 import org.scalatest.Matchers._
 
 class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
-
-  // TODO: This test should not actually invoke the whole query execution
+  
   "An APIWorker" should "query an empty table" in {
     val tableManager = TestProbe("TableManager")
     val table = TestProbe("table")
@@ -23,7 +22,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case FetchTable(_) => sender ! TableFetched(table.ref); TestActor.KeepRunning
-      case AddTable(_, _) => sender ! TableAdded(table.ref); TestActor.KeepRunning
+      case AddTable(_, _, _) => sender ! TableAdded(table.ref); TestActor.KeepRunning
       case RemoveTable(_) => sender ! TableRemoved(); TestActor.KeepRunning
     })
 
@@ -42,11 +41,6 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     val queryPlan = Scan(GetTable("SomeTable"), "a", _ => true)
-//    val queryPlan = GetTable("S")
-//    val queryPlan = CreateTable("SomeOtherTable", Seq("x", "y"))
-//    val queryPlan = DropTable("SomeTable")
-//    val queryPlan = InsertRow(GetTable("SomeTable"), RowType("elementA", "elementB"))
-//    val queryPlan = Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y")
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref), name = "queryPlanExecutor")
     apiWorker ! Run(0, queryPlan)
 
@@ -58,7 +52,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     val table = TestProbe("table")
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case AddTable(_, _) => sender ! TableAdded(table.ref); TestActor.KeepRunning
+      case AddTable(_, _, _) => sender ! TableAdded(table.ref); TestActor.KeepRunning
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
@@ -70,12 +64,9 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
   it should "query a non-empty table" in {
     val tableManager = TestProbe("TableManager")
 
-//    val partition = system.actorOf(Partition.props(0, Map(("a", ColumnType("x", "x", "a")), ("b", ColumnType("y", "t", "y"))), 10))
     val partition = TestProbe("partition")
     val columnA = TestProbe("columnA")
     val columnB = TestProbe("columnb")
-
-    //system.actorOf(Table.props(Seq("a", "b"), 10, Seq(partition)))
     val table = TestProbe("table")
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
@@ -85,6 +76,8 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case GetPartitions() => sender ! PartitionsInTable(Seq(partition.ref)); TestActor.KeepRunning
       case ListColumnsInTable() => sender ! ColumnList(Seq("a")); TestActor.KeepRunning
+      case GetColumnFromTable("a") => sender ! ActorsForColumn(Seq(columnA.ref)); TestActor.KeepRunning
+      case GetColumnFromTable("b") => sender ! ActorsForColumn(Seq(columnB.ref)); TestActor.KeepRunning
     })
 
     partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {

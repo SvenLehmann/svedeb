@@ -3,11 +3,13 @@ package de.hpi.svedeb.operators
 import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
+import de.hpi.svedeb.api.QueryPlanExecutor.QueryFinished
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
+import de.hpi.svedeb.queryplan.QueryPlan.Scan
 import de.hpi.svedeb.table.Column.{FilteredRowIndizes, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition.{ColumnNameList, ColumnsRetrieved, GetColumns, ListColumnNames}
 import de.hpi.svedeb.table.Table._
-import de.hpi.svedeb.table.{Column, ColumnType}
+import de.hpi.svedeb.table.{Column, ColumnType, Partition, Table}
 import org.scalatest.Matchers._
 
 // TODO: Consider splitting up this test into multiple smaller ones that do not have so many dependencies
@@ -68,7 +70,34 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     scannedValuesB.values shouldEqual ColumnType("1", "2", "3")
   }
 
-  it should "do something" in {
+  it should "filter values without test probes" in {
+    val partition1 = system.actorOf(Partition.props(0, Map("columnA" -> ColumnType("a1", "a2"), "columnB" -> ColumnType("b1", "b2")), 2))
+    val partition2 = system.actorOf(Partition.props(0, Map("columnA" -> ColumnType("a3", "a4"), "columnB" -> ColumnType("b3", "b4")), 2))
+    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), 5, Seq(partition1, partition2)))
+    val operator = system.actorOf(ScanOperator.props(table, "columnA", x => x.contains("1")))
 
+    operator ! Execute()
+    val msg = expectMsgType[QueryResult]
+
+    val chainedOperator = system.actorOf(ScanOperator.props(msg.resultTable, "columnB", x => x.contains("2")))
+    chainedOperator ! Execute()
+    val chainedResult = expectMsgType[QueryResult]
+
+    chainedResult.resultTable ! GetColumnFromTable("columnA")
+    val columnActors = expectMsgType[ActorsForColumn]
+    columnActors.columnActors.foreach(column => {
+      column ! ScanColumn(None)
+      val columnContent = expectMsgType[ScannedValues]
+      assert(columnContent.values.values.isEmpty)
+      columnContent.values.values.foreach(value => assert(value.contains("1")))
+    })
+
+    msg.resultTable ! GetColumnFromTable("columnB")
+    val columnActorsB = expectMsgType[ActorsForColumn]
+    columnActorsB.columnActors.foreach(column => {
+      column ! ScanColumn(None)
+      val columnContent = expectMsgType[ScannedValues]
+      columnContent.values.values.foreach(value => assert(value.contains("1")))
+    })
   }
 }

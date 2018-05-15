@@ -6,12 +6,10 @@ import de.hpi.svedeb.table.RowType
 import scala.annotation.tailrec
 
 object QueryPlan {
-  abstract case class QueryPlanNode(var leftInput: Option[QueryPlanNode],
-                                    var rightInput: Option[QueryPlanNode],
-                                    var assignedWorker: ActorRef = ActorRef.noSender,
-                                    var resultTable: ActorRef = ActorRef.noSender) {
-
-
+  abstract class QueryPlanNode(var leftInput: Option[QueryPlanNode],
+                               var rightInput: Option[QueryPlanNode],
+                               var assignedWorker: ActorRef = ActorRef.noSender,
+                               var resultTable: ActorRef = ActorRef.noSender) {
     /**
       * Checks whether this node has been executed.
       * @return returns itself or None if it is no potential next stage (e.g. because it has already been executed)

@@ -5,6 +5,7 @@ import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.management.TableManager.{RemoveTable, TableRemoved}
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
+import org.scalatest.Matchers._
 
 class DropTableOperatorTest extends AbstractActorTest("DropTableOperator") {
 
@@ -17,6 +18,7 @@ class DropTableOperatorTest extends AbstractActorTest("DropTableOperator") {
     val dropTableOperator = system.actorOf(DropTableOperator.props(tableManager.ref, "SomeTable"))
     dropTableOperator ! Execute()
 
-    expectMsgType[QueryResult]
+    val result = expectMsgType[QueryResult]
+    result.resultTable shouldEqual ActorRef.noSender
   }
 }

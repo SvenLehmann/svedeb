@@ -37,21 +37,10 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
   // Columns are initialized at actor creation time and cannot be mutated later on.
   private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(id, name, values), name)) }
 
-  override def receive: Receive = active(PartitionState(false, 0))
+  override def receive: Receive = active(PartitionState(processingInsert = false, 0))
 
-  def retrieveColumns(): Unit = {
+  private def retrieveColumns(): Unit = {
     sender() ! ColumnsRetrieved(columnRefs)
-  }
-
-  private def active(state: PartitionState): Receive = {
-    case ListColumnNames() => listColumns()
-    case GetColumn(name) => retrieveColumn(name)
-    case GetColumns() => retrieveColumns()
-    case AddRow(row, originalSender) =>
-      if (state.processingInsert) self forward AddRow(row, originalSender)
-      else tryToAddRow(state, row, originalSender)
-    case ValueAppended(partitionId, columnName) => ()
-    case x => log.error("Message not understood: {}", x)
   }
 
   private def retrieveColumn(name: String): Unit = {
@@ -73,7 +62,7 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
       val future = Future.failed(new Exception("Wrong number of columns"))
       pipe(future) to sender()
     } else {
-      val newState = PartitionState(true, state.rowCount)
+      val newState = PartitionState(processingInsert = true, state.rowCount)
       context.become(active(newState))
       addRow(state, row, originalSender)
     }
@@ -94,7 +83,7 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
     val eventualRowAdded = Future.sequence(listOfFutures)
       .map(f => {
         log.info("Received all column futures: {}", f)
-        val newState = PartitionState(false, state.rowCount + 1)
+        val newState = PartitionState(processingInsert = false, state.rowCount + 1)
         context.become(active(newState))
         RowAdded(originalSender)
       })
@@ -102,4 +91,15 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
     pipe(eventualRowAdded) to sender()
   }
 
+  private def active(state: PartitionState): Receive = {
+    case ListColumnNames() => listColumns()
+    case GetColumn(name) => retrieveColumn(name)
+    case GetColumns() => retrieveColumns()
+    case AddRow(row, originalSender) =>
+      // Postpone message until previous insert is completed
+      if (state.processingInsert) self forward AddRow(row, originalSender)
+      else tryToAddRow(state, row, originalSender)
+    case ValueAppended(partitionId, columnName) => ()
+    case m => throw new Exception("Message not understood: " + m)
+  }
 }

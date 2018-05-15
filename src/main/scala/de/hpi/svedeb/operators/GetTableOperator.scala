@@ -6,15 +6,15 @@ import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.GetTableOperator.State
 
 object GetTableOperator {
-  private case class State(sender: ActorRef)
-
   def props(tableManager: ActorRef, tableName: String): Props = Props(new GetTableOperator(tableManager, tableName))
+
+  private case class State(sender: ActorRef)
 }
 
 class GetTableOperator(tableManager: ActorRef, tableName: String) extends AbstractOperator {
   override def receive: Receive = active(State(ActorRef.noSender))
 
-  def fetchTable(): Unit = {
+  private def fetchTable(): Unit = {
     log.debug("Fetching table {}", tableName)
 
     val newState = State(sender())
@@ -23,13 +23,14 @@ class GetTableOperator(tableManager: ActorRef, tableName: String) extends Abstra
     tableManager ! FetchTable(tableName)
   }
 
-  def handleResult(state: State, table: ActorRef): Unit = {
+  private def handleResult(state: State, table: ActorRef): Unit = {
     log.debug("Received result table")
     state.sender ! QueryResult(table)
   }
 
-  def active(state: State): Receive = {
+  private def active(state: State): Receive = {
     case Execute() => fetchTable()
     case TableFetched(table) => handleResult(state, table)
+    case m => throw new Exception("Message not understood: " + m)
   }
 }

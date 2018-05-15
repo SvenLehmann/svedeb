@@ -24,10 +24,7 @@ object QueryPlanExecutor {
                      node: QueryPlanNode,
                      initialQueryPlan: QueryPlanNode): APIWorkerState = {
       val newQueryPlan = initialQueryPlan.updateAssignedWorker(worker, node)
-      if (newQueryPlan.isEmpty) {
-        throw new Exception("Could not assign worker and sender")
-      }
-      APIWorkerState(sender, newQueryPlan, queryId)
+      APIWorkerState(sender, Some(newQueryPlan), queryId)
     }
 
     def nextStage(lastWorker: ActorRef,
@@ -101,5 +98,6 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
   private def active(state: APIWorkerState): Receive = {
     case Run(queryId, queryPlan) => handleQuery(state, queryId, queryPlan)
     case QueryResult(resultTable) => handleQueryResult(state, resultTable)
+    case m => throw new Exception("Message not understood: " + m)
   }
 }
