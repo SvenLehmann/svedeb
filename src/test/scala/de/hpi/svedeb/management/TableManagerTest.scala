@@ -1,24 +1,25 @@
-package de.hpi.svedeb
+package de.hpi.svedeb.management
 
 import akka.actor.Status.Failure
-import de.hpi.svedeb.TableManager._
+import de.hpi.svedeb.AbstractActorTest
+import de.hpi.svedeb.management.TableManager._
 
-class TableManagerTest extends AbstractTest("PartitionTest") {
+class TableManagerTest extends AbstractActorTest("PartitionTest") {
 
   "A new TableManager" should "not contain tables" in {
     val tableManager = system.actorOf(TableManager.props())
     tableManager ! ListTables()
 
-    expectMsg(TableList(List.empty[String]))
+    expectMsg(TableList(Seq.empty[String]))
   }
 
   it should "add a table" in {
     val tableManager = system.actorOf(TableManager.props())
-    tableManager ! AddTable("SomeTable", List("columnA", "columnB"))
+    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"))
     expectMsgType[TableAdded]
 
     tableManager ! ListTables()
-    expectMsg(TableList(List("SomeTable")))
+    expectMsg(TableList(Seq("SomeTable")))
   }
 
   it should "drop a table" in {
@@ -28,7 +29,7 @@ class TableManagerTest extends AbstractTest("PartitionTest") {
     tableManager ! RemoveTable("SomeTable")
     expectMsgType[TableRemoved]
 
-    tableManager ! AddTable("SomeTable", List("columnA", "columnB"))
+    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"))
     expectMsgType[TableAdded]
 
     tableManager ! RemoveTable("SomeTable")
@@ -37,7 +38,7 @@ class TableManagerTest extends AbstractTest("PartitionTest") {
 
   it should "fetch a table" in {
     val tableManager = system.actorOf(TableManager.props())
-    tableManager ! AddTable("SomeTable", List("columnA", "columnB"))
+    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"))
     expectMsgType[TableAdded]
 
     tableManager ! FetchTable("SomeTable")
