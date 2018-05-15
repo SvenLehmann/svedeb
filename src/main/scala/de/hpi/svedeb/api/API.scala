@@ -12,7 +12,7 @@ object API {
   case class Query(queryPlan: QueryPlanNode)
   case class Materialize(table: ActorRef)
 
-  case class MaterializedResult(columns: Seq[ColumnType])
+  case class MaterializedResult(result: Map[String, ColumnType])
   case class Result(resultTable: ActorRef)
 
   case class ApiState(queryCounter: Int = 0, runningQueries: Map[Int, ActorRef] = Map.empty) {
@@ -21,16 +21,12 @@ object API {
       val newState = ApiState(queryId, runningQueries + (queryId -> sender))
       (newState, queryId)
     }
-
-
   }
 
   def props(tableManager: ActorRef): Props = Props(new API(tableManager))
 }
 
 class API(tableManager: ActorRef) extends Actor with ActorLogging {
-
-//  private val workerActors = context.actorOf(QueryPlanExecutor.props(tableManager).withRouter(RoundRobinPool(5)), name = "WorkerActors")
   private val workerActors: ActorRef = context.actorOf(RoundRobinPool(5).props(QueryPlanExecutor.props(tableManager)), "QueryExecutorRouter")
 
   override def receive: Receive = active(ApiState())
