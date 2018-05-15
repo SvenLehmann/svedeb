@@ -48,9 +48,9 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
     // TODO: Consider using overloaded method, e.g. each QuerPlanNode returns its respective Props object
     val operator: ActorRef = nextStep match {
       case GetTable(tableName: String) =>
-        context.actorOf(GetTableOperator.props(tableManager, tableName), name = "getTableOperator")
-      case CreateTable(tableName: String, columnNames: List[String]) =>
-        context.actorOf(CreateTableOperator.props(tableManager, tableName, columnNames), name = "createTableOperator")
+        context.actorOf(GetTableOperator.props(tableManager, tableName))
+      case CreateTable(tableName: String, columnNames: List[String], partitionSize: Int) =>
+        context.actorOf(CreateTableOperator.props(tableManager, tableName, columnNames, partitionSize), name = "createTableOperator")
       case DropTable(tableName: String) =>
         context.actorOf(DropTableOperator.props(tableManager, tableName), name = "dropTableOperator")
       case _ => throw new Exception("Incorrect first operator")
