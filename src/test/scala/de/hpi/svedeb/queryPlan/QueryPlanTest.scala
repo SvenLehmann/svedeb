@@ -8,34 +8,34 @@ import de.hpi.svedeb.queryplan.QueryPlan.{GetTable, Scan}
 class QueryPlanTest extends AbstractActorTest("QueryPlan") {
   "QueryPlan" should "find correct nextStep" in {
     val firstNode = GetTable("s")
-    assert(firstNode.findNextStep().isDefined)
-    assert(firstNode.findNextStep().get == firstNode)
+    assert(firstNode.findNextStage().isDefined)
+    assert(firstNode.findNextStage().get == firstNode)
 
     val secondNode = Scan(firstNode, "a", _ => true)
-    assert(secondNode.findNextStep().isDefined)
-    assert(secondNode.findNextStep().get == firstNode)
+    assert(secondNode.findNextStage().isDefined)
+    assert(secondNode.findNextStage().get == firstNode)
 
     val table = TestProbe("S")
     val worker = TestProbe("worker")
     firstNode.updateAssignedWorker(worker.ref)
     firstNode.saveIntermediateResult(worker.ref, table.ref)
 
-    assert(secondNode.findNextStep().isDefined)
-    assert(secondNode.findNextStep().get == secondNode)
+    assert(secondNode.findNextStage().isDefined)
+    assert(secondNode.findNextStage().get == secondNode)
 
     val thirdNode = Scan(secondNode, "b", _ => true)
-    assert(thirdNode.findNextStep().isDefined)
-    assert(thirdNode.findNextStep().get == secondNode)
+    assert(thirdNode.findNextStage().isDefined)
+    assert(thirdNode.findNextStage().get == secondNode)
 
     secondNode.updateAssignedWorker(worker.ref)
     secondNode.saveIntermediateResult(worker.ref, table.ref)
 
-    assert(thirdNode.findNextStep().isDefined)
-    assert(thirdNode.findNextStep().get == thirdNode)
+    assert(thirdNode.findNextStage().isDefined)
+    assert(thirdNode.findNextStage().get == thirdNode)
 
     val newNode = Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y")
-    assert(newNode.findNextStep().isDefined)
-    assert(newNode.findNextStep().get.isInstanceOf[GetTable])
+    assert(newNode.findNextStage().isDefined)
+    assert(newNode.findNextStage().get.isInstanceOf[GetTable])
   }
 
   it should "update the assigned worker" in {
@@ -62,11 +62,11 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val worker = TestProbe("worker")
     val table = TestProbe("table")
 
-    firstNode.nextStage(worker.ref, table.ref, worker.ref, firstNode)
+    firstNode.prepareNextStage(worker.ref, table.ref, worker.ref, firstNode)
     assert(firstNode.assignedWorker == worker.ref)
     assert(firstNode.resultTable == table.ref)
 
-    secondNode.nextStage(worker.ref, table.ref, worker.ref, firstNode)
+    secondNode.prepareNextStage(worker.ref, table.ref, worker.ref, firstNode)
     assert(firstNode.resultTable == table.ref)
   }
 

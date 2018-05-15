@@ -12,31 +12,33 @@ object QueryPlanExecutor {
 
   case class QueryFinished(queryId: Int, resultTable: ActorRef)
 
-  private case class APIWorkerState(queryPlan: QueryPlanNode, sender: ActorRef, queryId: Option[Int] = None) {
-    /*def saveIntermediateResult(currentWorker: ActorRef, resultTable: ActorRef): APIWorkerState = {
-      val newQueryPlan = queryPlan.saveIntermediateResult(currentWorker, resultTable)
-      APIWorkerState(newQueryPlan, sender)
+  private case class APIWorkerState(sender: ActorRef, queryPlan: Option[QueryPlanNode] = None, queryId: Option[Int] = None) {
+    def storeQueryId(queryId: Int): APIWorkerState = {
+      APIWorkerState(sender, queryPlan, Some(queryId))
+    }
+    def storeSender(sender: ActorRef): APIWorkerState = {
+      APIWorkerState(sender, queryPlan, queryId)
     }
 
-    def assignWorker(worker: ActorRef, node: QueryPlanNode): APIWorkerState = {
-      val newQueryPlan = queryPlan.updateAssignedWorker(worker, node)
-      APIWorkerState(newQueryPlan, sender)
-    }*/
-
-    def assignWorkerAndSender(worker: ActorRef, node: QueryPlanNode, queryId: Int, initialQueryPlan: QueryPlanNode, newSender: ActorRef): APIWorkerState = {
+    def assignWorker(worker: ActorRef,
+                     node: QueryPlanNode,
+                     initialQueryPlan: QueryPlanNode): APIWorkerState = {
       val newQueryPlan = initialQueryPlan.updateAssignedWorker(worker, node)
       if (newQueryPlan.isEmpty) {
         throw new Exception("Could not assign worker and sender")
       }
-      APIWorkerState(newQueryPlan.get, newSender, Some(queryId))
+      APIWorkerState(sender, newQueryPlan, queryId)
     }
 
-    def nextStage(lastWorker: ActorRef, resultTable: ActorRef, nextWorker: ActorRef, nextStep: QueryPlanNode): APIWorkerState = {
-      val newQueryPlan = queryPlan.nextStage(lastWorker, resultTable, nextWorker, nextStep)
-      if (newQueryPlan.isEmpty) {
-        throw new Exception("Could not find next stage")
+    def nextStage(lastWorker: ActorRef,
+                  resultTable: ActorRef,
+                  nextWorker: ActorRef,
+                  nextStep: QueryPlanNode): APIWorkerState = {
+      if (queryPlan.isEmpty) {
+        throw new Exception("Does not have query plan to execute")
       }
-      APIWorkerState(newQueryPlan.get, sender, this.queryId)
+      val newQueryPlan = queryPlan.get.prepareNextStage(lastWorker, resultTable, nextWorker, nextStep)
+      APIWorkerState(sender, Some(newQueryPlan), this.queryId)
     }
   }
 
@@ -47,57 +49,57 @@ object QueryPlanExecutor {
  * TODO: Consider using common messages for invoking operators, e.g. Execute
  */
 class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging {
-  override def receive: Receive = active(APIWorkerState(EmptyNode(), ActorRef.noSender))
+  override def receive: Receive = active(APIWorkerState(ActorRef.noSender))
 
-  def buildInitialOperator(state: APIWorkerState, queryId: Int, queryPlan: QueryPlanNode): Unit = {
-    val nextStep = queryPlan.findNextStep().get
-    // TODO: Consider using overloaded method, e.g. each QuerPlanNode returns its respective Props object
-    val operator: ActorRef = nextStep match {
+  def nodeToOperatorActor(node: QueryPlanNode, resultTable: Option[ActorRef] = None): ActorRef = {
+    node match {
       case GetTable(tableName: String) =>
         context.actorOf(GetTableOperator.props(tableManager, tableName))
       case CreateTable(tableName: String, columnNames: List[String], partitionSize: Int) =>
         context.actorOf(CreateTableOperator.props(tableManager, tableName, columnNames, partitionSize), name = "createTableOperator")
       case DropTable(tableName: String) =>
         context.actorOf(DropTableOperator.props(tableManager, tableName), name = "dropTableOperator")
+      case Scan(_, columnName: String, predicate: (String => Boolean)) =>
+        context.actorOf(ScanOperator.props(resultTable.get, columnName, predicate))
+      case InsertRow(_, row: RowType) =>
+        context.actorOf(InsertRowOperator.props(resultTable.get, row))
       case _ => throw new Exception("Incorrect first operator")
     }
-    operator ! Execute()
+  }
 
-    val newState = state.assignWorkerAndSender(operator, nextStep, queryId, queryPlan, sender())
+  def handleQuery(state: APIWorkerState, queryId: Int, queryPlan: QueryPlanNode): Unit = {
+    log.debug("Building initial operator")
+    val firstStage = queryPlan.findNextStage().get
+    val operator = nodeToOperatorActor(firstStage)
+
+    val newState = state.storeQueryId(queryId).storeSender(sender()).assignWorker(operator, firstStage, queryPlan)
     context.become(active(newState))
+
+    operator ! Execute()
   }
 
   def handleQueryResult(state: APIWorkerState, resultTable: ActorRef): Unit = {
-    log.debug("handling query result")
+    log.debug("Handling query result")
+    if (state.queryPlan.isEmpty) {
+      throw new Exception("No queryplan to execute")
+    }
 
-    val nextStep = state.queryPlan.findNextStepWithException(sender())
+    val nextStep = state.queryPlan.get.findNextStepWithException(sender())
 
     if (nextStep.isEmpty) {
-        throw new Exception("Could not find next step in execution")
-    }
+      state.sender ! QueryFinished(state.queryId.get, resultTable)
+    } else {
+      val operator = nodeToOperatorActor(nextStep.get, Some(resultTable))
 
-//    val nextStep = state.queryPlan.findNextStep()
-    // TODO: Consider using overloaded method, e.g. each QuerPlanNode returns its respective Props object
-    var operator = ActorRef.noSender
-    nextStep.get match {
-      case Scan(input: QueryPlanNode, columnName: String, predicate: (String => Boolean)) =>
-        operator = context.actorOf(ScanOperator.props(resultTable, columnName, predicate))
-      case InsertRow(table: QueryPlanNode, row: RowType) =>
-        operator = context.actorOf(InsertRowOperator.props(resultTable, row))
-      case EmptyNode() =>
-        log.debug("sender: {}", state.sender)
-        state.sender ! QueryFinished(state.queryId.get, resultTable)
-        return
-      case _ => throw new Exception("Incorrect operator")
-    }
-    val newState = state.nextStage(sender(), resultTable, operator, nextStep.get)
-    context.become(active(newState))
+      val newState = state.nextStage(sender(), resultTable, operator, nextStep.get)
+      context.become(active(newState))
 
-    operator ! Execute()
+      operator ! Execute()
+    }
   }
 
   private def active(state: APIWorkerState): Receive = {
-    case Run(queryId, queryPlan) => buildInitialOperator(state, queryId, queryPlan)
+    case Run(queryId, queryPlan) => handleQuery(state, queryId, queryPlan)
     case QueryResult(resultTable) => handleQueryResult(state, resultTable)
   }
 }
