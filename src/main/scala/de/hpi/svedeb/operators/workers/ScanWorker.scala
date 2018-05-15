@@ -9,7 +9,7 @@ import de.hpi.svedeb.table.{ColumnType, Partition}
 object ScanWorker {
   case class ScanJob(columnName: String, predicate: String => Boolean)
 
-  case class ScanWorkerResult(partiton: ActorRef)
+  case class ScanWorkerResult(partitionId:Int, partiton: ActorRef)
 
   private case class State(sender: Option[ActorRef],
                    columnName: Option[String],
@@ -45,12 +45,12 @@ class ScanWorker(partition: ActorRef, partitionId: Int) extends Actor with Actor
     columnRefs(state.columnName.get) ! FilterColumn(state.predicate.get)
   }
 
-  def scanColumns(state: State, indizes: Seq[Int]): Unit = {
+  private def scanColumns(state: State, indizes: Seq[Int]): Unit = {
     log.info("Scanning columns.")
     state.columnRefs.get.foreach { case (_, columnRef) => columnRef ! ScanColumn(Some(indizes)) }
   }
 
-  def storePartialResult(state: State, columnName: String, values: ColumnType): Unit = {
+  private def storePartialResult(state: State, columnName: String, values: ColumnType): Unit = {
     log.info("Storing partial result for column {}.", columnName)
     val newState = state.addResultForColumn(columnName, values)
     context.become(active(newState))
@@ -59,7 +59,7 @@ class ScanWorker(partition: ActorRef, partitionId: Int) extends Actor with Actor
       log.info("Received all partial results.")
       // We received all results for the columns
       val partition = context.actorOf(Partition.props(partitionId, newState.result, 10))
-      newState.sender.get ! ScanWorkerResult(partition)
+      newState.sender.get ! ScanWorkerResult(partitionId, partition)
     }
   }
 
@@ -68,5 +68,6 @@ class ScanWorker(partition: ActorRef, partitionId: Int) extends Actor with Actor
     case ColumnsRetrieved(columnRefs) => filterColumn(state, columnRefs)
     case FilteredRowIndizes(_, columnName, indizes) => scanColumns(state, indizes)
     case ScannedValues(_, columnName, values) => storePartialResult(state, columnName, values)
+    case m => throw new Exception("Message not understood: " + m)
   }
 }

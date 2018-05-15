@@ -43,7 +43,7 @@ object QueryPlanExecutor {
 class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging {
   override def receive: Receive = active(APIWorkerState(EmptyNode(), ActorRef.noSender))
 
-  def buildInitialOperator(state: APIWorkerState, queryId: Int, queryPlan: QueryPlanNode): Unit = {
+  private def buildInitialOperator(state: APIWorkerState, queryId: Int, queryPlan: QueryPlanNode): Unit = {
     val nextStep = queryPlan.findNextStep()
     // TODO: Consider using overloaded method, e.g. each QuerPlanNode returns its respective Props object
     val operator: ActorRef = nextStep match {
@@ -61,7 +61,7 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
     context.become(active(newState))
   }
 
-  def handleQueryResult(state: APIWorkerState, resultTable: ActorRef): Unit = {
+  private def handleQueryResult(state: APIWorkerState, resultTable: ActorRef): Unit = {
     log.debug("handling query result")
 
     val nextStep = state.queryPlan.findNextStepWithException(sender())
@@ -88,5 +88,6 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
   private def active(state: APIWorkerState): Receive = {
     case Run(queryId, queryPlan) => buildInitialOperator(state, queryId, queryPlan)
     case QueryResult(resultTable) => handleQueryResult(state, resultTable)
+    case m => throw new Exception("Message not understood: " + m)
   }
 }

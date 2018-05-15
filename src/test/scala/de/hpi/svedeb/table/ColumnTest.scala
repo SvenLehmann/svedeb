@@ -24,7 +24,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     expectMsg(ValueAppended(0, "SomeColumnName"))
   }
 
-  it should "filter its values" in {
+  it should "return all indizes on wildcard" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! AppendValue("value1")
     column ! AppendValue("value2")
@@ -35,6 +35,19 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(FilteredRowIndizes(0, "SomeColumnName", Seq(0, 1, 2)))
+  }
+
+  it should "filter its values" in {
+    val column = system.actorOf(Column.props(0, "SomeColumnName"))
+    column ! AppendValue("value1")
+    column ! AppendValue("value2")
+    column ! AppendValue("value3")
+    column ! FilterColumn(x => x.contains("2"))
+
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(ValueAppended(0, "SomeColumnName"))
+    expectMsg(FilteredRowIndizes(0, "SomeColumnName", Seq(1)))
   }
 
   it should "scan its values with indizes" in {

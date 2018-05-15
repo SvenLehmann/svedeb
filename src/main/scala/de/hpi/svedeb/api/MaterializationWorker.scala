@@ -12,7 +12,7 @@ object MaterializationWorker {
   case class MaterializeTable(table: ActorRef)
   case class MaterializedTable(user: ActorRef, columns: Map[String, ColumnType])
 
-  case class MaterializationWorkerState(partitionCount: Option[Int] = None,
+  private case class MaterializationWorkerState(partitionCount: Option[Int] = None,
                                         columnCount: Option[Int] = None,
                                         data: Map[Int, Map[String, ColumnType]] = Map.empty) {
     def addResult(partitionId: Int, columnName: String, values: ColumnType): MaterializationWorkerState = {
@@ -49,12 +49,12 @@ object MaterializationWorker {
 class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with ActorLogging {
   override def receive: Receive = active(MaterializationWorkerState())
 
-  def fetchColumnNames(table: ActorRef): Unit = {
+  private def fetchColumnNames(table: ActorRef): Unit = {
     log.debug("Fetching column names")
     table ! ListColumnsInTable()
   }
 
-  def fetchColumns(state: MaterializationWorkerState, table: ActorRef, columnNames: Seq[String]): Unit = {
+  private def fetchColumns(state: MaterializationWorkerState, table: ActorRef, columnNames: Seq[String]): Unit = {
     log.debug("Fetching column actors")
     val newState = state.setColumnCount(columnNames.size)
     context.become(active(newState))
@@ -62,7 +62,7 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
     columnNames.foreach(name => table ! GetColumnFromTable(name))
   }
 
-  def fetchData(state: MaterializationWorkerState, columnActors: Seq[ActorRef]): Unit = {
+  private def fetchData(state: MaterializationWorkerState, columnActors: Seq[ActorRef]): Unit = {
     log.debug("Fetching data from column actors")
     val newState = state.setPartitionCount(columnActors.size)
     context.become(active(newState))
@@ -70,7 +70,7 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
     columnActors.foreach(columnActor => columnActor ! ScanColumn())
   }
 
-  def saveScannedValues(state: MaterializationWorkerState, partitionId: Int, columnName: String, values: ColumnType): Unit = {
+  private def saveScannedValues(state: MaterializationWorkerState, partitionId: Int, columnName: String, values: ColumnType): Unit = {
     log.debug("Saving partial result for partition {} and column {}", partitionId, columnName)
     val newState = state.addResult(partitionId, columnName, values)
     context.become(active(newState))
@@ -82,10 +82,11 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
     }
   }
 
-  def active(state: MaterializationWorkerState): Receive = {
+  private def active(state: MaterializationWorkerState): Receive = {
     case MaterializeTable(table) => fetchColumnNames(table)
     case ColumnList(columnNames) => fetchColumns(state, sender(), columnNames)
     case ActorsForColumn(columnActors) => fetchData(state, columnActors)
     case ScannedValues(partitionId, columnName, values) => saveScannedValues(state, partitionId, columnName, values)
+    case m => throw new Exception("Message not understood: " + m)
   }
 }

@@ -9,25 +9,25 @@ import org.scalatest.Matchers._
 class TableTest extends AbstractActorTest("TableTest") {
 
   "A new table actor" should "store columns" in {
-    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), 10))
+    val table = system.actorOf(Table.props(Seq("columnA", "columnB")))
     table ! ListColumnsInTable()
     expectMsg(ColumnList(Seq("columnA", "columnB")))
   }
 
   it should "retrieve partition" in {
-    val table = system.actorOf(Table.props(Seq("columnA"), 10))
+    val table = system.actorOf(Table.props(Seq("columnA")))
     table ! GetPartitions()
     assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 1 })
   }
 
   it should "retrieve columns" in {
-    val table = system.actorOf(Table.props(Seq("columnA"), 10))
+    val table = system.actorOf(Table.props(Seq("columnA")))
     table ! GetColumnFromTable("columnA")
     assert(expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 1 })
   }
 
   it should "add a row" in {
-    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), 10), "table")
+    val table = system.actorOf(Table.props(Seq("columnA", "columnB")), "table")
     table ! AddRowToTable(RowType("valueA", "valueB"))
     expectMsg(RowAddedToTable())
   }
@@ -59,8 +59,8 @@ class TableTest extends AbstractActorTest("TableTest") {
     val numberOfPartitions = 10
     val orderTable = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1), "orderTable")
 
-    (1 to numberOfPartitions).foreach(rowId => orderTable ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
-    (1 to numberOfPartitions).foreach(_ => expectMsg(RowAddedToTable()))
+    (0 until numberOfPartitions).foreach(rowId => orderTable ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
+    (0 until numberOfPartitions).foreach(_ => expectMsg(RowAddedToTable()))
 
     orderTable ! GetPartitions()
     val partitions = expectMsgType[PartitionsInTable]
@@ -74,7 +74,7 @@ class TableTest extends AbstractActorTest("TableTest") {
       columnActors.columnActors.foreach(columnActor => columnActor ! ScanColumn())
       val values = (1 to numberOfPartitions).map(_ => expectMsgType[ScannedValues]).sortBy(c => c.partitionId).flatMap(c => c.values.values)
       // Verify correct values
-      values.sorted shouldEqual (1 to numberOfPartitions).map(index => suffix + index).toVector.sorted
+      values.sorted shouldEqual (0 until numberOfPartitions).map(index => suffix + index).toVector.sorted
       values
     }
 

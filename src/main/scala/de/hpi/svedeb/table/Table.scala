@@ -5,13 +5,11 @@ import akka.pattern.{ask, pipe}
 import akka.util.Timeout
 import de.hpi.svedeb.table.Partition._
 import de.hpi.svedeb.table.Table._
+import de.hpi.svedeb.utils.Utils
 
 import scala.concurrent.Future
 
 object Table {
-
-  def props(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq[ActorRef] = Seq.empty[ActorRef]): Props = Props(new Table(columnNames, partitionSize, initialPartitions))
-
   case class AddColumnToTable(name: String)
   case class AddRowToTable(row: RowType)
   case class ListColumnsInTable()
@@ -24,6 +22,8 @@ object Table {
   case class ColumnList(columnNames: Seq[String])
   case class ActorsForColumn(columnActors: Seq[ActorRef])
   case class PartitionsInTable(partitions: Seq[ActorRef])
+
+  def props(columnNames: Seq[String], partitionSize: Int = Utils.defaultPartitionSize, initialPartitions: Seq[ActorRef] = Seq.empty[ActorRef]): Props = Props(new Table(columnNames, partitionSize, initialPartitions))
 }
 
 class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq[ActorRef]) extends Actor with ActorLogging {
@@ -37,6 +37,21 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
     } else {
       active(initialPartitions)
     }
+  }
+
+  private def listColumns(): ColumnList = {
+    log.info("Listing columns: {}", columnNames)
+    ColumnList(columnNames)
+  }
+
+  private def getColumns(partitions: Seq[ActorRef], columnName: String): Future[ActorsForColumn] = {
+    import scala.concurrent.duration._
+    implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
+
+    val listOfFutures = partitions.map(p => ask(p, GetColumn(columnName)).mapTo[ColumnRetrieved])
+    Future.sequence(listOfFutures)
+      .map(list => list.map(c => c.column))
+      .map(c => ActorsForColumn(c))
   }
 
   private def active(partitions: Seq[ActorRef]): Receive = {
@@ -54,22 +69,7 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
       val updatedPartitions = partitions :+ newPartition
       context.become(active(updatedPartitions))
       newPartition ! AddRow(row, originalSender)
-    case x => log.error("Message not understood: {}", x)
-  }
-
-  private def listColumns(): ColumnList = {
-    log.info("Listing columns: {}", columnNames)
-    ColumnList(columnNames)
-  }
-
-  private def getColumns(partitions: Seq[ActorRef], columnName: String): Future[ActorsForColumn] = {
-    import scala.concurrent.duration._
-    implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
-
-    val listOfFutures = partitions.map(p => ask(p, GetColumn(columnName)).mapTo[ColumnRetrieved])
-    val foo = Future.sequence(listOfFutures)
-    val bar = foo.map(list => list.map(c => c.column)).map(c => ActorsForColumn(c))
-    bar
+    case m => throw new Exception("Message not understood: " + m)
   }
 }
 
