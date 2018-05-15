@@ -14,7 +14,7 @@ class CreateTableOperatorTest extends AbstractActorTest("CreateTableOperator") {
       case AddTable(_, _) => sender ! TableAdded(ActorRef.noSender); TestActor.KeepRunning
     })
 
-    val createTableOperator = system.actorOf(CreateTableOperator.props(tableManager.ref, "SomeTable", Seq("columnA", "columnB")))
+    val createTableOperator = system.actorOf(CreateTableOperator.props(tableManager.ref, "SomeTable", Seq("columnA", "columnB"), 10))
     createTableOperator ! Execute()
 
     expectMsgType[QueryResult]

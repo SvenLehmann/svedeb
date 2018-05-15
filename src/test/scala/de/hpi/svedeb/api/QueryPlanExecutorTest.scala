@@ -62,7 +62,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
-    apiWorker ! Run(0, CreateTable("SomeTable", Seq("a", "b")))
+    apiWorker ! Run(0, CreateTable("SomeTable", Seq("a", "b"), 10))
 
     val query = expectMsgType[QueryFinished]
   }

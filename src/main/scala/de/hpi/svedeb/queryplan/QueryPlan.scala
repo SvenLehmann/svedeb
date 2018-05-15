@@ -13,7 +13,7 @@ object QueryPlan {
         case Scan(input, _, _) =>
           if (resultTable == ActorRef.noSender) handleNesting(input)
           else None
-        case CreateTable(_, _) =>
+        case CreateTable(_, _, _) =>
           if (resultTable == ActorRef.noSender) Some(this)
           else None
         case DropTable(_) =>
@@ -37,10 +37,15 @@ object QueryPlan {
         case DropTable(_) =>
           if (resultTable == ActorRef.noSender && !assignedWorker.equals(actor)) Some(this)
           else None
-        case CreateTable(_, _) =>
+        case CreateTable(_, _, _) =>
           if (resultTable == ActorRef.noSender && !assignedWorker.equals(actor)) Some(this)
           else None
         case EmptyNode() => None
+          if (resultTable == ActorRef.noSender && !assignedWorker.equals(actor)) Some(this)
+          else None
+        case InsertRow(table, _) =>
+          if (resultTable == ActorRef.noSender) handleNestingWithException(table, actor)
+          else None
       }
     }
 
@@ -94,7 +99,7 @@ object QueryPlan {
         case Scan(input, _, _) =>
           if (this == node) Some(this)
           else input.findNode(node)
-        case CreateTable(_, _) =>
+        case CreateTable(_, _, _) =>
           if (this == node) Some(this)
           else None
         case DropTable(_) =>
@@ -127,7 +132,7 @@ object QueryPlan {
   }
   case class GetTable(tableName: String) extends QueryPlanNode
   case class Scan(input: QueryPlanNode, columnName: String, predicate: String => Boolean) extends QueryPlanNode
-  case class CreateTable(tableName: String, columnNames: Seq[String]) extends QueryPlanNode
+  case class CreateTable(tableName: String, columnNames: Seq[String], partitionSize: Int) extends QueryPlanNode
   case class DropTable(tableName: String) extends QueryPlanNode
   case class InsertRow(table: QueryPlanNode, row: RowType) extends QueryPlanNode
   case class EmptyNode() extends QueryPlanNode
