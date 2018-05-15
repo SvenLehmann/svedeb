@@ -14,19 +14,20 @@ object CreateTableOperator {
 class CreateTableOperator(tableManager: ActorRef, tableName: String, columnNames: Seq[String], partitionSize: Int) extends AbstractOperator {
   override def receive: Receive = active(State(ActorRef.noSender))
 
-  def execute(): Unit = {
+  private def execute(): Unit = {
     val newState = State(sender())
     context.become(active(newState))
 
-    tableManager ! AddTable(tableName, columnNames)
+    tableManager ! AddTable(tableName, columnNames, partitionSize)
   }
 
-  def handleTableAdded(state: State, tableRef: ActorRef): Unit = {
+  private def handleTableAdded(state: State, tableRef: ActorRef): Unit = {
     state.sender ! QueryResult(tableRef)
   }
 
-  def active(state: State): Receive = {
+  private def active(state: State): Receive = {
     case Execute() => execute()
     case TableAdded(tableRef) => handleTableAdded(state, tableRef)
+    case m => throw new Exception("Message not understood: " + m)
   }
 }

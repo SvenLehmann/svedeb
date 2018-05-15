@@ -16,10 +16,14 @@ object ScanOperator {
                                predicate: String => Boolean,
                                numberOfPartitions: Int,
                                columnNames: Option[Seq[String]] = None,
-                               results: Seq[ActorRef] = Seq.empty[ActorRef]) {
-    def addResult(partition: ActorRef): ScanState = {
-      val newResults = results :+ partition
+                               results: Map[Int, ActorRef] = Map.empty) {
+    def addResult(partitionId: Int, partition: ActorRef): ScanState = {
+      val newResults = results + (partitionId -> partition)
       ScanState(sender, columnName, predicate, numberOfPartitions, columnNames, newResults)
+    }
+
+    def hasFinished: Boolean = {
+      results.keys.size == numberOfPartitions
     }
   }
 
@@ -57,13 +61,13 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     }
   }
 
-  private def storePartialResult(state: ScanOperator.ScanState, partition: ActorRef): Unit = {
+  private def storePartialResult(state: ScanOperator.ScanState, partitionId: Int, partition: ActorRef): Unit = {
     log.debug("Storing partial result")
 
-    val newState = state.addResult(partition)
+    val newState = state.addResult(partitionId, partition)
     context.become(active(newState))
 
-    if (newState.results.size == newState.numberOfPartitions && state.columnNames.isDefined) {
+    if (newState.hasFinished && state.columnNames.isDefined) {
       log.debug("Received all partial results.")
       // We received all results for the columns
       createNewTable(newState)
@@ -71,7 +75,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
   }
 
   private def createNewTable(state: ScanOperator.ScanState): Unit = {
-    val table = context.actorOf(Table.props(state.columnNames.get, 10, state.results))
+    val table = context.actorOf(Table.props(state.columnNames.get, 10, state.results.values.toSeq))
     log.debug("Created output table, sending to {}", state.sender)
     state.sender ! QueryResult(table)
   }
@@ -80,6 +84,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     case Execute() => initializeScan(state, columnName, predicate)
     case ColumnList(columnNames) => storeColumnNames(state, columnNames)
     case PartitionsInTable(partitions) => invokeScanJobs(state, partitions)
-    case ScanWorkerResult(partition) => storePartialResult(state, partition)
+    case ScanWorkerResult(partitionId, partition) => storePartialResult(state, partitionId, partition)
+    case m => throw new Exception("Message not understood: " + m)
   }
 }

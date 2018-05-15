@@ -24,12 +24,12 @@ object Column {
 class Column(partitionId: Int, columnName: String, initialValues: ColumnType) extends Actor with ActorLogging {
   override def receive: Receive = active(initialValues)
 
-  def filter(values: ColumnType, predicate: String => Boolean): Unit = {
+  private def filter(values: ColumnType, predicate: String => Boolean): Unit = {
     val filteredIndizes = values.filterByPredicate(predicate)
     sender() ! FilteredRowIndizes(partitionId, columnName, filteredIndizes)
   }
 
-  def scan(values: ColumnType, indizes: Option[Seq[Int]]): Unit = {
+  private def scan(values: ColumnType, indizes: Option[Seq[Int]]): Unit = {
     if (indizes.isDefined) {
       val scannedValues = values.filterByIndizes(indizes.get)
       sender() ! ScannedValues(partitionId, columnName, scannedValues)
@@ -38,20 +38,20 @@ class Column(partitionId: Int, columnName: String, initialValues: ColumnType) ex
     }
   }
 
+  private def addRow(values: ColumnType, value: String): Unit = {
+    log.debug("Appending value: {}", value)
+    context.become(active(values.append(value)))
+
+    sender() ! ValueAppended(partitionId, columnName)
+  }
+
   private def active(values: ColumnType): Receive = {
     case AppendValue(value: String) => addRow(values, value)
     case FilterColumn(predicate) => filter(values, predicate)
     case ScanColumn(indizes) => scan(values, indizes)
     case GetColumnName() => sender() ! ColumnName(columnName)
     case GetColumnSize() => sender() ! ColumnSize(partitionId, values.size())
-    case x => log.error("Message not understood: {}", x)
-  }
-
-  private def addRow(values: ColumnType, value: String): Unit = {
-    log.debug("Appending value: {}", value)
-    context.become(active(values.append(value)))
-
-    sender() ! ValueAppended(partitionId, columnName)
+    case m => throw new Exception("Message not understood: " + m)
   }
 }
 

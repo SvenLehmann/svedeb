@@ -1,6 +1,6 @@
 package de.hpi.svedeb.api
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import akka.routing.RoundRobinPool
 import de.hpi.svedeb.api.API._
 import de.hpi.svedeb.api.MaterializationWorker.{MaterializeTable, MaterializedTable}
@@ -11,11 +11,12 @@ import de.hpi.svedeb.table.ColumnType
 object API {
   case class Query(queryPlan: QueryPlanNode)
   case class Materialize(table: ActorRef)
+  case class Shutdown()
 
   case class MaterializedResult(result: Map[String, ColumnType])
   case class Result(resultTable: ActorRef)
 
-  case class ApiState(queryCounter: Int = 0, runningQueries: Map[Int, ActorRef] = Map.empty) {
+  private case class ApiState(queryCounter: Int = 0, runningQueries: Map[Int, ActorRef] = Map.empty) {
     def addQuery(sender: ActorRef): (ApiState, Int) = {
       val queryId = queryCounter + 1
       val newState = ApiState(queryId, runningQueries + (queryId -> sender))
@@ -31,9 +32,15 @@ class API(tableManager: ActorRef) extends Actor with ActorLogging {
 
   override def receive: Receive = active(ApiState())
 
-  def materializeTable(user: ActorRef, resultTable: ActorRef): Unit = {
+  private def materializeTable(user: ActorRef, resultTable: ActorRef): Unit = {
     val worker = context.actorOf(MaterializationWorker.props(self, user))
     worker ! MaterializeTable(resultTable)
+  }
+
+  private def handleShutdown() = {
+    self ! PoisonPill
+    tableManager ! PoisonPill
+    context.system.terminate()
   }
 
   private def active(state: ApiState): Receive = {
@@ -45,5 +52,9 @@ class API(tableManager: ActorRef) extends Actor with ActorLogging {
       workerActors ! Run(queryId, queryPlan)
     case QueryFinished(queryId, resultTable) =>
       state.runningQueries(queryId) ! Result(resultTable)
+    case Shutdown() => handleShutdown()
+    case m => throw new Exception("Message not understood: " + m)
   }
+
+
 }

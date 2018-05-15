@@ -79,9 +79,8 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     operator ! Execute()
     val msg = expectMsgType[QueryResult]
 
-
     val chainedOperator = system.actorOf(ScanOperator.props(msg.resultTable, "columnB", x => x.contains("2")))
-    chainedOperator ! Execute
+    chainedOperator ! Execute()
     val chainedResult = expectMsgType[QueryResult]
 
     chainedResult.resultTable ! GetColumnFromTable("columnA")
