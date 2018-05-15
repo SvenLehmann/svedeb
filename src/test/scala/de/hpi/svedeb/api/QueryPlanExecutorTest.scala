@@ -6,23 +6,39 @@ import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.api.QueryPlanExecutor.{QueryFinished, Run}
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.queryplan.QueryPlan._
-import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
-import de.hpi.svedeb.table.Table.{ActorsForColumn, GetColumnFromTable}
-import de.hpi.svedeb.table.{ColumnType, Partition, RowType, Table}
+import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndizes, ScanColumn, ScannedValues}
+import de.hpi.svedeb.table.ColumnType
+import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
+import de.hpi.svedeb.table.Table._
 import org.scalatest.Matchers._
-import scala.concurrent.duration._
 
 class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 
   // TODO: This test should not actually invoke the whole query execution
   "An APIWorker" should "query an empty table" in {
     val tableManager = TestProbe("TableManager")
-    val table = system.actorOf(Table.props(Seq("a", "b"), 10), name = "table")
+    val table = TestProbe("table")
+    val partition = TestProbe("partition")
+    val column = TestProbe("column")
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case FetchTable(_) => sender ! TableFetched(table); TestActor.KeepRunning
-      case AddTable(_, _) => sender ! TableAdded(table); TestActor.KeepRunning
+      case FetchTable(_) => sender ! TableFetched(table.ref); TestActor.KeepRunning
+      case AddTable(_, _) => sender ! TableAdded(table.ref); TestActor.KeepRunning
       case RemoveTable(_) => sender ! TableRemoved(); TestActor.KeepRunning
+    })
+
+    table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetPartitions() => sender ! PartitionsInTable(Seq(partition.ref)); TestActor.KeepRunning
+      case ListColumnsInTable() => sender ! ColumnList(Seq("a")); TestActor.KeepRunning
+    })
+
+    partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetColumns() => sender ! ColumnsRetrieved(Map("a" -> column.ref)); TestActor.KeepRunning
+    })
+
+    column.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case ScanColumn(_) => sender ! ScannedValues(0, "a", ColumnType("a", "b")); TestActor.KeepRunning
+      case FilterColumn(_) => sender ! FilteredRowIndizes(0, "a", Seq(0, 1)); TestActor.KeepRunning
     })
 
     val queryPlan = Scan(GetTable("SomeTable"), "a", _ => true)
@@ -39,9 +55,10 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 
   it should "create an empty table" in {
     val tableManager = TestProbe("TableManager")
+    val table = TestProbe("table")
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case AddTable(_, _) => sender ! TableAdded(system.actorOf(Table.props(Seq("a"), 10))); TestActor.KeepRunning
+      case AddTable(_, _) => sender ! TableAdded(table.ref); TestActor.KeepRunning
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
@@ -52,11 +69,36 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 
   it should "query a non-empty table" in {
     val tableManager = TestProbe("TableManager")
-    val partition = system.actorOf(Partition.props(0, Map(("a", ColumnType("x", "x", "a")), ("b", ColumnType("y", "t", "y"))), 10))
-    val table = system.actorOf(Table.props(Seq("a", "b"), 10, Seq(partition)))
+
+//    val partition = system.actorOf(Partition.props(0, Map(("a", ColumnType("x", "x", "a")), ("b", ColumnType("y", "t", "y"))), 10))
+    val partition = TestProbe("partition")
+    val columnA = TestProbe("columnA")
+    val columnB = TestProbe("columnb")
+
+    //system.actorOf(Table.props(Seq("a", "b"), 10, Seq(partition)))
+    val table = TestProbe("table")
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case FetchTable(_) => sender ! TableFetched(table); TestActor.KeepRunning
+      case FetchTable(_) => sender ! TableFetched(table.ref); TestActor.KeepRunning
+    })
+
+    table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetPartitions() => sender ! PartitionsInTable(Seq(partition.ref)); TestActor.KeepRunning
+      case ListColumnsInTable() => sender ! ColumnList(Seq("a")); TestActor.KeepRunning
+    })
+
+    partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetColumns() => sender ! ColumnsRetrieved(Map("a" -> columnA.ref, "b" -> columnB.ref)); TestActor.KeepRunning
+    })
+
+    columnA.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case ScanColumn(_) => sender ! ScannedValues(0, "a", ColumnType("x", "x")); TestActor.KeepRunning
+      case FilterColumn(_) => sender ! FilteredRowIndizes(0, "a", Seq(0, 1)); TestActor.KeepRunning
+    })
+
+    columnB.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case ScanColumn(_) => sender ! ScannedValues(0, "b", ColumnType("y", "y")); TestActor.KeepRunning
+      case FilterColumn(_) => sender ! FilteredRowIndizes(0, "a", Seq(0, 2)); TestActor.KeepRunning
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
@@ -70,8 +112,8 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     resultColumnB.columnActors.head ! ScanColumn()
 
     val contentColumnB= expectMsgType[ScannedValues]
-    contentColumnB.values.values.size shouldEqual 1
-    contentColumnB.values.values.head shouldEqual "y"
+    contentColumnB.values.values.size shouldEqual 2
+    contentColumnB.values.values shouldEqual Vector("y", "y")
 
     resultTable.resultTable ! GetColumnFromTable("a")
 
@@ -79,7 +121,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     resultColumnA.columnActors.head ! ScanColumn()
 
     val contentColumnA = expectMsgType[ScannedValues]
-    contentColumnA.values.values.size shouldEqual 1
-    contentColumnA.values.values.head shouldEqual "x"
+    contentColumnA.values.values.size shouldEqual 2
+    contentColumnA.values.values shouldEqual Vector("x", "x")
   }
 }
