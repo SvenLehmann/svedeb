@@ -15,7 +15,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
 
     val table = TestProbe("S")
     val worker = TestProbe("worker")
-    firstNode.updateAssignedWorker(worker.ref)
+    firstNode.updateAssignedWorker(firstNode, worker.ref)
     firstNode.saveIntermediateResult(worker.ref, table.ref)
 
     assert(firstNode.isExecuted)
@@ -24,7 +24,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val thirdNode = Scan(secondNode, "b", _ => true)
     assert(!thirdNode.isExecuted)
 
-    secondNode.updateAssignedWorker(worker.ref)
+    secondNode.updateAssignedWorker(secondNode, worker.ref)
     secondNode.saveIntermediateResult(worker.ref, table.ref)
 
     assert(firstNode.isExecuted)
@@ -59,7 +59,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
 
     val table = TestProbe("S")
     val worker = TestProbe("worker")
-    firstNode.updateAssignedWorker(worker.ref)
+    firstNode.updateAssignedWorker(firstNode, worker.ref)
     firstNode.saveIntermediateResult(worker.ref, table.ref)
 
     secondNode.findNextStep() shouldEqual Some(secondNode)
@@ -67,7 +67,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val thirdNode = Scan(secondNode, "b", _ => true)
     thirdNode.findNextStep() shouldEqual Some(secondNode)
 
-    secondNode.updateAssignedWorker(worker.ref)
+    secondNode.updateAssignedWorker(secondNode, worker.ref)
     secondNode.saveIntermediateResult(worker.ref, table.ref)
 
     thirdNode.findNextStep() shouldEqual Some(thirdNode)
@@ -76,7 +76,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
   it should "update the assigned worker" in {
     val node = GetTable("S")
     val worker = TestProbe("createTableWorker")
-    node.updateAssignedWorker(worker.ref)
+    node.updateAssignedWorker(node, worker.ref)
 
     assert(node.assignedWorker == worker.ref)
   }
@@ -90,7 +90,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val table = TestProbe("S")
     val worker = TestProbe("createTableWorker")
 
-    node.updateAssignedWorker(worker.ref)
+    node.updateAssignedWorker(node, worker.ref)
     node.saveIntermediateResult(worker.ref, table.ref)
 
     assert(node.resultTable == table.ref)

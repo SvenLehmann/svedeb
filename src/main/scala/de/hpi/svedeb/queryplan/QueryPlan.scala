@@ -10,7 +10,17 @@ object QueryPlan {
                                var rightInput: Option[QueryPlanNode],
                                var assignedWorker: ActorRef = ActorRef.noSender,
                                var resultTable: ActorRef = ActorRef.noSender) {
-    def saveIntermediateResult(intermediateResult: ActorRef): QueryPlanNode = {
+    def saveIntermediateResult(worker: ActorRef, intermediateResult: ActorRef): QueryPlanNode = {
+      val optionalNode = findNodeWithWorker(worker)
+      if (optionalNode.isEmpty) {
+        throw new Exception("Could not find node for this worker")
+      }
+
+      optionalNode.get.saveIntermediateResult(intermediateResult)
+      this
+    }
+
+    private def saveIntermediateResult(intermediateResult: ActorRef): QueryPlanNode = {
       resultTable = intermediateResult
       this
     }
@@ -23,30 +33,12 @@ object QueryPlan {
       this
     }
 
-    def isExecuted: Boolean = {
-      resultTable match {
-        case ActorRef.noSender => false
-        case _ => true
-      }
+    private def updateAssignedWorker(worker: ActorRef) : QueryPlanNode = {
+      assignedWorker = worker
+      this
     }
 
-    // TODO: tailrec
-    def findNodeWithWorker(workerRef: ActorRef): Option[QueryPlanNode] = {
-      @tailrec
-      def iter(l: Seq[QueryPlanNode]): Option[QueryPlanNode] = {
-        l match {
-          case Nil => None
-          case node :: ls if node.assignedWorker == workerRef => Some(node)
-          case node :: ls if node.leftInput.isDefined && node.rightInput.isDefined =>
-            iter(node.leftInput.get :: node.rightInput.get :: ls)
-          case node :: ls if node.leftInput.isDefined => iter(node.leftInput.get :: ls)
-          case node :: ls if node.rightInput.isDefined => iter(node.rightInput.get :: ls)
-          case _ => None
-        }
-      }
-
-      iter(Seq(this))
-    }
+    def isExecuted: Boolean = resultTable != ActorRef.noSender
 
     def advanceToNextStep(lastWorker: ActorRef,
                           resultTable: ActorRef,
@@ -54,16 +46,6 @@ object QueryPlan {
                           nextStep: QueryPlanNode): QueryPlanNode = {
       findNodeAndUpdateWorker(nextWorker, nextStep)
       saveIntermediateResult(lastWorker, resultTable)
-      this
-    }
-
-    def saveIntermediateResult(worker: ActorRef, intermediateResult: ActorRef): QueryPlanNode = {
-      val optionalNode = findNodeWithWorker(worker)
-      if (optionalNode.isEmpty) {
-        throw new Exception("Could not find node for this worker")
-      }
-
-      optionalNode.get.saveIntermediateResult(intermediateResult)
       this
     }
 
@@ -76,9 +58,21 @@ object QueryPlan {
       this
     }
 
-    def updateAssignedWorker(worker: ActorRef) : QueryPlanNode = {
-      assignedWorker = worker
-      this
+    def findNodeWithWorker(workerRef: ActorRef): Option[QueryPlanNode] = {
+      @tailrec
+      def iter(l: Seq[QueryPlanNode]): Option[QueryPlanNode] = {
+        l match {
+          case Nil => None
+          case node :: _ if node.assignedWorker == workerRef => Some(node)
+          case node :: ls if node.leftInput.isDefined && node.rightInput.isDefined =>
+            iter(node.leftInput.get :: node.rightInput.get :: ls)
+          case node :: ls if node.leftInput.isDefined => iter(node.leftInput.get :: ls)
+          case node :: ls if node.rightInput.isDefined => iter(node.rightInput.get :: ls)
+          case _ => None
+        }
+      }
+
+      iter(Seq(this))
     }
 
     def findNextStep(): Option[QueryPlanNode] = {
