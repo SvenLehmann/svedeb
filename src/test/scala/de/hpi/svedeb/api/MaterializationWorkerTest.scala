@@ -20,8 +20,8 @@ class MaterializationWorkerTest extends AbstractActorTest("MaterializationWorker
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ListColumnsInTable() => sender.tell(ColumnList(Seq("columnA", "columnB")), table.ref); TestActor.KeepRunning
       case GetColumnFromTable(columnName) => columnName match {
-        case "columnA" => sender ! ActorsForColumn(Seq(columnA.ref))
-        case "columnB" => sender ! ActorsForColumn(Seq(columnB.ref))
+        case "columnA" => sender ! ActorsForColumn("columnA", Seq(columnA.ref))
+        case "columnB" => sender ! ActorsForColumn("columnB", Seq(columnB.ref))
       }; TestActor.KeepRunning
     })
 
@@ -54,8 +54,8 @@ class MaterializationWorkerTest extends AbstractActorTest("MaterializationWorker
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ListColumnsInTable() => sender.tell(ColumnList(Seq("columnA", "columnB")), table.ref); TestActor.KeepRunning
       case GetColumnFromTable(columnName) => columnName match {
-        case "columnA" => sender ! ActorsForColumn(Seq(columnA0.ref, columnA1.ref, columnA2.ref))
-        case "columnB" => sender ! ActorsForColumn(Seq(columnB0.ref, columnB1.ref, columnB2.ref))
+        case "columnA" => sender ! ActorsForColumn("columnA", Seq(columnA0.ref, columnA1.ref, columnA2.ref))
+        case "columnB" => sender ! ActorsForColumn("columnB", Seq(columnB0.ref, columnB1.ref, columnB2.ref))
       }; TestActor.KeepRunning
     })
 

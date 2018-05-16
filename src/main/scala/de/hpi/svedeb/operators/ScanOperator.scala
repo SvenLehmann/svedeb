@@ -7,6 +7,7 @@ import de.hpi.svedeb.operators.workers.ScanWorker
 import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult}
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table._
+import de.hpi.svedeb.utils.Utils
 
 object ScanOperator {
   def props(table: ActorRef, columnName: String, predicate: String => Boolean): Props = Props(new ScanOperator(table, columnName, predicate))
@@ -75,7 +76,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
   }
 
   private def createNewTable(state: ScanOperator.ScanState): Unit = {
-    val table = context.actorOf(Table.props(state.columnNames.get, 10, state.results.values.toSeq))
+    val table = context.actorOf(Table.props(state.columnNames.get, Utils.defaultPartitionSize, state.results.values.toSeq))
     log.debug("Created output table, sending to {}", state.sender)
     state.sender ! QueryResult(table)
   }

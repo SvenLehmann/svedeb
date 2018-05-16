@@ -20,7 +20,7 @@ object Table {
   case class ColumnAddedToTable()
   case class RowAddedToTable()
   case class ColumnList(columnNames: Seq[String])
-  case class ActorsForColumn(columnActors: Seq[ActorRef])
+  case class ActorsForColumn(columnName: String, columnActors: Seq[ActorRef])
   case class PartitionsInTable(partitions: Seq[ActorRef])
 
   def props(columnNames: Seq[String], partitionSize: Int = Utils.defaultPartitionSize, initialPartitions: Seq[ActorRef] = Seq.empty[ActorRef]): Props = Props(new Table(columnNames, partitionSize, initialPartitions))
@@ -51,7 +51,7 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
     val listOfFutures = partitions.map(p => ask(p, GetColumn(columnName)).mapTo[ColumnRetrieved])
     Future.sequence(listOfFutures)
       .map(list => list.map(c => c.column))
-      .map(c => ActorsForColumn(c))
+      .map(c => ActorsForColumn("Some Column Name", c)) //TODO!
   }
 
   private def active(partitions: Seq[ActorRef]): Receive = {

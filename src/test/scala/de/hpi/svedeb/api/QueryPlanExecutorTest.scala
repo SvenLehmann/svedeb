@@ -44,6 +44,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref), name = "queryPlanExecutor")
     apiWorker ! Run(0, queryPlan)
 
+    // TODO: use result
     val query = expectMsgType[QueryFinished]
   }
 
@@ -58,6 +59,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
     apiWorker ! Run(0, CreateTable("SomeTable", Seq("a", "b"), 10))
 
+    // TODO: use result
     val query = expectMsgType[QueryFinished]
   }
 
@@ -66,7 +68,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 
     val partition = TestProbe("partition")
     val columnA = TestProbe("columnA")
-    val columnB = TestProbe("columnb")
+    val columnB = TestProbe("columnB")
     val table = TestProbe("table")
 
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
@@ -76,8 +78,8 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case GetPartitions() => sender ! PartitionsInTable(Seq(partition.ref)); TestActor.KeepRunning
       case ListColumnsInTable() => sender ! ColumnList(Seq("a")); TestActor.KeepRunning
-      case GetColumnFromTable("a") => sender ! ActorsForColumn(Seq(columnA.ref)); TestActor.KeepRunning
-      case GetColumnFromTable("b") => sender ! ActorsForColumn(Seq(columnB.ref)); TestActor.KeepRunning
+      case GetColumnFromTable("a") => sender ! ActorsForColumn("a", Seq(columnA.ref)); TestActor.KeepRunning
+      case GetColumnFromTable("b") => sender ! ActorsForColumn("b", Seq(columnB.ref)); TestActor.KeepRunning
     })
 
     partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {

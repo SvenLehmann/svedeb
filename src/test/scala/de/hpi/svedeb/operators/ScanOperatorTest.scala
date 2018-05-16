@@ -3,9 +3,7 @@ package de.hpi.svedeb.operators
 import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.api.QueryPlanExecutor.QueryFinished
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
-import de.hpi.svedeb.queryplan.QueryPlan.Scan
 import de.hpi.svedeb.table.Column.{FilteredRowIndizes, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition.{ColumnNameList, ColumnsRetrieved, GetColumns, ListColumnNames}
 import de.hpi.svedeb.table.Table._
@@ -31,7 +29,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
 
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ListColumnsInTable() ⇒ println("Received ListColumnsInTable"); sender ! ColumnList(Seq("a", "b")); TestActor.KeepRunning
-      case GetColumnFromTable(name) => sender ! ActorsForColumn(Seq(columnA.ref, columnB.ref)); TestActor.KeepRunning
+      case GetColumnFromTable(name) => sender ! ActorsForColumn(name, Seq(columnA.ref, columnB.ref)); TestActor.KeepRunning
       case GetPartitions() => sender! PartitionsInTable(Seq(partition.ref)); TestActor.KeepRunning
     })
 
