@@ -1,7 +1,5 @@
 package de.hpi.svedeb
 
-import akka.actor.PoisonPill
-
 import scala.concurrent.Await
 import akka.pattern.ask
 import akka.util.Timeout
@@ -86,6 +84,4 @@ object ExternalUser extends App {
   println("Time for single scan: {}ms", (after - before)/1000000)
 
   api ! Shutdown()
-
-
 }
