@@ -40,7 +40,7 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
   }
 
   private def listColumns(): ColumnList = {
-    log.info("Listing columns: {}", columnNames)
+    log.debug("Listing columns: {}", columnNames)
     ColumnList(columnNames)
   }
 
@@ -60,10 +60,10 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
     case GetColumnFromTable(columnName) => pipe(getColumns(partitions, columnName)) to sender()
     case GetPartitions() => sender() ! PartitionsInTable(partitions)
     case RowAdded(originalSender) =>
-      log.info("Adding to existing partition")
+      log.debug("Adding to existing partition")
       originalSender ! RowAddedToTable()
     case PartitionFull(row, originalSender) =>
-      log.info("Creating new partition")
+      log.debug("Creating new partition")
       val newPartitionId = partitions.size
       val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize), "partition" + newPartitionId)
       val updatedPartitions = partitions :+ newPartition
