@@ -23,14 +23,14 @@ object QueryPlanExecutor {
     def assignWorker(initialQueryPlan: QueryPlanNode,
                      worker: ActorRef,
                      node: QueryPlanNode): APIWorkerState = {
-      val newQueryPlan = initialQueryPlan.findNodeAndUpdateWorker(worker, node)
+      val newQueryPlan = initialQueryPlan.findNodeAndUpdateWorker(node, worker)
       APIWorkerState(sender, Some(newQueryPlan), queryId)
     }
 
-    def nextStage(initialQueryPlan: QueryPlanNode,
-                  nextStep: QueryPlanNode,
+    def nextStage(queryPlan: QueryPlanNode,
+                  nextStage: QueryPlanNode,
                   nextWorker: ActorRef): APIWorkerState = {
-      val newQueryPlan = initialQueryPlan.updateAssignedWorker(nextStep, nextWorker)
+      val newQueryPlan = queryPlan.findNodeAndUpdateWorker(nextStage, nextWorker)
       APIWorkerState(sender, Some(newQueryPlan), queryId)
     }
   }
@@ -53,13 +53,13 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
         context.actorOf(ScanOperator.props(resultTable.get, columnName, predicate))
       case InsertRow(_, row: RowType) =>
         context.actorOf(InsertRowOperator.props(resultTable.get, row))
-      case _ => throw new Exception("Incorrect first operator")
+      case _ => throw new Exception("Unknown node type, cannot build operator")
     }
   }
 
   def handleQuery(state: APIWorkerState, queryId: Int, queryPlan: QueryPlanNode): Unit = {
     log.debug("Building initial operator")
-    val firstStage = queryPlan.findNextStep().get
+    val firstStage = queryPlan.findNextStage().get
     val operator = nodeToOperatorActor(firstStage)
 
     val newState = state.storeQueryId(queryId).storeSender(sender()).assignWorker(queryPlan, operator, firstStage)
@@ -76,14 +76,14 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
 
     state.queryPlan.get.saveIntermediateResult(sender(), resultTable)
 
-    val nextStep = state.queryPlan.get.findNextStep()
+    val nextStage = state.queryPlan.get.findNextStage()
 
-    if (nextStep.isEmpty) {
+    if (nextStage.isEmpty) {
       state.sender ! QueryFinished(state.queryId.get, resultTable)
     } else {
-      val operator = nodeToOperatorActor(nextStep.get, Some(resultTable))
+      val operator = nodeToOperatorActor(nextStage.get, Some(resultTable))
 
-      val newState = state.nextStage(state.queryPlan.get, nextStep.get, operator)
+      val newState = state.nextStage(state.queryPlan.get, nextStage.get, operator)
       context.become(active(newState))
 
       operator ! Execute()
