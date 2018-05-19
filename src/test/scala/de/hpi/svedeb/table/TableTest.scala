@@ -14,16 +14,18 @@ class TableTest extends AbstractActorTest("TableTest") {
     expectMsg(ColumnList(Seq("columnA", "columnB")))
   }
 
-  it should "retrieve partition" in {
+  it should "not contain partitions" in {
     val table = system.actorOf(Table.props(Seq("columnA")))
     table ! GetPartitions()
-    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 1 })
+    val partitions = expectMsgType[PartitionsInTable]
+    partitions.partitions.size shouldEqual 0
   }
 
   it should "retrieve columns" in {
     val table = system.actorOf(Table.props(Seq("columnA")))
     table ! GetColumnFromTable("columnA")
-    assert(expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 1 })
+    val actorsForColumn = expectMsgType[ActorsForColumn]
+    actorsForColumn.columnActors.size shouldEqual  0
   }
 
   it should "add a row" in {
@@ -44,10 +46,12 @@ class TableTest extends AbstractActorTest("TableTest") {
     expectMsg(RowAddedToTable())
 
     table ! GetPartitions()
-    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 2 })
+    val partitions = expectMsgType[PartitionsInTable]
+    partitions.partitions.size shouldEqual 2
 
     table ! GetColumnFromTable("columnA")
-    assert(expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 2 })
+    val actorsForColumn = expectMsgType[ActorsForColumn]
+    actorsForColumn.columnActors.size shouldEqual  2
   }
 
   it should "fail to add wrong row definition" in {

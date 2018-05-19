@@ -2,6 +2,7 @@ package de.hpi.svedeb.table
 
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.table.Column._
+import org.scalatest.Matchers._
 
 class ColumnTest extends AbstractActorTest("ColumnTest") {
 
@@ -14,7 +15,9 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
   it should "be initialized with values" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName", ColumnType("a", "b")))
     column ! ScanColumn()
-    expectMsgPF(){ case m: ScannedValues => m.values.size() == 2 && m.values == Seq("a", "b")}
+    val scannedValues = expectMsgType[ScannedValues]
+    scannedValues.values.size() shouldEqual 2
+    scannedValues.values shouldEqual ColumnType("a", "b")
   }
 
   it should "insert a new value" in {

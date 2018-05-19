@@ -27,20 +27,9 @@ class ProjectionOperatorTest extends AbstractActorTest("ProjectionOperator") {
 
     projectionOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
-    operatorResult.resultTable ! ListColumnsInTable()
-    expectMsg(ColumnList(Seq("a")))
 
-    operatorResult.resultTable ! GetPartitions()
-    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 1 })
-
-    operatorResult.resultTable ! GetColumnFromTable("a")
-    val returnedColumnA = expectMsgType[ActorsForColumn]
-    returnedColumnA.columnActors.size shouldEqual 1
-
-    returnedColumnA.columnActors.head ! ScanColumn()
-    val scannedValuesA = expectMsgType[ScannedValues]
-    scannedValuesA.values.size() shouldEqual 3
-    scannedValuesA.values shouldEqual ColumnType("1", "2", "3")
+    checkTable(operatorResult.resultTable, Seq(
+      Map("a" -> ColumnType("1", "2", "3"))))
   }
 
   it should "handle multiple partitions" in {
@@ -70,30 +59,11 @@ class ProjectionOperatorTest extends AbstractActorTest("ProjectionOperator") {
 
     projectionOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
-    operatorResult.resultTable ! ListColumnsInTable()
-    expectMsg(ColumnList(Seq("a")))
 
-    operatorResult.resultTable ! GetPartitions()
-    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 3 })
-
-    operatorResult.resultTable ! GetColumnFromTable("a")
-    val returnedColumnA = expectMsgType[ActorsForColumn]
-    returnedColumnA.columnActors.size shouldEqual 3
-
-    returnedColumnA.columnActors.head ! ScanColumn()
-    val scannedValuesA0 = expectMsgType[ScannedValues]
-    scannedValuesA0.values.size() shouldEqual 3
-    scannedValuesA0.values shouldEqual ColumnType("1", "2", "3")
-
-    returnedColumnA.columnActors(1) ! ScanColumn()
-    val scannedValuesA1 = expectMsgType[ScannedValues]
-    scannedValuesA1.values.size() shouldEqual 3
-    scannedValuesA1.values shouldEqual ColumnType("4", "5", "6")
-
-    returnedColumnA.columnActors(2) ! ScanColumn()
-    val scannedValuesA2 = expectMsgType[ScannedValues]
-    scannedValuesA2.values.size() shouldEqual 3
-    scannedValuesA2.values shouldEqual ColumnType("7", "8", "9")
+    checkTable(operatorResult.resultTable, Seq(
+      Map("a" -> ColumnType("1", "2", "3")),
+      Map("a" -> ColumnType("4", "5", "6")),
+      Map("a" -> ColumnType("7", "8", "9"))))
   }
 
   "A ProjectionOperator projecting multiple column" should "handle multiple partitions" in {
@@ -139,26 +109,10 @@ class ProjectionOperatorTest extends AbstractActorTest("ProjectionOperator") {
 
     projectionOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
-    operatorResult.resultTable ! ListColumnsInTable()
-    expectMsg(ColumnList(Seq("a", "b")))
 
-    operatorResult.resultTable ! GetPartitions()
-    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 3 })
-
-    operatorResult.resultTable ! GetColumnFromTable("a")
-    val returnedColumnA = expectMsgType[ActorsForColumn]
-    returnedColumnA.columnActors.size shouldEqual 3
-
-    operatorResult.resultTable ! GetColumnFromTable("b")
-    val returnedColumnB = expectMsgType[ActorsForColumn]
-    returnedColumnB.columnActors.size shouldEqual 3
-
-    checkColumnsValues(returnedColumnA.columnActors.head, ColumnType("1", "2", "3"))
-    checkColumnsValues(returnedColumnA.columnActors(1), ColumnType("4", "5", "6"))
-    checkColumnsValues(returnedColumnA.columnActors(2), ColumnType("7", "8", "9"))
-
-    checkColumnsValues(returnedColumnB.columnActors.head, ColumnType("1", "2", "3"))
-    checkColumnsValues(returnedColumnB.columnActors(1), ColumnType("4", "5", "6"))
-    checkColumnsValues(returnedColumnB.columnActors(2), ColumnType("7", "8", "9"))
+    checkTable(operatorResult.resultTable, Seq(
+      Map("a" -> ColumnType("1", "2", "3"), "b" -> ColumnType("1", "2", "3")),
+      Map("a" -> ColumnType("4", "5", "6"), "b" -> ColumnType("4", "5", "6")),
+      Map("a" -> ColumnType("7", "8", "9"), "b" -> ColumnType("7", "8", "9"))))
   }
 }

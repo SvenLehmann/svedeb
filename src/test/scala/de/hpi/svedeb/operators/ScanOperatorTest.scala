@@ -44,22 +44,8 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
 
     scanOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
-    operatorResult.resultTable ! ListColumnsInTable()
-    expectMsg(ColumnList(Seq("a", "b")))
 
-    operatorResult.resultTable ! GetPartitions()
-    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 1 })
-
-    operatorResult.resultTable ! GetColumnFromTable("a")
-    val returnedColumnA = expectMsgType[ActorsForColumn]
-    returnedColumnA.columnActors.size shouldEqual 1
-
-    operatorResult.resultTable ! GetColumnFromTable("b")
-    val returnedColumnB = expectMsgType[ActorsForColumn]
-    returnedColumnB.columnActors.size shouldEqual 1
-
-    checkColumnsValues(returnedColumnA.columnActors.head, ColumnType("1", "2", "3"))
-    checkColumnsValues(returnedColumnB.columnActors.head, ColumnType("1", "2", "3"))
+    checkTable(operatorResult.resultTable, Seq(Map("a" -> ColumnType("1", "2", "3"), "b" -> ColumnType("1", "2", "3"))))
   }
 
   it should "filter values without test probes" in {
@@ -72,18 +58,8 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     operator ! Execute()
     val msg = expectMsgType[QueryResult]
 
-    msg.resultTable ! GetColumnFromTable("columnB")
-    val columnActorsB = expectMsgType[ActorsForColumn]
-
-    checkColumnsValues(columnActorsB.columnActors.head, ColumnType("b1"))
-    checkColumnsValues(columnActorsB.columnActors(1), ColumnType())
-
-    val chainedOperator = system.actorOf(ScanOperator.props(msg.resultTable, "columnB", x => x.contains("2")))
-    chainedOperator ! Execute()
-    val chainedResult = expectMsgType[QueryResult]
-
-    chainedResult.resultTable ! GetColumnFromTable("columnA")
-    val columnActors = expectMsgType[ActorsForColumn]
-    columnActors.columnActors.foreach(column => checkColumnsValues(column, ColumnType()))
+    checkTable(msg.resultTable, Seq(
+      Map("columnA" -> ColumnType("a1"), "columnB" -> ColumnType("b1")),
+      Map("columnA" -> ColumnType(), "columnB" -> ColumnType())))
   }
 }

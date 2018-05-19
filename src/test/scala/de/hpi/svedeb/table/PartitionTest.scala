@@ -15,36 +15,24 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
     val partition = system.actorOf(Partition.props(0, Seq("someColumn")))
 
     partition ! ListColumnNames()
-    assert(expectMsgPF() { case m: ColumnNameList => m.columns.size == 1 })
+    val columnNameList = expectMsgType[ColumnNameList]
+    columnNameList.columns shouldEqual Seq("someColumn")
   }
 
   it should "be initialized with values" in {
     val partition = system.actorOf(Partition.props(0, Map("someColumn" -> ColumnType("a")), 10))
 
-    partition ! GetColumns()
-    val nameList = expectMsgType[ColumnsRetrieved]
-    nameList.columns.size shouldEqual 1
-
-    nameList.columns.foreach{ case (name, actorRef) => actorRef ! ScanColumn()}
-    assert(expectMsgPF() { case m: ScannedValues => m.values == ColumnType("a") })
-  }
-
-  it should "return its columns names" in {
-    val column = TestProbe("SomeColumn")
-    val partition = system.actorOf(Partition.props(0, Seq("someColumn")))
-
-    partition ! ListColumnNames()
-    assert(expectMsgPF() { case m: ColumnNameList => m.columns.size == 1 })
+    checkPartition(partition, Map("someColumn" -> ColumnType("a")))
   }
 
   it should "return a column ref" in {
     val partition = system.actorOf(Partition.props(0, Seq("someColumn", "someOtherColumn")))
 
     partition ! GetColumn("someOtherColumn")
-    assert(expectMsgPF() { case m: ColumnRetrieved =>
-      m.column ! GetColumnName()
-      expectMsgPF() { case m: ColumnName => m.name == "someOtherColumn"}
-    })
+    val columnRetrieved = expectMsgType[ColumnRetrieved]
+    columnRetrieved.column ! GetColumnName()
+    val columnName = expectMsgType[ColumnName]
+    columnName.name shouldEqual "someOtherColumn"
   }
 
   it should "add a row with one column" in {
@@ -68,6 +56,8 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
     partition ! AddRow(RowType("value3", "value4"), ActorRef.noSender)
     expectMsg(RowAdded(ActorRef.noSender))
     expectMsg(RowAdded(ActorRef.noSender))
+
+    checkPartition(partition, Map("column1" -> ColumnType("value1", "value3"), "column2" -> ColumnType("value2", "value4")))
   }
 
   it should "return Partition Full" in {
@@ -79,6 +69,8 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
     val row = RowType("value3", "value4")
     partition ! AddRow(row, ActorRef.noSender)
     expectMsg(PartitionFull(row, ActorRef.noSender))
+
+    checkPartition(partition, Map("column1" -> ColumnType("value1"), "column2" -> ColumnType("value2")))
   }
 
   it should "throw an error when row is added that does not match table columns" in {
