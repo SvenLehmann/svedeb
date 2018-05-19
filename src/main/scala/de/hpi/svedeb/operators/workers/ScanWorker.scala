@@ -32,13 +32,13 @@ class ScanWorker(partition: ActorRef, partitionId: Int) extends Actor with Actor
   private def beginScanJob(state: State, columnName: String, predicate: String => Boolean): Unit = {
     val newState = State(Some(sender()), Some(columnName), None, Some(predicate), state.result)
     context.become(active(newState))
-    log.info("Executing Scan job.")
+    log.debug("Executing Scan job.")
 
     partition ! GetColumns()
   }
 
   private def filterColumn(state: State, columnRefs: Map[String, ActorRef]): Unit = {
-    log.info("Executing filter job.")
+    log.debug("Executing filter job.")
     val newState = State(state.sender, state.columnName, Some(columnRefs), state.predicate, state.result)
     context.become(active(newState))
 
@@ -46,17 +46,17 @@ class ScanWorker(partition: ActorRef, partitionId: Int) extends Actor with Actor
   }
 
   private def scanColumns(state: State, indizes: Seq[Int]): Unit = {
-    log.info("Scanning columns.")
+    log.debug("Scanning columns.")
     state.columnRefs.get.foreach { case (_, columnRef) => columnRef ! ScanColumn(Some(indizes)) }
   }
 
   private def storePartialResult(state: State, columnName: String, values: ColumnType): Unit = {
-    log.info("Storing partial result for column {}.", columnName)
+    log.debug("Storing partial result for column {}.", columnName)
     val newState = state.addResultForColumn(columnName, values)
     context.become(active(newState))
 
     if (newState.result.size == newState.columnRefs.get.size) {
-      log.info("Received all partial results.")
+      log.debug("Received all partial results.")
       // We received all results for the columns
       val partition = context.actorOf(Partition.props(partitionId, newState.result, 10))
       newState.sender.get ! ScanWorkerResult(partitionId, partition)

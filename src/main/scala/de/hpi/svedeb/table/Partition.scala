@@ -56,7 +56,7 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
 
   private def tryToAddRow(state: PartitionState, row: RowType, originalSender: ActorRef): Unit = {
     if (state.rowCount >= partitionSize) {
-      log.info("Partition full {}", row.row)
+      log.debug("Partition full {}", row.row)
       sender() ! PartitionFull(row, originalSender)
     } else if (columnRefs.size != row.row.size) {
       val future = Future.failed(new Exception("Wrong number of columns"))
@@ -76,13 +76,13 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
 
     // TODO: verify that value is appended to correct column
     val listOfFutures = columnRefs.zip(row.row).map { case ((_, column), value) =>
-      log.info("Going to add value {} into column {}", value, column)
+      log.debug("Going to add value {} into column {}", value, column)
       ask(column, AppendValue(value))
     }
 
     val eventualRowAdded = Future.sequence(listOfFutures)
       .map(f => {
-        log.info("Received all column futures: {}", f)
+        log.debug("Received all column futures: {}", f)
         val newState = PartitionState(processingInsert = false, state.rowCount + 1)
         context.become(active(newState))
         RowAdded(originalSender)

@@ -76,6 +76,8 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case GetPartitions() => sender ! PartitionsInTable(Seq(partition.ref)); TestActor.KeepRunning
       case ListColumnsInTable() => sender ! ColumnList(Seq("a")); TestActor.KeepRunning
+      case GetColumnFromTable("a") => sender ! ActorsForColumn(Seq(columnA.ref)); TestActor.KeepRunning
+      case GetColumnFromTable("b") => sender ! ActorsForColumn(Seq(columnB.ref)); TestActor.KeepRunning
     })
 
     partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
