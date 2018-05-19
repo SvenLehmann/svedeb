@@ -10,6 +10,30 @@ object QueryPlan {
                                var rightInput: Option[QueryPlanNode],
                                var assignedWorker: ActorRef = ActorRef.noSender,
                                var resultTable: ActorRef = ActorRef.noSender) {
+    /**
+      * Utility method to save next worker and previous result in one function.
+      *
+      * @param previousWorker previous worker
+      * @param resultTable previous result
+      * @param nextWorker next worker
+      * @param nextStage next stage to be executed
+      * @return
+      */
+    def advanceToNextStage(previousWorker: ActorRef,
+                           resultTable: ActorRef,
+                           nextWorker: ActorRef,
+                           nextStage: QueryPlanNode): QueryPlanNode = {
+      findNodeAndUpdateWorker(nextStage, nextWorker)
+      saveIntermediateResult(previousWorker, resultTable)
+      this
+    }
+
+    /**
+      * Saves a result table which was received from a worker.
+      * @param worker the worker
+      * @param intermediateResult the result
+      * @return the updated query plan
+      */
     def saveIntermediateResult(worker: ActorRef, intermediateResult: ActorRef): QueryPlanNode = {
       val optionalNode = findNodeWithWorker(worker)
       if (optionalNode.isEmpty) {
@@ -25,11 +49,38 @@ object QueryPlan {
       this
     }
 
-    def updateAssignedWorker(nextStep: QueryPlanNode, nextWorker: ActorRef): QueryPlanNode = {
-      val optionalNode = findNode(nextStep)
-      if (optionalNode.isEmpty) throw new Exception("Did not find node")
+    /**
+      * Traverse query plan recursively to find the node that the worker was assigned to.
+      *
+      * The inner function builds up a list of nodes that need to be checked.
+      * By that the Scala Optimizer can transform the recursive structure into a loop-styled structure,
+      * which helps avoiding huge call stacks at runtime.
+      * @param workerRef the worker to be looked for
+      * @return if successful, a node that holds the worker, else None
+      */
+    def findNodeWithWorker(workerRef: ActorRef): Option[QueryPlanNode] = {
+      @tailrec
+      def iter(l: Seq[Option[QueryPlanNode]]): Option[QueryPlanNode] = {
+        l match {
+          case Nil => None
+          case None :: ls => iter(ls)
+          case Some(node) :: _ if node.assignedWorker == workerRef => Some(node)
+          case Some(node) :: ls => iter(node.leftInput :: node.rightInput :: ls)
+        }
+      }
 
-      optionalNode.get.updateAssignedWorker(nextWorker)
+      iter(Seq(Some(this)))
+    }
+
+    /**
+      * Updates assigned worker of node.
+      * @param node node to be updated
+      * @param worker the worker to be assigned
+      * @return the updated query plan
+      */
+    def findNodeAndUpdateWorker(node: QueryPlanNode, worker: ActorRef): QueryPlanNode = {
+      // Implementation detail: Assuming that node is mutable and changed in-place
+      node.updateAssignedWorker(worker)
       this
     }
 
@@ -38,89 +89,57 @@ object QueryPlan {
       this
     }
 
-    def isExecuted: Boolean = resultTable != ActorRef.noSender
-
-    def advanceToNextStep(lastWorker: ActorRef,
-                          resultTable: ActorRef,
-                          nextWorker: ActorRef,
-                          nextStep: QueryPlanNode): QueryPlanNode = {
-      findNodeAndUpdateWorker(nextWorker, nextStep)
-      saveIntermediateResult(lastWorker, resultTable)
-      this
-    }
-
-    def findNodeAndUpdateWorker(worker: ActorRef, node: QueryPlanNode): QueryPlanNode = {
-      val foundNode = findNode(node)
-      if (foundNode.isEmpty) {
-        throw new Exception("Cannot update non-existing node")
-      }
-      foundNode.get.updateAssignedWorker(worker)
-      this
-    }
-
-    def findNodeWithWorker(workerRef: ActorRef): Option[QueryPlanNode] = {
-      @tailrec
-      def iter(l: Seq[QueryPlanNode]): Option[QueryPlanNode] = {
-        l match {
-          case Nil => None
-          case node :: _ if node.assignedWorker == workerRef => Some(node)
-          case node :: ls if node.leftInput.isDefined && node.rightInput.isDefined =>
-            iter(node.leftInput.get :: node.rightInput.get :: ls)
-          case node :: ls if node.leftInput.isDefined => iter(node.leftInput.get :: ls)
-          case node :: ls if node.rightInput.isDefined => iter(node.rightInput.get :: ls)
-          case _ => None
-        }
-      }
-
-      iter(Seq(this))
-    }
-
-    def findNextStep(): Option[QueryPlanNode] = {
-      @tailrec
-      def iter(l: Seq[QueryPlanNode]): Option[QueryPlanNode] = {
-        l match {
-          case Nil => None
-          case node :: _ if node.isExecuted => None
-          case node :: ls if node.leftInput.isDefined && node.rightInput.isDefined =>
-            if (node.leftInput.get.isExecuted && node.rightInput.get.isExecuted) Some(node)
-            else if (!node.leftInput.get.isExecuted && !node.rightInput.get.isExecuted) {
-              iter(node.leftInput.get :: node.rightInput.get :: ls)
-            } else if (!node.leftInput.get.isExecuted) {
-              iter(node.leftInput.get :: ls)
-            } else {
-              iter(node.rightInput.get :: ls)
-            }
-          case node :: ls if node.leftInput.isDefined =>
-            if (node.leftInput.get.isExecuted) Some(node)
-            else iter(node.leftInput.get :: ls)
-          case node :: ls if node.rightInput.isDefined =>
-            if (node.rightInput.get.isExecuted) Some(node)
-            else iter(node.rightInput.get :: ls)
-          case (node: Scan) :: ls =>
-            if (node.input.isExecuted) Some(node)
-            else iter(node.input :: ls)
-          case node :: _ => Some(node)
-        }
-      }
-      iter(Seq(this))
-    }
-
-
+    /**
+      * Finds a node in the query plan by traversing it recursively.
+      * @param searchNode the node to be searched
+      * @return the
+      */
     def findNode(searchNode: QueryPlanNode): Option[QueryPlanNode] = {
       @tailrec
-      def iter(l: Seq[QueryPlanNode]): Option[QueryPlanNode] = {
+      def iter(l: Seq[Option[QueryPlanNode]]): Option[QueryPlanNode] = {
         l match {
           case Nil => None
-          case node :: _ if node == searchNode => Some(node)
-          case node :: ls if node.leftInput.isDefined && node.rightInput.isDefined =>
-            iter(node.leftInput.get :: node.rightInput.get :: ls)
-          case node :: ls if node.leftInput.isDefined => iter(node.leftInput.get :: ls)
-          case node :: ls if node.rightInput.isDefined => iter(node.rightInput.get :: ls)
-          case _ => None
+          case None :: ls => iter(ls)
+          case Some(node) :: _ if node == searchNode => Some(node)
+          case Some(node) :: ls => iter(node.leftInput :: node.rightInput :: ls)
         }
       }
-      iter(Seq(this))
+
+      iter(Seq(Some(this)))
     }
+
+    /**
+      * Travers query plan recursively to find a node that can be executed next.
+      * This node needs to fulfil two criteria:
+      * - it must not be already executed
+      * - its child nodes must have been executed
+      *
+      * @return a node if a matching node is found or else None
+      */
+    def findNextStage(): Option[QueryPlanNode] = {
+      @tailrec
+      def iter(l: Seq[Option[QueryPlanNode]]): Option[QueryPlanNode] = {
+        l match {
+          case Nil => None
+          case None :: ls => iter(ls)
+          case Some(node) :: _ if node.isExecuted => None
+          case Some(node) :: ls if node.isValidNextStage => Some(node)
+          case Some(node) :: ls => iter(node.leftInput :: node.rightInput :: ls)
+        }
+      }
+
+      iter(Seq(Some(this)))
+    }
+
+    private def isValidNextStage: Boolean = {
+      Seq(leftInput, rightInput).flatten.forall(node => node.isExecuted)
+    }
+
+    /**
+      * We assume a node has not been executed if there is no result table assigned.
+      * @return true if there is a result table else false
+      */
+    def isExecuted: Boolean = resultTable != ActorRef.noSender
   }
 
   case class GetTable(tableName: String) extends QueryPlanNode(None, None)
