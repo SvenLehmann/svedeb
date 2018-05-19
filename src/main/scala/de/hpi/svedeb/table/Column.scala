@@ -7,12 +7,12 @@ object Column {
   case class AppendValue(value: String)
   case class FilterColumn(predicate: String => Boolean)
   // None returns all values
-  case class ScanColumn(indizes: Option[Seq[Int]] = None)
+  case class ScanColumn(indices: Option[Seq[Int]] = None)
   case class GetColumnName()
   case class GetColumnSize()
 
   // Result events
-  case class FilteredRowIndizes(partitionId: Int, columnName: String, indizes: Seq[Int])
+  case class FilteredRowIndices(partitionId: Int, columnName: String, indices: Seq[Int])
   case class ScannedValues(partitionId: Int, columnName: String, values: ColumnType)
   case class ValueAppended(partitionId: Int, columnName: String)
   case class ColumnName(name: String)
@@ -25,13 +25,13 @@ class Column(partitionId: Int, columnName: String, initialValues: ColumnType) ex
   override def receive: Receive = active(initialValues)
 
   private def filter(values: ColumnType, predicate: String => Boolean): Unit = {
-    val filteredIndizes = values.filterByPredicate(predicate)
-    sender() ! FilteredRowIndizes(partitionId, columnName, filteredIndizes)
+    val filteredIndices = values.filterByPredicate(predicate)
+    sender() ! FilteredRowIndices(partitionId, columnName, filteredIndices)
   }
 
-  private def scan(values: ColumnType, indizes: Option[Seq[Int]]): Unit = {
-    if (indizes.isDefined) {
-      val scannedValues = values.filterByIndizes(indizes.get)
+  private def scan(values: ColumnType, indices: Option[Seq[Int]]): Unit = {
+    if (indices.isDefined) {
+      val scannedValues = values.filterByIndices(indices.get)
       sender() ! ScannedValues(partitionId, columnName, scannedValues)
     } else {
       sender() ! ScannedValues(partitionId, columnName, values)
@@ -48,10 +48,10 @@ class Column(partitionId: Int, columnName: String, initialValues: ColumnType) ex
   private def active(values: ColumnType): Receive = {
     case AppendValue(value: String) => addRow(values, value)
     case FilterColumn(predicate) => filter(values, predicate)
-    case ScanColumn(indizes) => scan(values, indizes)
+    case ScanColumn(indices) => scan(values, indices)
     case GetColumnName() => sender() ! ColumnName(columnName)
     case GetColumnSize() => sender() ! ColumnSize(partitionId, values.size())
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }
 

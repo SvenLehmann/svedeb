@@ -28,6 +28,6 @@ class CreateTableOperator(tableManager: ActorRef, tableName: String, columnNames
   private def active(state: State): Receive = {
     case Execute() => execute()
     case TableAdded(tableRef) => handleTableAdded(state, tableRef)
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }

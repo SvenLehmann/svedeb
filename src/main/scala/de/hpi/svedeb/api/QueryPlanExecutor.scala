@@ -71,7 +71,7 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
   def handleQueryResult(state: APIWorkerState, resultTable: ActorRef): Unit = {
     log.debug("Handling query result")
     if (state.queryPlan.isEmpty) {
-      throw new Exception("No queryplan to execute")
+      throw new Exception("No query plan to execute")
     }
 
     state.queryPlan.get.saveIntermediateResult(sender(), resultTable)
@@ -93,6 +93,6 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
   private def active(state: APIWorkerState): Receive = {
     case Run(queryId, queryPlan) => handleQuery(state, queryId, queryPlan)
     case QueryResult(resultTable) => handleQueryResult(state, resultTable)
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }

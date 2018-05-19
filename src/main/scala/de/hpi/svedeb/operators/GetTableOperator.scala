@@ -31,6 +31,6 @@ class GetTableOperator(tableManager: ActorRef, tableName: String) extends Abstra
   private def active(state: State): Receive = {
     case Execute() => fetchTable()
     case TableFetched(table) => handleResult(state, table)
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }

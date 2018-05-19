@@ -65,11 +65,11 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
     case PartitionFull(row, originalSender) =>
       log.debug("Creating new partition")
       val newPartitionId = partitions.size
-      val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize), "partition" + newPartitionId)
+      val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize), s"partition$newPartitionId")
       val updatedPartitions = partitions :+ newPartition
       context.become(active(updatedPartitions))
       newPartition ! AddRow(row, originalSender)
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }
 

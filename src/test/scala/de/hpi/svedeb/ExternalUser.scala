@@ -18,7 +18,7 @@ object ExternalUser extends App {
 
   def insertData(tableName: String, count: Int): Result = {
     def insertRow(id: Int): Result = {
-      val queryPlanNode = InsertRow(GetTable(tableName), RowType("a" + id, "b" + id))
+      val queryPlanNode = InsertRow(GetTable(tableName), RowType(s"a$id", s"b$id"))
       val queryFuture = api.ask(Query(queryPlanNode))
       Await.result(queryFuture, timeout.duration).asInstanceOf[Result]
     }

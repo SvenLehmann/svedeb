@@ -31,10 +31,6 @@ object Partition {
   private case class PartitionState(processingInsert: Boolean, rowCount: Int)
 }
 
-class PartitionWithInitialColumns(id: Int, columns: Map[String, ColumnType], partitionSize: Int) {
-
-}
-
 class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = Map.empty) extends Actor with ActorLogging {
   import context.dispatcher
 
@@ -104,6 +100,6 @@ class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = 
       if (state.processingInsert) self forward AddRow(row, originalSender)
       else tryToAddRow(state, row, originalSender)
     case ValueAppended(partitionId, columnName) => ()
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }

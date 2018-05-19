@@ -59,7 +59,7 @@ class TableTest extends AbstractActorTest("TableTest") {
     val numberOfPartitions = 10
     val orderTable = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1), "orderTable")
 
-    (0 until numberOfPartitions).foreach(rowId => orderTable ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
+    (0 until numberOfPartitions).foreach(rowId => orderTable ! AddRowToTable(RowType(s"a$rowId", s"b$rowId", s"c$rowId", s"d$rowId")))
     (0 until numberOfPartitions).foreach(_ => expectMsg(RowAddedToTable()))
 
     orderTable ! GetPartitions()
@@ -67,7 +67,7 @@ class TableTest extends AbstractActorTest("TableTest") {
     partitions.partitions.size shouldEqual numberOfPartitions
 
     def checkColumnValues(suffix: String): Seq[String] = {
-      orderTable ! GetColumnFromTable("column" + suffix.toUpperCase)
+      orderTable ! GetColumnFromTable(s"column${suffix.toUpperCase}")
       val columnActors = expectMsgType[ActorsForColumn]
       columnActors.columnActors.size shouldEqual numberOfPartitions
 

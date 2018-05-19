@@ -6,7 +6,7 @@ import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.api.QueryPlanExecutor.{QueryFinished, Run}
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.queryplan.QueryPlan._
-import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndizes, ScanColumn, ScannedValues}
+import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndices, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.ColumnType
 import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
 import de.hpi.svedeb.table.Table._
@@ -37,7 +37,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 
     column.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ScanColumn(_) => sender ! ScannedValues(0, "a", ColumnType("a", "b")); TestActor.KeepRunning
-      case FilterColumn(_) => sender ! FilteredRowIndizes(0, "a", Seq(0, 1)); TestActor.KeepRunning
+      case FilterColumn(_) => sender ! FilteredRowIndices(0, "a", Seq(0, 1)); TestActor.KeepRunning
     })
 
     val queryPlan = Scan(GetTable("SomeTable"), "a", _ => true)
@@ -88,12 +88,12 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
 
     columnA.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ScanColumn(_) => sender ! ScannedValues(0, "a", ColumnType("x", "x")); TestActor.KeepRunning
-      case FilterColumn(_) => sender ! FilteredRowIndizes(0, "a", Seq(0, 1)); TestActor.KeepRunning
+      case FilterColumn(_) => sender ! FilteredRowIndices(0, "a", Seq(0, 1)); TestActor.KeepRunning
     })
 
     columnB.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case ScanColumn(_) => sender ! ScannedValues(0, "b", ColumnType("y", "y")); TestActor.KeepRunning
-      case FilterColumn(_) => sender ! FilteredRowIndizes(0, "a", Seq(0, 2)); TestActor.KeepRunning
+      case FilterColumn(_) => sender ! FilteredRowIndices(0, "a", Seq(0, 2)); TestActor.KeepRunning
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))

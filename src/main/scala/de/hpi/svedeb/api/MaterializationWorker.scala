@@ -85,8 +85,8 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
   private def active(state: MaterializationWorkerState): Receive = {
     case MaterializeTable(table) => fetchColumnNames(table)
     case ColumnList(columnNames) => fetchColumns(state, sender(), columnNames)
-    case ActorsForColumn(columnActors) => fetchData(state, columnActors)
+    case ActorsForColumn(_, columnActors) => fetchData(state, columnActors)
     case ScannedValues(partitionId, columnName, values) => saveScannedValues(state, partitionId, columnName, values)
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }
