@@ -5,11 +5,22 @@ import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
-import de.hpi.svedeb.table.ColumnType
+import de.hpi.svedeb.table.{ColumnType, Partition, Table}
 import de.hpi.svedeb.table.Table._
 import org.scalatest.Matchers._
 
 class ProjectionOperatorTest extends AbstractActorTest("ProjectionOperator") {
+
+  "A ProjectionOperator projection zero columns" should "return an empty result table" in {
+    val table = TestProbe("Table")
+    val projectionOperator = system.actorOf(ProjectionOperator.props(table.ref, Seq()))
+
+    projectionOperator ! Execute()
+    val operatorResult = expectMsgType[QueryResult]
+
+    checkTable(operatorResult.resultTable, Seq())
+  }
+
   "A ProjectionOperator projecting one column" should "return a result table" in {
     val table = TestProbe("Table")
     val columnA = TestProbe("a")
@@ -64,6 +75,21 @@ class ProjectionOperatorTest extends AbstractActorTest("ProjectionOperator") {
       Map("a" -> ColumnType("1", "2", "3")),
       Map("a" -> ColumnType("4", "5", "6")),
       Map("a" -> ColumnType("7", "8", "9"))))
+  }
+
+  it should "work without test probes" in {
+    val partitionSize = 2
+    val partition1 = system.actorOf(Partition.props(0, Map("columnA" -> ColumnType("a1", "a2"), "columnB" -> ColumnType("b1", "b2")), partitionSize))
+    val partition2 = system.actorOf(Partition.props(1, Map("columnA" -> ColumnType("a3", "a4"), "columnB" -> ColumnType("b3", "b4")), partitionSize))
+    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), partitionSize, Seq(partition1, partition2)))
+
+    val operator = system.actorOf(ProjectionOperator.props(table, Seq("columnA")))
+    operator ! Execute()
+    val msg = expectMsgType[QueryResult]
+
+    checkTable(msg.resultTable, Seq(
+      Map("columnA" -> ColumnType("a1", "a2")),
+      Map("columnA" -> ColumnType("a3", "a4"))))
   }
 
   "A ProjectionOperator projecting multiple column" should "handle multiple partitions" in {

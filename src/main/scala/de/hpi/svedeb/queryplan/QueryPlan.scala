@@ -60,12 +60,12 @@ object QueryPlan {
       */
     def findNodeWithWorker(workerRef: ActorRef): Option[QueryPlanNode] = {
       @tailrec
-      def iter(l: Seq[Option[QueryPlanNode]]): Option[QueryPlanNode] = {
-        l match {
+      def iter(remainingNodes: Seq[Option[QueryPlanNode]]): Option[QueryPlanNode] = {
+        remainingNodes match {
           case Nil => None
-          case None :: ls => iter(ls)
+          case None :: tail => iter(tail)
           case Some(node) :: _ if node.assignedWorker == workerRef => Some(node)
-          case Some(node) :: ls => iter(node.leftInput :: node.rightInput :: ls)
+          case Some(node) :: tail => iter(node.leftInput :: node.rightInput :: tail)
         }
       }
 
@@ -96,12 +96,12 @@ object QueryPlan {
       */
     def findNode(searchNode: QueryPlanNode): Option[QueryPlanNode] = {
       @tailrec
-      def iter(l: Seq[Option[QueryPlanNode]]): Option[QueryPlanNode] = {
-        l match {
+      def iter(remainingNodes: Seq[Option[QueryPlanNode]]): Option[QueryPlanNode] = {
+        remainingNodes match {
           case Nil => None
-          case None :: ls => iter(ls)
+          case None :: tail => iter(tail)
           case Some(node) :: _ if node == searchNode => Some(node)
-          case Some(node) :: ls => iter(node.leftInput :: node.rightInput :: ls)
+          case Some(node) :: tail => iter(node.leftInput :: node.rightInput :: tail)
         }
       }
 
@@ -118,13 +118,13 @@ object QueryPlan {
       */
     def findNextStage(): Option[QueryPlanNode] = {
       @tailrec
-      def iter(l: Seq[Option[QueryPlanNode]]): Option[QueryPlanNode] = {
-        l match {
+      def iter(remainingNodes: Seq[Option[QueryPlanNode]]): Option[QueryPlanNode] = {
+        remainingNodes match {
           case Nil => None
-          case None :: ls => iter(ls)
+          case None :: tail => iter(tail)
           case Some(node) :: _ if node.isExecuted => None
-          case Some(node) :: ls if node.isValidNextStage => Some(node)
-          case Some(node) :: ls => iter(node.leftInput :: node.rightInput :: ls)
+          case Some(node) :: _ if node.isValidNextStage => Some(node)
+          case Some(node) :: tail => iter(node.leftInput :: node.rightInput :: tail)
         }
       }
 

@@ -16,8 +16,14 @@ object ProjectionOperator {
       ProjectionState(sender, result)
     }
 
-    def updatePartitionCount(count: Int): ProjectionState = {
-      val newResult = (0 until count).map(id => Map.empty[String, ColumnType])
+    /**
+      * Stores and updates the output partition count
+      * @param count the partition count
+      * @return the updated state
+      */
+    def storeOutputPartitionCount(count: Int): ProjectionState = {
+      // Prepare result maps to store intermediate results easily
+      val newResult = (0 until count).map(_ => Map.empty[String, ColumnType])
       ProjectionState(sender, newResult)
     }
 
@@ -41,12 +47,16 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
     val newState = state.storeSender(sender)
     context.become(active(newState))
 
-    columnNames.foreach(name => input ! GetColumnFromTable(name))
+    if (columnNames.isEmpty) {
+      val result = createNewResultTable(state)
+      sender ! QueryResult(result)
+    } else {
+      columnNames.foreach(name => input ! GetColumnFromTable(name))
+    }
   }
 
   def createNewResultTable(state: ProjectionState): ActorRef = {
     log.debug("Create result table")
-    val numberOfPartitions = state.result.headOption.map(_.size).getOrElse(0)
 
     val partitions: Seq[ActorRef] = state.result.zipWithIndex
       .map { case (partitionResult, partitionId) =>
@@ -55,15 +65,16 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
     context.actorOf(Table.props(columnNames, Utils.defaultPartitionSize, partitions))
   }
 
-  def handleColumnActors(state: ProjectionState, columnActors: Seq[ActorRef]): Unit = {
-    log.debug("Handling partial result")
+  def handleActorsForColumn(state: ProjectionState, columnName: String, actorsForColumns: Seq[ActorRef]): Unit = {
+    log.debug(s"Handling actors for column $columnName")
+    // Store partition count when first result is received
     if (state.result.isEmpty) {
-      log.debug(s"Updating partition count to ${columnActors.size}")
-      val newState = state.updatePartitionCount(columnActors.size)
+      log.debug(s"Updating partition count to ${actorsForColumns.size}")
+      val newState = state.storeOutputPartitionCount(actorsForColumns.size)
       context.become(active(newState))
     }
 
-    columnActors.foreach(columnActor => columnActor ! ScanColumn(None))
+    actorsForColumns.foreach(columnActor => columnActor ! ScanColumn(None))
   }
 
   def handleScannedValues(state: ProjectionState, partitionId: Int, columnName: String, values: ColumnType): Unit = {
@@ -80,7 +91,7 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
 
   private def active(state: ProjectionState): Receive = {
     case Execute() => handleQuery(state, sender())
-    case ActorsForColumn(_, columnActors) => handleColumnActors(state, columnActors)
+    case ActorsForColumn(columnName, actorsForColumn) => handleActorsForColumn(state, columnName, actorsForColumn)
     case ScannedValues(partitionId, columnName, values) => handleScannedValues(state, partitionId, columnName, values)
   }
 }

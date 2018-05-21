@@ -51,7 +51,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
   it should "filter values without test probes" in {
     val partitionSize = 2
     val partition1 = system.actorOf(Partition.props(0, Map("columnA" -> ColumnType("a1", "a2"), "columnB" -> ColumnType("b1", "b2")), partitionSize))
-    val partition2 = system.actorOf(Partition.props(0, Map("columnA" -> ColumnType("a3", "a4"), "columnB" -> ColumnType("b3", "b4")), partitionSize))
+    val partition2 = system.actorOf(Partition.props(1, Map("columnA" -> ColumnType("a3", "a4"), "columnB" -> ColumnType("b3", "b4")), partitionSize))
     val table = system.actorOf(Table.props(Seq("columnA", "columnB"), partitionSize, Seq(partition1, partition2)))
     val operator = system.actorOf(ScanOperator.props(table, "columnA", x => x.contains("1")))
 
