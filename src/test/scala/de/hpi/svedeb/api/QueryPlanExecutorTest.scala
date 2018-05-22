@@ -6,6 +6,7 @@ import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.api.QueryPlanExecutor.{QueryFinished, Run}
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.queryplan.QueryPlan._
+import de.hpi.svedeb.queryplan.{CreateTable, GetTable, QueryPlan, Scan}
 import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndices, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.ColumnType
 import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
@@ -40,7 +41,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
       case FilterColumn(_) => sender ! FilteredRowIndices(0, "a", Seq(0, 1)); TestActor.KeepRunning
     })
 
-    val queryPlan = Scan(GetTable("SomeTable"), "a", _ => true)
+    val queryPlan = QueryPlan(Scan(GetTable("SomeTable"), "a", _ => true))
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref), name = "queryPlanExecutor")
     apiWorker ! Run(0, queryPlan)
 
@@ -62,7 +63,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
-    apiWorker ! Run(0, CreateTable("SomeTable", Seq("a", "b"), 10))
+    apiWorker ! Run(0, QueryPlan(CreateTable("SomeTable", Seq("a", "b"), 10)))
 
     val query = expectMsgType[QueryFinished]
     checkTable(query.resultTable, Seq(Map("a" -> ColumnType(), "b" -> ColumnType())))
@@ -102,7 +103,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     val apiWorker = system.actorOf(QueryPlanExecutor.props(tableManager.ref))
-    apiWorker ! Run(0, Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y"))
+    apiWorker ! Run(0, QueryPlan(Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y")))
 
     val resultTable = expectMsgType[QueryFinished]
     checkTable(resultTable.resultTable, Seq(Map("a" -> ColumnType("x", "x"), "b" -> ColumnType("y", "y"))))

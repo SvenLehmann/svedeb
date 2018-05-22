@@ -2,7 +2,7 @@ package de.hpi.svedeb.queryPlan
 
 import akka.testkit.TestProbe
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.queryplan.QueryPlan.{GetTable, Scan}
+import de.hpi.svedeb.queryplan.{GetTable, QueryPlan, Scan}
 import org.scalatest.Matchers._
 
 class QueryPlanTest extends AbstractActorTest("QueryPlan") {
@@ -13,10 +13,12 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val secondNode = Scan(firstNode, "a", _ => true)
     assert(!secondNode.isExecuted)
 
+    val queryPlan = QueryPlan(secondNode)
+
     val table = TestProbe("S")
     val worker = TestProbe("worker")
-    firstNode.findNodeAndUpdateWorker(firstNode, worker.ref)
-    firstNode.saveIntermediateResult(worker.ref, table.ref)
+    queryPlan.findNodeAndUpdateWorker(firstNode, worker.ref)
+    queryPlan.saveIntermediateResult(worker.ref, table.ref)
 
     assert(firstNode.isExecuted)
     assert(!secondNode.isExecuted)
@@ -24,8 +26,8 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val thirdNode = Scan(secondNode, "b", _ => true)
     assert(!thirdNode.isExecuted)
 
-    secondNode.findNodeAndUpdateWorker(secondNode, worker.ref)
-    secondNode.saveIntermediateResult(worker.ref, table.ref)
+    queryPlan.findNodeAndUpdateWorker(secondNode, worker.ref)
+    queryPlan.saveIntermediateResult(worker.ref, table.ref)
 
     assert(firstNode.isExecuted)
     assert(secondNode.isExecuted)
@@ -42,52 +44,49 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val thirdScanNode = Scan(secondScanNode, "SomeColumn", _ => true)
     val fourthNode = GetTable("SomeOtherTable")
 
-    thirdScanNode.findNode(fourthNode) shouldEqual None
+    val queryPlan = QueryPlan(thirdScanNode)
 
-    thirdScanNode.findNode(thirdScanNode) shouldEqual Some(thirdScanNode)
-    thirdScanNode.findNode(secondScanNode) shouldEqual Some(secondScanNode)
-    thirdScanNode.findNode(firstScanNode) shouldEqual Some(firstScanNode)
-    thirdScanNode.findNode(getTableNode) shouldEqual Some(getTableNode)
+    queryPlan.findNode(fourthNode) shouldEqual None
+
+    queryPlan.findNode(thirdScanNode) shouldEqual Some(thirdScanNode)
+    queryPlan.findNode(secondScanNode) shouldEqual Some(secondScanNode)
+    queryPlan.findNode(firstScanNode) shouldEqual Some(firstScanNode)
+    queryPlan.findNode(getTableNode) shouldEqual Some(getTableNode)
   }
 
   it should "find correct next stage" in {
     val firstNode = GetTable("s")
-    firstNode.findNextStage() shouldEqual Some(firstNode)
 
     val secondNode = Scan(firstNode, "a", _ => true)
-    secondNode.findNextStage() shouldEqual Some(firstNode)
+
+    val queryPlan = QueryPlan(secondNode)
+    queryPlan.findNextStage() shouldEqual Some(firstNode)
 
     val table = TestProbe("S")
     val worker = TestProbe("worker")
-    firstNode.findNodeAndUpdateWorker(firstNode, worker.ref)
-    firstNode.saveIntermediateResult(worker.ref, table.ref)
+    queryPlan.findNodeAndUpdateWorker(firstNode, worker.ref)
+    queryPlan.saveIntermediateResult(worker.ref, table.ref)
 
-    secondNode.findNextStage() shouldEqual Some(secondNode)
-
-    val thirdNode = Scan(secondNode, "b", _ => true)
-    thirdNode.findNextStage() shouldEqual Some(secondNode)
-
-    secondNode.findNodeAndUpdateWorker(secondNode, worker.ref)
-    secondNode.saveIntermediateResult(worker.ref, table.ref)
-
-    thirdNode.findNextStage() shouldEqual Some(thirdNode)
+    queryPlan.findNextStage() shouldEqual Some(secondNode)
   }
 
   it should "update the assigned worker" in {
     val node = GetTable("S")
+    val queryPlan = QueryPlan(node)
     val worker = TestProbe("createTableWorker")
-    node.findNodeAndUpdateWorker(node, worker.ref)
+    queryPlan.findNodeAndUpdateWorker(node, worker.ref)
 
     assert(node.assignedWorker == worker.ref)
   }
 
   it should "save intermediate result" in {
     val node = GetTable("S")
+    val queryPlan = QueryPlan(node)
     val table = TestProbe("S")
     val worker = TestProbe("createTableWorker")
 
-    node.findNodeAndUpdateWorker(node, worker.ref)
-    node.saveIntermediateResult(worker.ref, table.ref)
+    queryPlan.findNodeAndUpdateWorker(node, worker.ref)
+    queryPlan.saveIntermediateResult(worker.ref, table.ref)
 
     assert(node.resultTable == table.ref)
   }
@@ -95,15 +94,17 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
   it should "enter next stage" in {
     val firstNode = GetTable("s")
     val secondNode = Scan(firstNode, "a", _ => true)
+
+    val queryPlan = QueryPlan(secondNode)
     val worker = TestProbe("worker")
     val table = TestProbe("table")
 
-    firstNode.advanceToNextStage(worker.ref, table.ref, worker.ref, firstNode)
+    queryPlan.advanceToNextStage(worker.ref, table.ref, worker.ref, firstNode)
 
     assert(firstNode.assignedWorker == worker.ref)
     assert(firstNode.resultTable == table.ref)
 
-    secondNode.advanceToNextStage(worker.ref, table.ref, worker.ref, firstNode)
+    queryPlan.advanceToNextStage(worker.ref, table.ref, worker.ref, firstNode)
     assert(firstNode.resultTable == table.ref)
   }
 
@@ -112,22 +113,21 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val firstScanNode = Scan(getTableNode, "SomeColumn", _ => true)
     val secondScanNode = Scan(firstScanNode, "SomeColumn", _ => true)
     val thirdScanNode = Scan(secondScanNode, "SomeColumn", _ => true)
+    val queryPlan = QueryPlan(thirdScanNode)
     val worker = TestProbe("worker")
 
-    val result = thirdScanNode.findNodeAndUpdateWorker(firstScanNode, worker.ref)
-    result shouldEqual thirdScanNode
-    result.findNode(firstScanNode).get.assignedWorker shouldEqual worker.ref
+    queryPlan.findNodeAndUpdateWorker(firstScanNode, worker.ref)
+    queryPlan.findNode(firstScanNode).get.assignedWorker shouldEqual worker.ref
   }
 
   it should "find node with sender" in {
     val firstNode = GetTable("s")
     val secondNode = Scan(firstNode, "a", _ => true)
+    val queryPlan = QueryPlan(secondNode)
     val worker = TestProbe("worker")
 
     firstNode.assignedWorker = worker.ref
-    assert(firstNode.findNodeWithWorker(worker.ref).isDefined)
-    assert(firstNode.findNodeWithWorker(worker.ref).get == firstNode)
-    assert(secondNode.findNodeWithWorker(worker.ref)isDefined)
-    assert(secondNode.findNodeWithWorker(worker.ref).get == firstNode)
+    assert(queryPlan.findNodeWithWorker(worker.ref).isDefined)
+    assert(queryPlan.findNodeWithWorker(worker.ref).get == firstNode)
   }
 }

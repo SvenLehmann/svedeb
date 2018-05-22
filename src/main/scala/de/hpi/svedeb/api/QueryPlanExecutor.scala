@@ -4,15 +4,15 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.api.QueryPlanExecutor.{APIWorkerState, QueryFinished, Run}
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators._
-import de.hpi.svedeb.queryplan.QueryPlan._
+import de.hpi.svedeb.queryplan._
 import de.hpi.svedeb.table.RowType
 
 object QueryPlanExecutor {
-  case class Run(queryId: Int, queryPlan: QueryPlanNode)
+  case class Run(queryId: Int, queryPlan: QueryPlan)
 
   case class QueryFinished(queryId: Int, resultTable: ActorRef)
 
-  private case class APIWorkerState(sender: ActorRef, queryPlan: Option[QueryPlanNode] = None, queryId: Option[Int] = None) {
+  private case class APIWorkerState(sender: ActorRef, queryPlan: Option[QueryPlan] = None, queryId: Option[Int] = None) {
     def storeQueryId(queryId: Int): APIWorkerState = {
       APIWorkerState(sender, queryPlan, Some(queryId))
     }
@@ -20,15 +20,15 @@ object QueryPlanExecutor {
       APIWorkerState(sender, queryPlan, queryId)
     }
 
-    def assignWorker(initialQueryPlan: QueryPlanNode,
+    def assignWorker(queryPlan: QueryPlan,
                      worker: ActorRef,
-                     node: QueryPlanNode): APIWorkerState = {
-      val newQueryPlan = initialQueryPlan.findNodeAndUpdateWorker(node, worker)
+                     node: AbstractQueryPlanNode): APIWorkerState = {
+      val newQueryPlan = queryPlan.findNodeAndUpdateWorker(node, worker)
       APIWorkerState(sender, Some(newQueryPlan), queryId)
     }
 
-    def nextStage(queryPlan: QueryPlanNode,
-                  nextStage: QueryPlanNode,
+    def nextStage(queryPlan: QueryPlan,
+                  nextStage: AbstractQueryPlanNode,
                   nextWorker: ActorRef): APIWorkerState = {
       val newQueryPlan = queryPlan.findNodeAndUpdateWorker(nextStage, nextWorker)
       APIWorkerState(sender, Some(newQueryPlan), queryId)
@@ -41,14 +41,14 @@ object QueryPlanExecutor {
 class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging {
   override def receive: Receive = active(APIWorkerState(ActorRef.noSender))
 
-  def nodeToOperatorActor(node: QueryPlanNode, resultTable: Option[ActorRef] = None): ActorRef = {
+  private def nodeToOperatorActor(node: AbstractQueryPlanNode, resultTable: Option[ActorRef] = None): ActorRef = {
     node match {
       case GetTable(tableName: String) =>
         context.actorOf(GetTableOperator.props(tableManager, tableName))
       case CreateTable(tableName: String, columnNames: List[String], partitionSize: Int) =>
-        context.actorOf(CreateTableOperator.props(tableManager, tableName, columnNames, partitionSize), name = "createTableOperator")
+        context.actorOf(CreateTableOperator.props(tableManager, tableName, columnNames, partitionSize))
       case DropTable(tableName: String) =>
-        context.actorOf(DropTableOperator.props(tableManager, tableName), name = "dropTableOperator")
+        context.actorOf(DropTableOperator.props(tableManager, tableName))
       case Scan(_, columnName: String, predicate: (String => Boolean)) =>
         context.actorOf(ScanOperator.props(resultTable.get, columnName, predicate))
       case InsertRow(_, row: RowType) =>
@@ -57,7 +57,7 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
     }
   }
 
-  def handleQuery(state: APIWorkerState, queryId: Int, queryPlan: QueryPlanNode): Unit = {
+  private def handleQuery(state: APIWorkerState, queryId: Int, queryPlan: QueryPlan): Unit = {
     log.debug("Building initial operator")
     val firstStage = queryPlan.findNextStage().get
     val operator = nodeToOperatorActor(firstStage)
@@ -68,17 +68,20 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
     operator ! Execute()
   }
 
-  def handleQueryResult(state: APIWorkerState, resultTable: ActorRef): Unit = {
+  private def handleQueryResult(state: APIWorkerState, resultTable: ActorRef): Unit = {
     log.debug("Handling query result")
     if (state.queryPlan.isEmpty) {
       throw new Exception("No query plan to execute")
     }
 
-    state.queryPlan.get.saveIntermediateResult(sender(), resultTable)
+    val queryPlan = state.queryPlan.get
 
-    val nextStage = state.queryPlan.get.findNextStage()
+    queryPlan.saveIntermediateResult(sender(), resultTable)
+    val nextStage = queryPlan.findNextStage()
 
     if (nextStage.isEmpty) {
+//      TODO: final result should not be destroyed
+      queryPlan.cleanUpOperators()
       state.sender ! QueryFinished(state.queryId.get, resultTable)
     } else {
       val operator = nodeToOperatorActor(nextStage.get, Some(resultTable))
