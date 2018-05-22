@@ -1,15 +1,11 @@
 package de.hpi.svedeb.table
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import akka.pattern.{ask, pipe}
-import akka.util.Timeout
 import de.hpi.svedeb.table.Partition._
 import de.hpi.svedeb.table.Table._
 import de.hpi.svedeb.table.worker.TableWorker
 import de.hpi.svedeb.table.worker.TableWorker.{GetColumnFromTableWorker, InternalActorsForColumn}
 import de.hpi.svedeb.utils.Utils
-
-import scala.concurrent.Future
 
 object Table {
   case class AddRowToTable(row: RowType)
@@ -43,7 +39,6 @@ object Table {
 }
 
 class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq[ActorRef]) extends Actor with ActorLogging {
-  import context.dispatcher
 
   override def receive: Receive = active(TableState(Map.empty, initialPartitions))
 
