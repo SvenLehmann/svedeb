@@ -20,7 +20,7 @@ object Table {
   case class ColumnAddedToTable()
   case class RowAddedToTable()
   case class ColumnList(columnNames: Seq[String])
-  case class ActorsForColumn(columnActors: Seq[ActorRef])
+  case class ActorsForColumn(columnName: String, columnActors: Seq[ActorRef])
   case class PartitionsInTable(partitions: Seq[ActorRef])
 
   def props(columnNames: Seq[String], partitionSize: Int = Utils.defaultPartitionSize, initialPartitions: Seq[ActorRef] = Seq.empty[ActorRef]): Props = Props(new Table(columnNames, partitionSize, initialPartitions))
@@ -29,15 +29,7 @@ object Table {
 class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq[ActorRef]) extends Actor with ActorLogging {
   import context.dispatcher
 
-  // Initialize with single partition
-  override def receive: Receive = {
-    if (initialPartitions.isEmpty) {
-      val newPartition = context.actorOf(Partition.props(0, columnNames, partitionSize), "partition0")
-      active(Seq(newPartition))
-    } else {
-      active(initialPartitions)
-    }
-  }
+  override def receive: Receive = active(initialPartitions)
 
   private def listColumns(): ColumnList = {
     log.debug("Listing columns: {}", columnNames)
@@ -51,25 +43,44 @@ class Table(columnNames: Seq[String], partitionSize: Int, initialPartitions: Seq
     val listOfFutures = partitions.map(p => ask(p, GetColumn(columnName)).mapTo[ColumnRetrieved])
     Future.sequence(listOfFutures)
       .map(list => list.map(c => c.column))
-      .map(c => ActorsForColumn(c))
+      .map(c => ActorsForColumn(columnName, c))
+  }
+
+  private def handlePartitionFull(partitions: Seq[ActorRef], row: RowType, originalSender: ActorRef): Unit = {
+    log.debug("Creating new partition")
+    val newPartitionId = partitions.size
+    val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize), s"partition$newPartitionId")
+    val updatedPartitions = partitions :+ newPartition
+    context.become(active(updatedPartitions))
+    newPartition ! AddRow(row, originalSender)
+  }
+
+  private def handleAddRow(partitions: Seq[ActorRef], row: RowType): Unit = {
+    if (partitions.isEmpty) {
+      val newPartition = context.actorOf(Partition.props(0, columnNames, partitionSize))
+      newPartition ! AddRow(row, sender())
+
+      val newPartitions = partitions :+ newPartition
+      context.become(active(newPartitions))
+    } else {
+      partitions.last ! AddRow(row, sender())
+    }
+  }
+
+  private def handleGetPartitions(partitions: Seq[ActorRef]): Unit = {
+    log.debug("Handling GetPartitions")
+    log.debug(s"${sender().path}")
+    sender() ! PartitionsInTable(partitions)
   }
 
   private def active(partitions: Seq[ActorRef]): Receive = {
-    case AddRowToTable(row) => partitions.last ! AddRow(row, sender())
+    case AddRowToTable(row) => handleAddRow(partitions, row)
     case ListColumnsInTable() => sender() ! listColumns()
     case GetColumnFromTable(columnName) => pipe(getColumns(partitions, columnName)) to sender()
-    case GetPartitions() => sender() ! PartitionsInTable(partitions)
-    case RowAdded(originalSender) =>
-      log.debug("Adding to existing partition")
-      originalSender ! RowAddedToTable()
-    case PartitionFull(row, originalSender) =>
-      log.debug("Creating new partition")
-      val newPartitionId = partitions.size
-      val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize), "partition" + newPartitionId)
-      val updatedPartitions = partitions :+ newPartition
-      context.become(active(updatedPartitions))
-      newPartition ! AddRow(row, originalSender)
-    case m => throw new Exception("Message not understood: " + m)
+    case GetPartitions() => handleGetPartitions(partitions)
+    case RowAdded(originalSender) => originalSender ! RowAddedToTable()
+    case PartitionFull(row, originalSender) => handlePartitionFull(partitions, row, originalSender)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }
 

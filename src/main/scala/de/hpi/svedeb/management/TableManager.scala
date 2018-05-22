@@ -51,6 +51,6 @@ class TableManager extends Actor with ActorLogging {
     case RemoveTable(name) => removeTable(tables, name)
     case ListTables() => sender() ! TableList(tables.keys.toList)
     case FetchTable(name) => fetchTable(tables, name)
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }

@@ -16,22 +16,22 @@ object Partition {
 
   // Result events
   case class ColumnNameList(columns: Seq[String])
-  case class ColumnRetrieved(column: ActorRef)
+  case class ColumnRetrieved(columnName: String, column: ActorRef)
   case class ColumnsRetrieved(columns: Map[String, ActorRef])
   case class RowAdded(originalSender: ActorRef)
   case class PartitionFull(row: RowType, originalSender: ActorRef)
 
   def props(id: Int, columnNames: Seq[String] = Seq.empty[String], partitionSize: Int = 10): Props = {
     val columns = columnNames.map(name => (name, ColumnType())).toMap
-    Props(new Partition(id, columns, partitionSize))
+    Props(new Partition(id, partitionSize, columns))
   }
 
-  def props(id: Int, columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(id, columns, partitionSize))
+  def props(id: Int, columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(id, partitionSize, columns))
 
   private case class PartitionState(processingInsert: Boolean, rowCount: Int)
 }
 
-class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) extends Actor with ActorLogging {
+class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = Map.empty) extends Actor with ActorLogging {
   import context.dispatcher
 
   // Columns are initialized at actor creation time and cannot be mutated later on.
@@ -45,7 +45,7 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
 
   private def retrieveColumn(name: String): Unit = {
     val column = columnRefs(name)
-    sender() ! ColumnRetrieved(column)
+    sender() ! ColumnRetrieved(name, column)
   }
 
   private def listColumns(): Unit = {
@@ -100,6 +100,6 @@ class Partition(id: Int, columns: Map[String, ColumnType], partitionSize: Int) e
       if (state.processingInsert) self forward AddRow(row, originalSender)
       else tryToAddRow(state, row, originalSender)
     case ValueAppended(partitionId, columnName) => ()
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }

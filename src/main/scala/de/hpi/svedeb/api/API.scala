@@ -53,7 +53,7 @@ class API(tableManager: ActorRef) extends Actor with ActorLogging {
     case QueryFinished(queryId, resultTable) =>
       state.runningQueries(queryId) ! Result(resultTable)
     case Shutdown() => handleShutdown()
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 
 

@@ -2,56 +2,64 @@ package de.hpi.svedeb.operators.workers
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, State, ScanWorkerResult}
-import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndizes, ScanColumn, ScannedValues}
+import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndices, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
 import de.hpi.svedeb.table.{ColumnType, Partition}
 
 object ScanWorker {
-  case class ScanJob(columnName: String, predicate: String => Boolean)
+  case class ScanJob()
 
   case class ScanWorkerResult(partitionId:Int, partiton: ActorRef)
 
   private case class State(sender: Option[ActorRef],
-                   columnName: Option[String],
                    columnRefs: Option[Map[String, ActorRef]],
-                   predicate: Option[String => Boolean],
                    result: Map[String, ColumnType] = Map.empty[String, ColumnType]) {
     def addResultForColumn(columnName: String, values: ColumnType): State = {
       val newResultMap = result + (columnName -> values)
-      State(sender, this.columnName, columnRefs, predicate, newResultMap)
+      State(sender, columnRefs, newResultMap)
+    }
+
+    def storeSender(sender: ActorRef): State = {
+      State(Some(sender), columnRefs, result)
     }
   }
 
-  def props(partition: ActorRef, partitionId: Int): Props = Props(new ScanWorker(partition, partitionId))
+  def props(partition: ActorRef,
+            partitionId: Int,
+            scanColumn: String,
+            predicate: String => Boolean): Props = Props(new ScanWorker(partition, partitionId, scanColumn, predicate))
 }
 
-class ScanWorker(partition: ActorRef, partitionId: Int) extends Actor with ActorLogging {
+class ScanWorker(partition: ActorRef,
+                 partitionId: Int,
+                 scanColumn: String,
+                 predicate: String => Boolean) extends Actor with ActorLogging {
 
-  override def receive: Receive = active(State(None, None, None, None))
+  override def receive: Receive = active(State(None, None))
 
-  private def beginScanJob(state: State, columnName: String, predicate: String => Boolean): Unit = {
-    val newState = State(Some(sender()), Some(columnName), None, Some(predicate), state.result)
+  private def beginScanJob(state: State): Unit = {
+    val newState = state.storeSender(sender())
     context.become(active(newState))
-    log.debug("Executing Scan job.")
+    log.debug(s"Executing Scan job for partition $partitionId, column $scanColumn.")
 
     partition ! GetColumns()
   }
 
   private def filterColumn(state: State, columnRefs: Map[String, ActorRef]): Unit = {
-    log.debug("Executing filter job.")
-    val newState = State(state.sender, state.columnName, Some(columnRefs), state.predicate, state.result)
+    log.debug("Executing filter.")
+    val newState = State(state.sender, Some(columnRefs), state.result)
     context.become(active(newState))
 
-    columnRefs(state.columnName.get) ! FilterColumn(state.predicate.get)
+    columnRefs(scanColumn) ! FilterColumn(predicate)
   }
 
-  private def scanColumns(state: State, indizes: Seq[Int]): Unit = {
-    log.debug("Scanning columns.")
-    state.columnRefs.get.foreach { case (_, columnRef) => columnRef ! ScanColumn(Some(indizes)) }
+  private def scanColumns(state: State, indices: Seq[Int]): Unit = {
+    log.debug(s"Scanning columns by indices.")
+    state.columnRefs.get.foreach { case (_, columnRef) => columnRef ! ScanColumn(Some(indices)) }
   }
 
   private def storePartialResult(state: State, columnName: String, values: ColumnType): Unit = {
-    log.debug("Storing partial result for column {}.", columnName)
+    log.debug(s"Storing partial result for column $columnName.")
     val newState = state.addResultForColumn(columnName, values)
     context.become(active(newState))
 
@@ -64,10 +72,10 @@ class ScanWorker(partition: ActorRef, partitionId: Int) extends Actor with Actor
   }
 
   private def active(state: State): Receive = {
-    case ScanJob(columnName, predicate) => beginScanJob(state, columnName, predicate)
+    case ScanJob() => beginScanJob(state)
     case ColumnsRetrieved(columnRefs) => filterColumn(state, columnRefs)
-    case FilteredRowIndizes(_, columnName, indizes) => scanColumns(state, indizes)
+    case FilteredRowIndices(_, columnName, indices) => scanColumns(state, indices)
     case ScannedValues(_, columnName, values) => storePartialResult(state, columnName, values)
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }

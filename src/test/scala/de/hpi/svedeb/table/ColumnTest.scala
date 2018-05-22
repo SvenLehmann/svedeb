@@ -2,19 +2,22 @@ package de.hpi.svedeb.table
 
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.table.Column._
+import org.scalatest.Matchers._
 
 class ColumnTest extends AbstractActorTest("ColumnTest") {
 
   "A column actor" should "be empty at start" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! FilterColumn(_ => true)
-    expectMsg(FilteredRowIndizes(0, "SomeColumnName", Seq.empty[Int]))
+    expectMsg(FilteredRowIndices(0, "SomeColumnName", Seq.empty[Int]))
   }
 
   it should "be initialized with values" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName", ColumnType("a", "b")))
     column ! ScanColumn()
-    expectMsgPF(){ case m: ScannedValues => m.values.size() == 2 && m.values == Seq("a", "b")}
+    val scannedValues = expectMsgType[ScannedValues]
+    scannedValues.values.size() shouldEqual 2
+    scannedValues.values shouldEqual ColumnType("a", "b")
   }
 
   it should "insert a new value" in {
@@ -24,7 +27,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     expectMsg(ValueAppended(0, "SomeColumnName"))
   }
 
-  it should "return all indizes on wildcard" in {
+  it should "return all indices on wildcard" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! AppendValue("value1")
     column ! AppendValue("value2")
@@ -34,7 +37,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
-    expectMsg(FilteredRowIndizes(0, "SomeColumnName", Seq(0, 1, 2)))
+    expectMsg(FilteredRowIndices(0, "SomeColumnName", Seq(0, 1, 2)))
   }
 
   it should "filter its values" in {
@@ -47,10 +50,10 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
-    expectMsg(FilteredRowIndizes(0, "SomeColumnName", Seq(1)))
+    expectMsg(FilteredRowIndices(0, "SomeColumnName", Seq(1)))
   }
 
-  it should "scan its values with indizes" in {
+  it should "scan its values with indices" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! AppendValue("value1")
     column ! AppendValue("value2")
@@ -63,7 +66,7 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
     expectMsg(ScannedValues(0, "SomeColumnName", ColumnType("value2", "value3")))
   }
 
-  it should "scan its values without indizes" in {
+  it should "scan its values without indices" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
     column ! AppendValue("value1")
     column ! AppendValue("value2")

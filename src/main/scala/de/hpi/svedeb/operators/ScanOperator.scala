@@ -7,6 +7,7 @@ import de.hpi.svedeb.operators.workers.ScanWorker
 import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult}
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table._
+import de.hpi.svedeb.utils.Utils
 
 object ScanOperator {
   def props(table: ActorRef, columnName: String, predicate: String => Boolean): Props = Props(new ScanOperator(table, columnName, predicate))
@@ -41,16 +42,16 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     table ! ListColumnsInTable()
   }
 
-  private def invokeScanJobs(state: ScanOperator.ScanState, partitions: Seq[ActorRef]): Unit = {
+  private def invokeScanJobs(state: ScanState, partitions: Seq[ActorRef]): Unit = {
     log.debug("Invoking scan workers")
     // TODO consider using router instead
     val newState = ScanState(state.sender, state.columnName, state.predicate, partitions.size, state.columnNames, state.results)
     context.become(active(newState))
 
-    partitions.zipWithIndex.map{ case (partition, index) => context.actorOf(ScanWorker.props(partition, index)) }.foreach(worker => worker ! ScanJob(state.columnName, state.predicate))
+    partitions.zipWithIndex.map{ case (partition, index) => context.actorOf(ScanWorker.props(partition, index, state.columnName, state.predicate)) }.foreach(worker => worker ! ScanJob())
   }
 
-  private def storeColumnNames(state: ScanOperator.ScanState, columnNames: Seq[String]): Unit = {
+  private def storeColumnNames(state: ScanState, columnNames: Seq[String]): Unit = {
     log.debug("Storing column names")
 
     val newState = ScanState(state.sender, state.columnName, state.predicate, state.numberOfPartitions, Some(columnNames), state.results)
@@ -61,7 +62,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     }
   }
 
-  private def storePartialResult(state: ScanOperator.ScanState, partitionId: Int, partition: ActorRef): Unit = {
+  private def storePartialResult(state: ScanState, partitionId: Int, partition: ActorRef): Unit = {
     log.debug("Storing partial result")
 
     val newState = state.addResult(partitionId, partition)
@@ -74,8 +75,9 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     }
   }
 
-  private def createNewTable(state: ScanOperator.ScanState): Unit = {
-    val table = context.actorOf(Table.props(state.columnNames.get, 10, state.results.values.toSeq))
+  private def createNewTable(state: ScanState): Unit = {
+    val table = context.actorOf(Table.props(
+      state.columnNames.get, Utils.defaultPartitionSize, state.results.toSeq.sortBy(_._1).map(_._2)))
     log.debug("Created output table, sending to {}", state.sender)
     state.sender ! QueryResult(table)
   }
@@ -85,6 +87,6 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     case ColumnList(columnNames) => storeColumnNames(state, columnNames)
     case PartitionsInTable(partitions) => invokeScanJobs(state, partitions)
     case ScanWorkerResult(partitionId, partition) => storePartialResult(state, partitionId, partition)
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }

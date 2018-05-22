@@ -14,16 +14,18 @@ class TableTest extends AbstractActorTest("TableTest") {
     expectMsg(ColumnList(Seq("columnA", "columnB")))
   }
 
-  it should "retrieve partition" in {
+  it should "not contain partitions" in {
     val table = system.actorOf(Table.props(Seq("columnA")))
     table ! GetPartitions()
-    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 1 })
+    val partitions = expectMsgType[PartitionsInTable]
+    partitions.partitions.size shouldEqual 0
   }
 
   it should "retrieve columns" in {
     val table = system.actorOf(Table.props(Seq("columnA")))
     table ! GetColumnFromTable("columnA")
-    assert(expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 1 })
+    val actorsForColumn = expectMsgType[ActorsForColumn]
+    actorsForColumn.columnActors.size shouldEqual  0
   }
 
   it should "add a row" in {
@@ -44,10 +46,12 @@ class TableTest extends AbstractActorTest("TableTest") {
     expectMsg(RowAddedToTable())
 
     table ! GetPartitions()
-    assert(expectMsgPF() { case m: PartitionsInTable => m.partitions.size == 2 })
+    val partitions = expectMsgType[PartitionsInTable]
+    partitions.partitions.size shouldEqual 2
 
     table ! GetColumnFromTable("columnA")
-    assert(expectMsgPF() { case m: ActorsForColumn => m.columnActors.size == 2 })
+    val actorsForColumn = expectMsgType[ActorsForColumn]
+    actorsForColumn.columnActors.size shouldEqual  2
   }
 
   it should "fail to add wrong row definition" in {
@@ -59,7 +63,7 @@ class TableTest extends AbstractActorTest("TableTest") {
     val numberOfPartitions = 10
     val orderTable = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1), "orderTable")
 
-    (0 until numberOfPartitions).foreach(rowId => orderTable ! AddRowToTable(RowType("a" + rowId, "b" + rowId, "c" + rowId, "d" + rowId)))
+    (0 until numberOfPartitions).foreach(rowId => orderTable ! AddRowToTable(RowType(s"a$rowId", s"b$rowId", s"c$rowId", s"d$rowId")))
     (0 until numberOfPartitions).foreach(_ => expectMsg(RowAddedToTable()))
 
     orderTable ! GetPartitions()
@@ -67,7 +71,7 @@ class TableTest extends AbstractActorTest("TableTest") {
     partitions.partitions.size shouldEqual numberOfPartitions
 
     def checkColumnValues(suffix: String): Seq[String] = {
-      orderTable ! GetColumnFromTable("column" + suffix.toUpperCase)
+      orderTable ! GetColumnFromTable(s"column${suffix.toUpperCase}")
       val columnActors = expectMsgType[ActorsForColumn]
       columnActors.columnActors.size shouldEqual numberOfPartitions
 

@@ -17,18 +17,18 @@ class ColumnTypeTest extends AbstractTest {
   it should "filter by predicate" in {
     val columnType = ColumnType("a", "b", "a", "c")
 
-    val indizesForA = columnType.filterByPredicate(x => x == "a")
-    indizesForA shouldEqual Seq(0, 2)
+    val indicesForA = columnType.filterByPredicate(x => x == "a")
+    indicesForA shouldEqual Seq(0, 2)
 
-    val indizesForC = columnType.filterByPredicate(x => x == "c")
-    indizesForC shouldEqual Seq(3)
+    val indicesForC = columnType.filterByPredicate(x => x == "c")
+    indicesForC shouldEqual Seq(3)
   }
 
-  it should "filter by indizes" in {
+  it should "filter by indices" in {
     val columnType = ColumnType("a", "b", "a", "c")
 
-    val indizes = Seq(0, 1)
-    val filteredColumn = columnType.filterByIndizes(indizes)
+    val indices = Seq(0, 1)
+    val filteredColumn = columnType.filterByIndices(indices)
     filteredColumn shouldEqual ColumnType("a", "b")
   }
 

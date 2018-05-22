@@ -30,6 +30,6 @@ class InsertRowOperator(table: ActorRef, row: RowType) extends AbstractOperator 
   private def active(state: State): Receive = {
     case Execute() => insertRow()
     case RowAddedToTable() => handleResult(state)
-    case m => throw new Exception("Message not understood: " + m)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }

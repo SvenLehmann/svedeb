@@ -20,8 +20,8 @@ case class ColumnType(values: IndexedSeq[String]) {
     values.zipWithIndex.filter { case (value, index) => predicate(value) }.map(_._2)
   }
 
-  def filterByIndizes(indizes: Seq[Int]): ColumnType = {
-    ColumnType(indizes.map(values).toIndexedSeq)
+  def filterByIndices(indices: Seq[Int]): ColumnType = {
+    ColumnType(indices.map(values).toIndexedSeq)
   }
 
   def size(): Int = {
