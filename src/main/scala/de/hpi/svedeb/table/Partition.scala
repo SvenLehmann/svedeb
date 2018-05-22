@@ -1,12 +1,8 @@
 package de.hpi.svedeb.table
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import akka.pattern.{ask, pipe}
-import akka.util.Timeout
 import de.hpi.svedeb.table.Column.{AppendValue, ValueAppended}
 import de.hpi.svedeb.table.Partition._
-
-import scala.concurrent.Future
 
 object Partition {
   case class ListColumnNames()
@@ -28,16 +24,23 @@ object Partition {
 
   def props(id: Int, columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(id, partitionSize, columns))
 
-  private case class PartitionState(processingInsert: Boolean, rowCount: Int)
+  private case class PartitionState(processingInsert: Boolean, rowCount: Int, remainingColumns: Int, originalSender: ActorRef, tableSender: ActorRef) {
+    def decreaseRemainingColumns(): PartitionState = {
+      PartitionState(processingInsert, rowCount, remainingColumns - 1, originalSender, tableSender)
+    }
+
+    def increaseRowCount(): PartitionState = {
+      PartitionState(processingInsert = false, rowCount + 1, 0, originalSender, tableSender)
+    }
+  }
 }
 
 class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = Map.empty) extends Actor with ActorLogging {
-  import context.dispatcher
 
   // Columns are initialized at actor creation time and cannot be mutated later on.
   private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(id, name, values), name)) }
 
-  override def receive: Receive = active(PartitionState(processingInsert = false, 0))
+  override def receive: Receive = active(PartitionState(processingInsert = false, 0, 0, ActorRef.noSender, ActorRef.noSender))
 
   private def retrieveColumns(): Unit = {
     sender() ! ColumnsRetrieved(columnRefs)
@@ -58,11 +61,8 @@ class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = 
     if (state.rowCount >= partitionSize) {
       log.debug("Partition full {}", row.row)
       sender() ! PartitionFull(row, originalSender)
-    } else if (columnRefs.size != row.row.size) {
-      val future = Future.failed(new Exception("Wrong number of columns"))
-      pipe(future) to sender()
     } else {
-      val newState = PartitionState(processingInsert = true, state.rowCount)
+      val newState = PartitionState(processingInsert = true, state.rowCount, row.row.size, originalSender, sender())
       context.become(active(newState))
       addRow(state, row, originalSender)
     }
@@ -71,24 +71,23 @@ class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = 
   private def addRow(state: PartitionState, row: RowType, originalSender: ActorRef): Unit = {
     log.debug("Adding row to partition: {}", row)
 
-    import scala.concurrent.duration._
-    implicit val timeout: Timeout = Timeout(5 seconds) // needed for `ask` below
-
     // TODO: verify that value is appended to correct column
-    val listOfFutures = columnRefs.zip(row.row).map { case ((_, column), value) =>
+    columnRefs.zip(row.row).foreach { case ((_, column), value) =>
       log.debug("Going to add value {} into column {}", value, column)
-      ask(column, AppendValue(value))
+      column ! AppendValue(value)
     }
+  }
 
-    val eventualRowAdded = Future.sequence(listOfFutures)
-      .map(f => {
-        log.debug("Received all column futures: {}", f)
-        val newState = PartitionState(processingInsert = false, state.rowCount + 1)
-        context.become(active(newState))
-        RowAdded(originalSender)
-      })
+  def handleValueAppended(state: PartitionState, partitionId: Int, columnName: String) {
+    val newState = state.decreaseRemainingColumns()
+    context.become(active(newState))
 
-    pipe(eventualRowAdded) to sender()
+    if (newState.remainingColumns == 0) {
+      log.info("remainingColumns zero")
+      val increasedRowCountState = newState.increaseRowCount()
+      context.become(active(increasedRowCountState))
+      state.tableSender ! RowAdded(state.originalSender)
+    }
   }
 
   private def active(state: PartitionState): Receive = {
@@ -99,7 +98,7 @@ class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = 
       // Postpone message until previous insert is completed
       if (state.processingInsert) self forward AddRow(row, originalSender)
       else tryToAddRow(state, row, originalSender)
-    case ValueAppended(partitionId, columnName) => ()
+    case ValueAppended(partitionId, columnName) => handleValueAppended(state, partitionId, columnName)
     case m => throw new Exception(s"Message not understood: $m")
   }
 }
