@@ -65,7 +65,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     apiWorker ! Run(0, CreateTable("SomeTable", Seq("a", "b"), 10))
 
     val query = expectMsgType[QueryFinished]
-    checkTable(query.resultTable, Seq(Map("a" -> ColumnType(), "b" -> ColumnType())))
+    checkTable(query.resultTable, Seq())
   }
 
   it should "query a non-empty table" in {

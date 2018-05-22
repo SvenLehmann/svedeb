@@ -29,9 +29,7 @@ class EndToEndOperatorTests extends AbstractActorTest("EndToEndTest") {
     projectionOperator ! Execute()
     val projectionResult = expectMsgType[QueryResult]
 
-    checkTable(projectionResult.resultTable, Seq(
-      Map("columnA" -> ColumnType("a2")),
-      Map("columnA" -> ColumnType())))
+    checkTable(projectionResult.resultTable, Seq(Map("columnA" -> ColumnType("a2"))))
   }
 
 }

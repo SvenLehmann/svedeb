@@ -36,6 +36,7 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
   def checkTable(table: ActorRef, expectedTable: Seq[Map[String, ColumnType]]): Unit = {
     table ! GetPartitions()
     val partitions = expectMsgType[PartitionsInTable]
+    partitions.partitions.size shouldEqual expectedTable.size
     partitions.partitions.zipWithIndex.foreach{ case (partition, id) => checkPartition(partition, expectedTable(id))}
   }
 }
