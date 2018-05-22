@@ -12,17 +12,17 @@ object Partition {
 
   // Result events
   case class ColumnNameList(columns: Seq[String])
-  case class ColumnRetrieved(columnName: String, column: ActorRef)
+  case class ColumnRetrieved(partitionId: Int, columnName: String, column: ActorRef)
   case class ColumnsRetrieved(columns: Map[String, ActorRef])
   case class RowAdded(originalSender: ActorRef)
   case class PartitionFull(row: RowType, originalSender: ActorRef)
 
-  def props(id: Int, columnNames: Seq[String] = Seq.empty[String], partitionSize: Int = 10): Props = {
+  def props(partitionId: Int, columnNames: Seq[String] = Seq.empty[String], partitionSize: Int = 10): Props = {
     val columns = columnNames.map(name => (name, ColumnType())).toMap
-    Props(new Partition(id, partitionSize, columns))
+    Props(new Partition(partitionId, partitionSize, columns))
   }
 
-  def props(id: Int, columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(id, partitionSize, columns))
+  def props(partitionId: Int, columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(partitionId, partitionSize, columns))
 
   private case class PartitionState(processingInsert: Boolean, rowCount: Int, remainingColumns: Int, originalSender: ActorRef, tableSender: ActorRef) {
     def decreaseRemainingColumns(): PartitionState = {
@@ -35,10 +35,10 @@ object Partition {
   }
 }
 
-class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = Map.empty) extends Actor with ActorLogging {
+class Partition(partitionId: Int, partitionSize: Int, columns: Map[String, ColumnType] = Map.empty) extends Actor with ActorLogging {
 
   // Columns are initialized at actor creation time and cannot be mutated later on.
-  private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(id, name, values), name)) }
+  private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(partitionId, name, values), name)) }
 
   override def receive: Receive = active(PartitionState(processingInsert = false, 0, 0, ActorRef.noSender, ActorRef.noSender))
 
@@ -48,7 +48,7 @@ class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = 
 
   private def retrieveColumn(name: String): Unit = {
     val column = columnRefs(name)
-    sender() ! ColumnRetrieved(name, column)
+    sender() ! ColumnRetrieved(partitionId, name, column)
   }
 
   private def listColumns(): Unit = {
