@@ -1,10 +1,9 @@
 package de.hpi.svedeb.table
 
 import akka.actor.ActorRef
-import akka.actor.Status.Failure
 import akka.testkit.TestProbe
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.table.Column.{ColumnName, GetColumnName, ScanColumn, ScannedValues}
+import de.hpi.svedeb.table.Column.{ColumnName, GetColumnName}
 import de.hpi.svedeb.table.Partition._
 import org.scalatest.Matchers._
 
@@ -72,11 +71,4 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
 
     checkPartition(partition, Map("column1" -> ColumnType("value1"), "column2" -> ColumnType("value2")))
   }
-
-  it should "throw an error when row is added that does not match table columns" in {
-    val partition = system.actorOf(Partition.props(0))
-    partition ! AddRow(RowType("someValue"), ActorRef.noSender)
-    expectMsgType[Failure]
-  }
-
 }
