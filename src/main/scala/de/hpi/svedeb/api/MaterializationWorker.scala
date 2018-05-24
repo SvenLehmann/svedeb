@@ -1,6 +1,7 @@
 package de.hpi.svedeb.api
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import de.hpi.svedeb.DataType
 import de.hpi.svedeb.api.MaterializationWorker.{MaterializationWorkerState, MaterializeTable, MaterializedTable}
 import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.ColumnType
@@ -10,12 +11,12 @@ object MaterializationWorker {
   def props(api: ActorRef, user: ActorRef): Props = Props(new MaterializationWorker(api, user))
 
   case class MaterializeTable(table: ActorRef)
-  case class MaterializedTable(user: ActorRef, columns: Map[String, ColumnType])
+  case class MaterializedTable(user: ActorRef, columns: Map[String, ColumnType[_]])
 
   private case class MaterializationWorkerState(partitionCount: Option[Int] = None,
                                         columnCount: Option[Int] = None,
-                                        data: Map[Int, Map[String, ColumnType]] = Map.empty) {
-    def addResult(partitionId: Int, columnName: String, values: ColumnType): MaterializationWorkerState = {
+                                        data: Map[Int, Map[String, ColumnType[DataType]]] = Map.empty) {
+    def addResult(partitionId: Int, columnName: String, values: ColumnType[DataType]): MaterializationWorkerState = {
       val partitionMap = data(partitionId)
       val updatedPartition = partitionMap + (columnName -> values)
       val updatedMap = data + (partitionId -> updatedPartition)
@@ -23,7 +24,7 @@ object MaterializationWorker {
     }
 
     def setPartitionCount(partitionCount: Int): MaterializationWorkerState = {
-      val maps = (0 until partitionCount).map(partitionId => partitionId -> Map.empty[String, ColumnType])
+      val maps = (0 until partitionCount).map(partitionId => partitionId -> Map.empty[String, ColumnType[DataType]])
       // maps:_* expands the Seq to a variable args argument
       MaterializationWorkerState(Some(partitionCount), columnCount, Map(maps:_*))
     }
@@ -39,7 +40,7 @@ object MaterializationWorker {
         !data.values.exists(partitionMap => partitionMap.size != columnCount.get)
     }
 
-    def convertToResult(): Map[String, ColumnType] = {
+    def convertToResult(): Map[String, ColumnType[DataType]] = {
       val aggregated = data.values.flatten.groupBy(_._1).mapValues( _.map(_._2).toSeq)
       aggregated.mapValues(_.reduce((l, r) => ColumnType(l.values ++ r.values)))
     }
@@ -70,7 +71,7 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
     columnActors.foreach(columnActor => columnActor ! ScanColumn())
   }
 
-  private def saveScannedValues(state: MaterializationWorkerState, partitionId: Int, columnName: String, values: ColumnType): Unit = {
+  private def saveScannedValues(state: MaterializationWorkerState, partitionId: Int, columnName: String, values: ColumnType[DataType]): Unit = {
     log.debug("Saving partial result for partition {} and column {}", partitionId, columnName)
     val newState = state.addResult(partitionId, columnName, values)
     context.become(active(newState))

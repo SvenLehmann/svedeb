@@ -1,7 +1,9 @@
 package de.hpi.svedeb.table
 
+import de.hpi.svedeb.DataType
+
 object ColumnType {
-  def apply(values: String*): ColumnType = ColumnType(values.toIndexedSeq)
+  def apply[T <: DataType](values: T*): ColumnType[T] = ColumnType[T](values.toIndexedSeq)
 }
 /**
   * ColumnType is optimized for index-lookups.
@@ -10,17 +12,17 @@ object ColumnType {
   * TODO: Evaluate whether this is true
   *
   */
-case class ColumnType(values: IndexedSeq[String]) {
+case class ColumnType[T <: DataType](values: IndexedSeq[T]) {
 
-  def append(value: String): ColumnType = {
+  def append(value: T): ColumnType[T] = {
     ColumnType(this.values :+ value)
   }
 
-  def filterByPredicate(predicate: String => Boolean): Seq[Int] = {
-    values.zipWithIndex.filter { case (value, index) => predicate(value) }.map(_._2)
+  def filterByPredicate(predicate: T => Boolean): Seq[Int] = {
+    values.zipWithIndex.filter { case (value, _) => predicate(value) }.map(_._2)
   }
 
-  def filterByIndices(indices: Seq[Int]): ColumnType = {
+  def filterByIndices(indices: Seq[Int]): ColumnType[T] = {
     ColumnType(indices.map(values).toIndexedSeq)
   }
 

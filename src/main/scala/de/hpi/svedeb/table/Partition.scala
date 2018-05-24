@@ -3,6 +3,7 @@ package de.hpi.svedeb.table
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
+import de.hpi.svedeb.DataType
 import de.hpi.svedeb.table.Column.{AppendValue, ValueAppended}
 import de.hpi.svedeb.table.Partition._
 
@@ -22,16 +23,16 @@ object Partition {
   case class PartitionFull(row: RowType, originalSender: ActorRef)
 
   def props(id: Int, columnNames: Seq[String] = Seq.empty[String], partitionSize: Int = 10): Props = {
-    val columns = columnNames.map(name => (name, ColumnType())).toMap
+    val columns = columnNames.map(name => (name, ColumnType[DataType]())).toMap
     Props(new Partition(id, partitionSize, columns))
   }
 
-  def props(id: Int, columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(id, partitionSize, columns))
+  def props(id: Int, columns: Map[String, ColumnType[DataType]], partitionSize: Int): Props = Props(new Partition(id, partitionSize, columns))
 
   private case class PartitionState(processingInsert: Boolean, rowCount: Int)
 }
 
-class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType] = Map.empty) extends Actor with ActorLogging {
+class Partition(id: Int, partitionSize: Int, columns: Map[String, ColumnType[DataType]] = Map.empty) extends Actor with ActorLogging {
   import context.dispatcher
 
   // Columns are initialized at actor creation time and cannot be mutated later on.

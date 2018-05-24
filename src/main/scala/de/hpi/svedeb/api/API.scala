@@ -2,6 +2,7 @@ package de.hpi.svedeb.api
 
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import akka.routing.RoundRobinPool
+import de.hpi.svedeb.DataType
 import de.hpi.svedeb.api.API._
 import de.hpi.svedeb.api.MaterializationWorker.{MaterializeTable, MaterializedTable}
 import de.hpi.svedeb.api.QueryPlanExecutor.{QueryFinished, Run}
@@ -13,7 +14,7 @@ object API {
   case class Materialize(table: ActorRef)
   case class Shutdown()
 
-  case class MaterializedResult(result: Map[String, ColumnType])
+  case class MaterializedResult(result: Map[String, ColumnType[_]])
   case class Result(resultTable: ActorRef)
 
   private case class ApiState(queryCounter: Int = 0, runningQueries: Map[Int, ActorRef] = Map.empty) {
