@@ -28,7 +28,7 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
 
     scanWorker ! ScanJob()
     val workerResult = expectMsgType[ScanWorkerResult]
-    workerResult.partiton ! GetColumns()
+    workerResult.partition.get ! GetColumns()
 
     val columns = expectMsgType[ColumnsRetrieved]
     columns.columns.foreach{ case (_, columnRef) => columnRef ! ScanColumn()}
@@ -62,6 +62,6 @@ class ScanWorkerTest extends AbstractActorTest("ScanWorker") {
     scanWorker ! ScanJob()
     val workerResult = expectMsgType[ScanWorkerResult]
 
-    checkPartition(workerResult.partiton, Map("columnA" -> ColumnType("b"), "columnB" -> ColumnType("d")))
+    checkPartition(workerResult.partition.get, Map("columnA" -> ColumnType("b"), "columnB" -> ColumnType("d")))
   }
 }

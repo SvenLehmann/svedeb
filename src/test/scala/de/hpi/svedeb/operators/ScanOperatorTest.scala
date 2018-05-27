@@ -59,7 +59,6 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     val msg = expectMsgType[QueryResult]
 
     checkTable(msg.resultTable, Seq(
-      Map("columnA" -> ColumnType("a1"), "columnB" -> ColumnType("b1")),
-      Map("columnA" -> ColumnType(), "columnB" -> ColumnType())))
+      Map("columnA" -> ColumnType("a1"), "columnB" -> ColumnType("b1"))))
   }
 }

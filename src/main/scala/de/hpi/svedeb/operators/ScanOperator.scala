@@ -17,8 +17,8 @@ object ScanOperator {
                                predicate: String => Boolean,
                                numberOfPartitions: Int,
                                columnNames: Option[Seq[String]] = None,
-                               results: Map[Int, ActorRef] = Map.empty) {
-    def addResult(partitionId: Int, partition: ActorRef): ScanState = {
+                               results: Map[Int, Option[ActorRef]] = Map.empty) {
+    def addResult(partitionId: Int, partition: Option[ActorRef]): ScanState = {
       val newResults = results + (partitionId -> partition)
       ScanState(sender, columnName, predicate, numberOfPartitions, columnNames, newResults)
     }
@@ -62,7 +62,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     }
   }
 
-  private def storePartialResult(state: ScanState, partitionId: Int, partition: ActorRef): Unit = {
+  private def storePartialResult(state: ScanState, partitionId: Int, partition: Option[ActorRef]): Unit = {
     log.debug("Storing partial result")
 
     val newState = state.addResult(partitionId, partition)
@@ -77,7 +77,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
 
   private def createNewTable(state: ScanState): Unit = {
     val table = context.actorOf(Table.props(
-      state.columnNames.get, Utils.defaultPartitionSize, state.results.toSeq.sortBy(_._1).map(_._2)))
+      state.columnNames.get, Utils.defaultPartitionSize, state.results.toSeq.sortBy(_._1).flatMap(_._2)))
     log.debug("Created output table, sending to {}", state.sender)
     state.sender ! QueryResult(table)
   }

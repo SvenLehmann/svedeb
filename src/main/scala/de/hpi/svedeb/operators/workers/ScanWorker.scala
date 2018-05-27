@@ -1,15 +1,16 @@
 package de.hpi.svedeb.operators.workers
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, State, ScanWorkerResult}
+import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult, State}
 import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndices, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
 import de.hpi.svedeb.table.{ColumnType, Partition}
+import de.hpi.svedeb.utils.Utils
 
 object ScanWorker {
   case class ScanJob()
 
-  case class ScanWorkerResult(partitionId:Int, partiton: ActorRef)
+  case class ScanWorkerResult(partitionId:Int, partition: Option[ActorRef])
 
   private case class State(sender: Option[ActorRef],
                    columnRefs: Option[Map[String, ActorRef]],
@@ -66,8 +67,12 @@ class ScanWorker(partition: ActorRef,
     if (newState.result.size == newState.columnRefs.get.size) {
       log.debug("Received all partial results.")
       // We received all results for the columns
-      val partition = context.actorOf(Partition.props(partitionId, newState.result, 10))
-      newState.sender.get ! ScanWorkerResult(partitionId, partition)
+      if (newState.result.forall(_._2.values.isEmpty)) {
+        newState.sender.get ! ScanWorkerResult(partitionId, None)
+      } else {
+        val partition = context.actorOf(Partition.props(partitionId, newState.result, Utils.defaultPartitionSize))
+        newState.sender.get ! ScanWorkerResult(partitionId, Some(partition))
+      }
     }
   }
 
