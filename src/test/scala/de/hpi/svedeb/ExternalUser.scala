@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
 import de.hpi.svedeb.api.API._
-import de.hpi.svedeb.queryplan._
+import de.hpi.svedeb.queryPlan._
 import de.hpi.svedeb.table.RowType
 
 import scala.concurrent.Await

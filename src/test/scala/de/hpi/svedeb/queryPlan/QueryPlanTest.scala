@@ -2,7 +2,6 @@ package de.hpi.svedeb.queryPlan
 
 import akka.testkit.TestProbe
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.queryplan.{GetTable, QueryPlan, Scan}
 import org.scalatest.Matchers._
 
 class QueryPlanTest extends AbstractActorTest("QueryPlan") {

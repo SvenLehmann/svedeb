@@ -3,7 +3,6 @@ package de.hpi.svedeb.api
 import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.api.API.{Materialize, MaterializedResult}
 import de.hpi.svedeb.api.MaterializationWorker.{MaterializeTable, MaterializedTable}
 import de.hpi.svedeb.table.ColumnType
 import org.scalatest.Matchers._

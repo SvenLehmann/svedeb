@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.api.QueryPlanExecutor.{APIWorkerState, QueryFinished, Run}
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators._
-import de.hpi.svedeb.queryplan._
+import de.hpi.svedeb.queryPlan._
 import de.hpi.svedeb.table.RowType
 
 object QueryPlanExecutor {
@@ -80,7 +80,7 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
     val nextStage = queryPlan.findNextStage()
 
     if (nextStage.isEmpty) {
-//      TODO: final result should not be destroyed
+//      TODO: Add test that verifies deletion of operators
       queryPlan.cleanUpOperators()
       state.sender ! QueryFinished(state.queryId.get, resultTable)
     } else {

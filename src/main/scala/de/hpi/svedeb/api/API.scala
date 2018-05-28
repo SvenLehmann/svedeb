@@ -5,7 +5,7 @@ import akka.routing.RoundRobinPool
 import de.hpi.svedeb.api.API._
 import de.hpi.svedeb.api.MaterializationWorker.{MaterializeTable, MaterializedTable}
 import de.hpi.svedeb.api.QueryPlanExecutor.{QueryFinished, Run}
-import de.hpi.svedeb.queryplan.QueryPlan
+import de.hpi.svedeb.queryPlan.QueryPlan
 import de.hpi.svedeb.table.ColumnType
 
 object API {
@@ -38,8 +38,9 @@ class API(tableManager: ActorRef) extends Actor with ActorLogging {
   }
 
   private def handleShutdown() = {
-    self ! PoisonPill
+    // TODO: Refactor, most likely the Poison Pill messages are not handled before the ActorSystem is shutdown.
     tableManager ! PoisonPill
+    self ! PoisonPill
     context.system.terminate()
   }
 
