@@ -6,7 +6,8 @@ import scala.annotation.tailrec
 
 case class QueryPlan(root: AbstractQueryPlanNode) {
   /**
-    *
+    * Kills operators by sending PoisonPills to each operator.
+    * It preserves the root operator to keep the final result of the query.
     */
   def cleanUpOperators(): Unit = {
     @tailrec
@@ -37,7 +38,7 @@ case class QueryPlan(root: AbstractQueryPlanNode) {
                          resultTable: ActorRef,
                          nextWorker: ActorRef,
                          nextStage: AbstractQueryPlanNode): QueryPlan = {
-    findNodeAndUpdateWorker(nextStage, nextWorker)
+    updateWorker(nextStage, nextWorker)
     saveIntermediateResult(previousWorker, resultTable)
     this
   }
@@ -48,7 +49,7 @@ case class QueryPlan(root: AbstractQueryPlanNode) {
     * @param worker the worker to be assigned
     * @return the updated query plan
     */
-  def findNodeAndUpdateWorker(node: AbstractQueryPlanNode, worker: ActorRef): QueryPlan = {
+  def updateWorker(node: AbstractQueryPlanNode, worker: ActorRef): QueryPlan = {
     // Implementation detail: Assuming that node is mutable and changed in-place
     node.updateAssignedWorker(worker)
     this
@@ -71,26 +72,7 @@ case class QueryPlan(root: AbstractQueryPlanNode) {
   }
 
   /**
-    * Finds a node in the query plan by traversing it recursively.
-    * @param searchNode the node to be searched
-    * @return the
-    */
-  def findNode(searchNode: AbstractQueryPlanNode): Option[AbstractQueryPlanNode] = {
-    @tailrec
-    def iter(remainingNodes: Seq[Option[AbstractQueryPlanNode]]): Option[AbstractQueryPlanNode] = {
-      remainingNodes match {
-        case Nil => None
-        case None :: tail => iter(tail)
-        case Some(node) :: _ if node == searchNode => Some(node)
-        case Some(node) :: tail => iter(node.leftInput :: node.rightInput :: tail)
-      }
-    }
-
-    iter(Seq(Some(root)))
-  }
-
-  /**
-    * Travers query plan recursively to find a node that can be executed next.
+    * Traverses query plan recursively to find a node that can be executed next.
     * This node needs to fulfil two criteria:
     * - it must not be already executed
     * - its child nodes must have been executed

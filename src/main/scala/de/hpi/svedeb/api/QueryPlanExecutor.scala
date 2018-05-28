@@ -23,14 +23,14 @@ object QueryPlanExecutor {
     def assignWorker(queryPlan: QueryPlan,
                      worker: ActorRef,
                      node: AbstractQueryPlanNode): APIWorkerState = {
-      val newQueryPlan = queryPlan.findNodeAndUpdateWorker(node, worker)
+      val newQueryPlan = queryPlan.updateWorker(node, worker)
       APIWorkerState(sender, Some(newQueryPlan), queryId)
     }
 
     def nextStage(queryPlan: QueryPlan,
                   nextStage: AbstractQueryPlanNode,
                   nextWorker: ActorRef): APIWorkerState = {
-      val newQueryPlan = queryPlan.findNodeAndUpdateWorker(nextStage, nextWorker)
+      val newQueryPlan = queryPlan.updateWorker(nextStage, nextWorker)
       APIWorkerState(sender, Some(newQueryPlan), queryId)
     }
   }

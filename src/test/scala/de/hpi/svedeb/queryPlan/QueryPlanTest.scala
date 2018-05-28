@@ -16,7 +16,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
 
     val table = TestProbe("S")
     val worker = TestProbe("worker")
-    queryPlan.findNodeAndUpdateWorker(firstNode, worker.ref)
+    queryPlan.updateWorker(firstNode, worker.ref)
     queryPlan.saveIntermediateResult(worker.ref, table.ref)
 
     assert(firstNode.isExecuted)
@@ -25,7 +25,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val thirdNode = Scan(secondNode, "b", _ => true)
     assert(!thirdNode.isExecuted)
 
-    queryPlan.findNodeAndUpdateWorker(secondNode, worker.ref)
+    queryPlan.updateWorker(secondNode, worker.ref)
     queryPlan.saveIntermediateResult(worker.ref, table.ref)
 
     assert(firstNode.isExecuted)
@@ -34,23 +34,6 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
 
     val fourthNode = Scan(Scan(GetTable("SomeTable"), "a", x => x == "x"), "b", x => x == "y")
     assert(!fourthNode.isExecuted)
-  }
-
-  it should "find a node" in {
-    val getTableNode = GetTable("SomeTable")
-    val firstScanNode = Scan(getTableNode, "SomeColumn", _ => true)
-    val secondScanNode = Scan(firstScanNode, "SomeColumn", _ => true)
-    val thirdScanNode = Scan(secondScanNode, "SomeColumn", _ => true)
-    val fourthNode = GetTable("SomeOtherTable")
-
-    val queryPlan = QueryPlan(thirdScanNode)
-
-    queryPlan.findNode(fourthNode) shouldEqual None
-
-    queryPlan.findNode(thirdScanNode) shouldEqual Some(thirdScanNode)
-    queryPlan.findNode(secondScanNode) shouldEqual Some(secondScanNode)
-    queryPlan.findNode(firstScanNode) shouldEqual Some(firstScanNode)
-    queryPlan.findNode(getTableNode) shouldEqual Some(getTableNode)
   }
 
   it should "find correct next stage" in {
@@ -63,7 +46,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
 
     val table = TestProbe("S")
     val worker = TestProbe("worker")
-    queryPlan.findNodeAndUpdateWorker(firstNode, worker.ref)
+    queryPlan.updateWorker(firstNode, worker.ref)
     queryPlan.saveIntermediateResult(worker.ref, table.ref)
 
     queryPlan.findNextStage() shouldEqual Some(secondNode)
@@ -73,7 +56,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val node = GetTable("S")
     val queryPlan = QueryPlan(node)
     val worker = TestProbe("createTableWorker")
-    queryPlan.findNodeAndUpdateWorker(node, worker.ref)
+    queryPlan.updateWorker(node, worker.ref)
 
     assert(node.assignedWorker == worker.ref)
   }
@@ -84,7 +67,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val table = TestProbe("S")
     val worker = TestProbe("createTableWorker")
 
-    queryPlan.findNodeAndUpdateWorker(node, worker.ref)
+    queryPlan.updateWorker(node, worker.ref)
     queryPlan.saveIntermediateResult(worker.ref, table.ref)
 
     assert(node.resultTable == table.ref)
@@ -115,8 +98,8 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     val queryPlan = QueryPlan(thirdScanNode)
     val worker = TestProbe("worker")
 
-    queryPlan.findNodeAndUpdateWorker(firstScanNode, worker.ref)
-    queryPlan.findNode(firstScanNode).get.assignedWorker shouldEqual worker.ref
+    queryPlan.updateWorker(firstScanNode, worker.ref)
+    firstScanNode.assignedWorker shouldEqual worker.ref
   }
 
   it should "find node with sender" in {
