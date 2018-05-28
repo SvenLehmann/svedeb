@@ -4,10 +4,9 @@ import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.util.Timeout
 import de.hpi.svedeb.api.API._
-import de.hpi.svedeb.queryplan.QueryPlan._
+import de.hpi.svedeb.queryPlan._
 import de.hpi.svedeb.table.RowType
 
-import scala.annotation.tailrec
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
@@ -19,7 +18,7 @@ object ExternalUser extends App {
   def insertData(tableName: String, count: Int): Result = {
     def insertRow(id: Int): Result = {
       val queryPlanNode = InsertRow(GetTable(tableName), RowType(s"a$id", s"b$id"))
-      val queryFuture = api.ask(Query(queryPlanNode))
+      val queryFuture = api.ask(Query(QueryPlan(queryPlanNode)))
       Await.result(queryFuture, timeout.duration).asInstanceOf[Result]
     }
 
@@ -27,31 +26,31 @@ object ExternalUser extends App {
   }
 
   def loadData(): Unit = {
-    val future1 = api.ask(Query(CreateTable("Table1", Seq("column1", "column2"), 1000)))
-    Await.result(future1, timeout.duration).asInstanceOf[Result]
+    val future = api.ask(Query(QueryPlan(CreateTable("Table1", Seq("column1", "column2"), 1000))))
+    Await.result(future, timeout.duration).asInstanceOf[Result]
     insertData("Table1", 100000)
   }
 
   def testMaterialize(table: ActorRef): MaterializedResult = {
-    val future3 = api.ask(Materialize(table))
-    Await.result(future3, timeout.duration).asInstanceOf[MaterializedResult]
+    val future = api.ask(Materialize(table))
+    Await.result(future, timeout.duration).asInstanceOf[MaterializedResult]
   }
 
   def testDoubleScan(): Result = {
     // Scan table
-    val future4 = api.ask(Query(Scan(Scan(GetTable("Table1"), "column1", x => x.contains("1")), "column2", x => x.contains("2"))))
-    Await.result(future4, timeout.duration).asInstanceOf[Result]
+    val future = api.ask(Query(QueryPlan(Scan(Scan(GetTable("Table1"), "column1", x => x.contains("1")), "column2", x => x.contains("2")))))
+    Await.result(future, timeout.duration).asInstanceOf[Result]
   }
 
   def testScan(): Result = {
     // Scan table
-    val queryFuture = api.ask(Query(Scan(GetTable("Table1"), "column1", x => x.contains("10"))))
+    val queryFuture = api.ask(Query(QueryPlan(Scan(GetTable("Table1"), "column1", x => x.contains("10")))))
     Await.result(queryFuture, timeout.duration).asInstanceOf[Result]
   }
 
-  def getTable(): Result = {
-    val getTableFuture = api.ask(Query(GetTable("Table1")))
-    Await.result(getTableFuture, timeout.duration).asInstanceOf[Result]
+  def testGetTable(): Result = {
+    val future = api.ask(Query(QueryPlan(GetTable("Table1"))))
+    Await.result(future, timeout.duration).asInstanceOf[Result]
   }
 
   def time[R](description: String, block: => R): R = {
@@ -73,7 +72,7 @@ object ExternalUser extends App {
 
   try {
     time("Load", loadData())
-    runQuery("GetTable", getTable())
+    runQuery("GetTable", testGetTable())
     runQuery("DoubleScan", testDoubleScan())
     runQuery("Scan", testScan())
   } finally {
