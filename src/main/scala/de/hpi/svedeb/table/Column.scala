@@ -7,8 +7,8 @@ import de.hpi.svedeb.table.Column._
 import scala.reflect.ClassTag
 
 object Column {
-  case class AppendValue[T <: DataType](value: T)
-  case class FilterColumn[T <: DataType](predicate: T => Boolean)
+  case class AppendValue[T](value: T)(implicit ev$1: T => DataType[T])
+  case class FilterColumn[T](predicate: T => Boolean)(implicit ev$1: T => DataType[T])
   // None returns all values
   case class ScanColumn(indices: Option[Seq[Int]] = None)
   case class GetColumnName()
@@ -16,15 +16,19 @@ object Column {
 
   // Result events
   case class FilteredRowIndices(partitionId: Int, columnName: String, indices: Seq[Int])
-  case class ScannedValues[T <: DataType](partitionId: Int, columnName: String, values: ColumnType[T])
+  case class ScannedValues(partitionId: Int, columnName: String, values: ColumnType[DataType[_]])
   case class ValueAppended(partitionId: Int, columnName: String)
   case class ColumnName(name: String)
   case class ColumnSize(partitionId: Int, size: Int)
 
-  def props[T <: DataType](partitionId: Int, columnName: String, values: ColumnType[T] = ColumnType[T]()): Props = Props(new Column(partitionId, columnName, values))
+  def props[T](partitionId: Int, columnName: String, values: ColumnType[T] = ColumnType[T]())
+              (implicit ev$1: T => DataType[T]): Props = {
+    import de.hpi.svedeb.DataTypeImplicits._
+    Props(new Column(partitionId, columnName, values))
+  }
 }
 
-class Column[T <: DataType](partitionId: Int, columnName: String, initialValues: ColumnType[T]) extends Actor with ActorLogging {
+class Column[T](partitionId: Int, columnName: String, initialValues: ColumnType[T])(implicit ev$1: T => DataType[T]) extends Actor with ActorLogging {
   override def receive: Receive = active(initialValues)
 
   private def handleFilter(values: ColumnType[T], predicate: T => Boolean): Unit = {

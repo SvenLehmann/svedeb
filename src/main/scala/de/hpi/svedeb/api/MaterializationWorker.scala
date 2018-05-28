@@ -11,12 +11,12 @@ object MaterializationWorker {
   def props(api: ActorRef, user: ActorRef): Props = Props(new MaterializationWorker(api, user))
 
   case class MaterializeTable(table: ActorRef)
-  case class MaterializedTable(user: ActorRef, columns: Map[String, ColumnType[_]])
+  case class MaterializedTable(user: ActorRef, columns: Map[String, ColumnType[DataType[_]]])
 
   private case class MaterializationWorkerState(partitionCount: Option[Int] = None,
                                         columnCount: Option[Int] = None,
-                                        data: Map[Int, Map[String, ColumnType[DataType]]] = Map.empty) {
-    def addResult(partitionId: Int, columnName: String, values: ColumnType[DataType]): MaterializationWorkerState = {
+                                        data: Map[Int, Map[String, ColumnType[DataType[_]]]] = Map.empty) {
+    def addResult(partitionId: Int, columnName: String, values: ColumnType[DataType[_]]): MaterializationWorkerState = {
       val partitionMap = data(partitionId)
       val updatedPartition = partitionMap + (columnName -> values)
       val updatedMap = data + (partitionId -> updatedPartition)
@@ -24,7 +24,7 @@ object MaterializationWorker {
     }
 
     def setPartitionCount(partitionCount: Int): MaterializationWorkerState = {
-      val maps = (0 until partitionCount).map(partitionId => partitionId -> Map.empty[String, ColumnType[DataType]])
+      val maps = (0 until partitionCount).map(partitionId => partitionId -> Map.empty[String, ColumnType[DataType[_]]])
       // maps:_* expands the Seq to a variable args argument
       MaterializationWorkerState(Some(partitionCount), columnCount, Map(maps:_*))
     }
@@ -40,9 +40,9 @@ object MaterializationWorker {
         !data.values.exists(partitionMap => partitionMap.size != columnCount.get)
     }
 
-    def convertToResult(): Map[String, ColumnType[DataType]] = {
+    def convertToResult(): Map[String, ColumnType[DataType[_]]] = {
       val aggregated = data.values.flatten.groupBy(_._1).mapValues( _.map(_._2).toSeq)
-      aggregated.mapValues(_.reduce((l, r) => ColumnType(l.values ++ r.values)))
+      aggregated.mapValues(_.reduce((l, r) => ColumnType(l.values ++ r.values :_*)))
     }
   }
 }
@@ -71,7 +71,7 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
     columnActors.foreach(columnActor => columnActor ! ScanColumn())
   }
 
-  private def saveScannedValues(state: MaterializationWorkerState, partitionId: Int, columnName: String, values: ColumnType[DataType]): Unit = {
+  private def saveScannedValues(state: MaterializationWorkerState, partitionId: Int, columnName: String, values: ColumnType[DataType[_]]): Unit = {
     log.debug("Saving partial result for partition {} and column {}", partitionId, columnName)
     val newState = state.addResult(partitionId, columnName, values)
     context.become(active(newState))

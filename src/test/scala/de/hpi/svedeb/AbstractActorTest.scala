@@ -15,13 +15,13 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
     TestKit.shutdownActorSystem(system)
   }
 
-  def checkColumnsValues(column: ActorRef, expectedValues: ColumnType): Unit = {
+  def checkColumnsValues(column: ActorRef, expectedValues: ColumnType[DataType]): Unit = {
     column ! ScanColumn()
     val scannedValues = expectMsgType[ScannedValues]
     scannedValues.values shouldEqual expectedValues
   }
 
-  def checkPartition(partition: ActorRef, expectedPartition: Map[String, ColumnType]): Unit = {
+  def checkPartition(partition: ActorRef, expectedPartition: Map[String, ColumnType[DataType]]): Unit = {
     partition ! GetColumns()
     val columns = expectMsgType[ColumnsRetrieved]
     val actualPartition = columns.columns.mapValues(columnRef => {
@@ -33,7 +33,7 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
     actualPartition shouldEqual expectedPartition
   }
 
-  def checkTable(table: ActorRef, expectedTable: Seq[Map[String, ColumnType]]): Unit = {
+  def checkTable(table: ActorRef, expectedTable: Seq[Map[String, ColumnType[DataType]]]): Unit = {
     table ! GetPartitions()
     val partitions = expectMsgType[PartitionsInTable]
     partitions.partitions.zipWithIndex.foreach{ case (partition, id) => checkPartition(partition, expectedTable(id))}

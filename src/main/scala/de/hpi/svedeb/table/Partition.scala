@@ -18,12 +18,13 @@ object Partition {
   case class RowAdded(originalSender: ActorRef)
   case class PartitionFull(row: RowType, originalSender: ActorRef)
 
-  def props(partitionId: Int, columnNames: Seq[String] = Seq.empty[String], partitionSize: Int = 10): Props = {
-    val columns = columnNames.map(name => (name, ColumnType[DataType]())).toMap
+  def props(partitionId: Int, columnNames: Seq[(String, DataTypeEnum)] = Seq.empty, partitionSize: Int = 10): Props = {
+    import de.hpi.svedeb.DataTypeImplicits._
+    val columns = columnNames.map(name => (name._1, ColumnTypeFactory.create(name._2))).toMap
     Props(new Partition(partitionId, partitionSize, columns))
   }
 
-  def props(partitionId: Int, columns: Map[String, ColumnType[DataType]], partitionSize: Int): Props = Props(new Partition(partitionId, partitionSize, columns))
+  def props(partitionId: Int, columns: Map[String, ColumnType[_]], partitionSize: Int): Props = Props(new Partition(partitionId, partitionSize, columns))
 
   private case class PartitionState(processingInsert: Boolean, rowCount: Int, remainingColumns: Int, originalSender: ActorRef, tableSender: ActorRef) {
     def decreaseRemainingColumns(): PartitionState = {
@@ -36,7 +37,7 @@ object Partition {
   }
 }
 
-class Partition(partitionId: Int, partitionSize: Int, columns: Map[String, ColumnType[DataType]] = Map.empty) extends Actor with ActorLogging {
+class Partition(partitionId: Int, partitionSize: Int, columns: Map[String, ColumnType[_]] = Map.empty) extends Actor with ActorLogging {
 
   // Columns are initialized at actor creation time and cannot be mutated later on.
   private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(partitionId, name, values), name)) }
@@ -75,6 +76,9 @@ class Partition(partitionId: Int, partitionSize: Int, columns: Map[String, Colum
     // TODO: verify that value is appended to correct column
     columnRefs.zip(row.row).foreach { case ((_, column), value) =>
       log.debug("Going to add value {} into column {}", value, column)
+      // TODO: remove StringWitness and use implicit
+      import de.hpi.svedeb.DataTypeImplicits._
+      import scala.language.implicitConversions
       column ! AppendValue(value)
     }
   }
@@ -99,7 +103,7 @@ class Partition(partitionId: Int, partitionSize: Int, columns: Map[String, Colum
       // Postpone message until previous insert is completed
       if (state.processingInsert) self forward AddRow(row, originalSender)
       else tryToAddRow(state, row, originalSender)
-    case ValueAppended(partitionId, columnName) => handleValueAppended(state, partitionId, columnName)
+    case ValueAppended(currentPartitionId, columnName) => handleValueAppended(state, currentPartitionId, columnName)
     case m => throw new Exception(s"Message not understood: $m")
   }
 }

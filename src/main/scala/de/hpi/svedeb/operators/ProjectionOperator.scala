@@ -1,6 +1,7 @@
 package de.hpi.svedeb.operators
 
 import akka.actor.{ActorRef, Props}
+import de.hpi.svedeb.DataType
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.ProjectionOperator.ProjectionState
 import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
@@ -11,7 +12,7 @@ import de.hpi.svedeb.utils.Utils
 object ProjectionOperator {
   def props(input: ActorRef, columnNames: Seq[String]): Props = Props(new ProjectionOperator(input, columnNames))
 
-  private case class ProjectionState(sender: ActorRef = ActorRef.noSender, result: Seq[Map[String, ColumnType]] = Seq.empty) {
+  private case class ProjectionState(sender: ActorRef = ActorRef.noSender, result: Seq[Map[String, ColumnType[_]]] = Seq.empty) {
     def storeSender(sender: ActorRef): ProjectionState = {
       ProjectionState(sender, result)
     }
@@ -23,11 +24,11 @@ object ProjectionOperator {
       */
     def storeOutputPartitionCount(count: Int): ProjectionState = {
       // Prepare result maps to store intermediate results easily
-      val newResult = (0 until count).map(_ => Map.empty[String, ColumnType])
+      val newResult = (0 until count).map(_ => Map.empty[String, ColumnType[_]])
       ProjectionState(sender, newResult)
     }
 
-    def addPartialResult(partitionId: Int, columnName: String, values: ColumnType): ProjectionState = {
+    def addPartialResult(partitionId: Int, columnName: String, values: ColumnType[_]): ProjectionState = {
       val newResultMap = result(partitionId) + (columnName -> values)
       val newResult = result.updated(partitionId, newResultMap)
       ProjectionState(sender, newResult)
@@ -77,7 +78,7 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
     actorsForColumns.foreach(columnActor => columnActor ! ScanColumn(None))
   }
 
-  def handleScannedValues(state: ProjectionState, partitionId: Int, columnName: String, values: ColumnType): Unit = {
+  def handleScannedValues(state: ProjectionState, partitionId: Int, columnName: String, values: ColumnType[_]): Unit = {
     log.debug("Handling scanned values")
     val newState = state.addPartialResult(partitionId, columnName, values)
     context.become(active(newState))

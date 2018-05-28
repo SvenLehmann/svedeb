@@ -1,13 +1,21 @@
 package de.hpi.svedeb
 
+import scala.language.implicitConversions
+
 /*
  * TODO: Unused for now as we have to find out how to use TypedActors correctly.
  */
-sealed class DataType
-object DataType {
-  implicit object StringWitness extends DataType
-  implicit object IntWitness extends DataType
+
+trait DataType[T]
+object DataTypeImplicits {
+  implicit class StringWitness(value: String) extends DataType[String]
+  implicit class IntWitness(value: Int) extends DataType[Int]
+
+//  implicit def int2IntWitness(x: Int): DataType = IntWitness(x)
+//  implicit def string2StringWitness(x: String): DataType = StringWitness(x)
 }
+
+
 
 //sealed class CellValueType[T]
 //object CellValueType {

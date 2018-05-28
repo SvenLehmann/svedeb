@@ -1,7 +1,8 @@
 package de.hpi.svedeb.operators.workers
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, State, ScanWorkerResult}
+import de.hpi.svedeb.DataType
+import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult, State}
 import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndices, ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
 import de.hpi.svedeb.table.{ColumnType, Partition}
@@ -13,8 +14,8 @@ object ScanWorker {
 
   private case class State(sender: Option[ActorRef],
                    columnRefs: Option[Map[String, ActorRef]],
-                   result: Map[String, ColumnType] = Map.empty[String, ColumnType]) {
-    def addResultForColumn(columnName: String, values: ColumnType): State = {
+                   result: Map[String, ColumnType[_]] = Map.empty) {
+    def addResultForColumn(columnName: String, values: ColumnType[_]): State = {
       val newResultMap = result + (columnName -> values)
       State(sender, columnRefs, newResultMap)
     }
@@ -50,6 +51,7 @@ class ScanWorker(partition: ActorRef,
     val newState = State(state.sender, Some(columnRefs), state.result)
     context.become(active(newState))
 
+    import de.hpi.svedeb.DataTypeImplicits._
     columnRefs(scanColumn) ! FilterColumn(predicate)
   }
 
@@ -58,7 +60,7 @@ class ScanWorker(partition: ActorRef,
     state.columnRefs.get.foreach { case (_, columnRef) => columnRef ! ScanColumn(Some(indices)) }
   }
 
-  private def storePartialResult(state: State, columnName: String, values: ColumnType): Unit = {
+  private def storePartialResult(state: State, columnName: String, values: ColumnType[_]): Unit = {
     log.debug(s"Storing partial result for column $columnName.")
     val newState = state.addResultForColumn(columnName, values)
     context.become(active(newState))

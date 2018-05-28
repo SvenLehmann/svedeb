@@ -14,7 +14,11 @@ class ApiTest extends AbstractActorTest("Api") {
     val user = TestProbe()
     val table = TestProbe()
     val tableManager = TestProbe()
-    val columns = Map("columnA" -> ColumnType("a", "b", "c"), "columnB" -> ColumnType("c", "b", "a"))
+
+    import de.hpi.svedeb.DataTypeImplicits._
+    import scala.language.implicitConversions
+//    val columns = Map("columnA" -> ColumnType("a", "b", "c"), "columnB" -> ColumnType("c", "b", "a"))
+    val columns = Map("columnA" -> ColumnType(StringWitness("a"), StringWitness("b"), StringWitness("c")), "columnB" -> ColumnType(StringWitness("c"), StringWitness("b"), StringWitness("a")))
     materializationWorker.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case MaterializeTable(_) => sender ! MaterializedTable(user.ref, columns); TestActor.KeepRunning
     })
