@@ -28,8 +28,6 @@ object API {
 }
 
 class API(tableManager: ActorRef) extends Actor with ActorLogging {
-  private val workerActors: ActorRef = context.actorOf(RoundRobinPool(5).props(QueryPlanExecutor.props(tableManager)), "QueryExecutorRouter")
-
   override def receive: Receive = active(ApiState())
 
   private def materializeTable(user: ActorRef, resultTable: ActorRef): Unit = {
@@ -50,7 +48,8 @@ class API(tableManager: ActorRef) extends Actor with ActorLogging {
     case Query(queryPlan) =>
       val (newState, queryId) = state.addQuery(sender())
       context.become(active(newState))
-      workerActors ! Run(queryId, queryPlan)
+      val executor = context.actorOf(QueryPlanExecutor.props(tableManager))
+      executor ! Run(queryId, queryPlan)
     case QueryFinished(queryId, resultTable) =>
       state.runningQueries(queryId) ! Result(resultTable)
     case Shutdown() => handleShutdown()
