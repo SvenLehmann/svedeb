@@ -3,9 +3,7 @@ package de.hpi.svedeb.operators
 import akka.actor.{ActorRef, Props}
 import de.hpi.svedeb.operators.AbstractOperator.Execute
 import de.hpi.svedeb.operators.NestedLoopJoinOperator.JoinState
-import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, State}
-import de.hpi.svedeb.table.Column.{FilteredRowIndices, ScannedValues}
-import de.hpi.svedeb.table.Partition.ColumnsRetrieved
+import de.hpi.svedeb.operators.workers.NestedLoopJoinWorker.PartialResult
 import de.hpi.svedeb.table.Table.PartitionsInTable
 
 object NestedLoopJoinOperator {
@@ -28,7 +26,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef, rightTable: ActorRef) extends 
     // save number of jobs, forward partition id
   }
 
-  def handlePartialResult(partitionId: Int, partition: ActorRef): Unit = {
+  def handlePartialResult(partitionId: Int, partition: Option[ActorRef]): Unit = {
     // store result
     // if all received, create new table and return
   }
