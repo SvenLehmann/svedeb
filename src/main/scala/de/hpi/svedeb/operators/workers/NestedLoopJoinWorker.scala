@@ -89,8 +89,10 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
     context.become(active(newState))
 
     if(newState.leftColumnRefs.isDefined && newState.rightColumnRefs.isDefined) {
-      newState.leftColumnRefs.get.apply(leftJoinColumn) ! ScanColumn(None)
-      newState.rightColumnRefs.get.apply(rightJoinColumn) ! ScanColumn(None)
+      val leftColumn = newState.leftColumnRefs.get.apply(leftJoinColumn)
+      leftColumn ! ScanColumn(None)
+      val rightColumn = newState.rightColumnRefs.get.apply(rightJoinColumn)
+      rightColumn ! ScanColumn(None)
     }
   }
 
