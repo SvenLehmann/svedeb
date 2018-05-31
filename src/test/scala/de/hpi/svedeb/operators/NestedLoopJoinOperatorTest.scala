@@ -105,4 +105,72 @@ class NestedLoopJoinOperatorTest extends AbstractActorTest("NestedLoopJoinOperat
     val result = expectMsgType[QueryResult]
     checkTable(result.resultTable, Seq(Map("a" -> ColumnType("b"), "a2" -> ColumnType("y"), "b" -> ColumnType("b"), "b2" -> ColumnType("v"))))
   }
+
+  it should "handle multiple partitions" in {
+    val leftColumn1 = TestProbe("LeftColumn1")
+    leftColumn1.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case ScanColumn(None) => sender.tell(ScannedValues(0, "a", ColumnType("a", "b")), leftColumn1.ref); TestActor.KeepRunning
+      case ScanColumn(Some(_)) => sender ! ScannedValues(0, "a", ColumnType("b")); TestActor.KeepRunning
+    })
+
+    val leftColumn2 = TestProbe("LeftColumn2")
+    leftColumn2.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case ScanColumn(None) => sender.tell(ScannedValues(0, "a", ColumnType("c", "d")), leftColumn2.ref); TestActor.KeepRunning
+      case ScanColumn(Some(_)) => sender ! ScannedValues(0, "a", ColumnType("c", "d")); TestActor.KeepRunning
+    })
+
+    val rightColumn1 = TestProbe("RightColumn1")
+    rightColumn1.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case ScanColumn(None) => sender.tell(ScannedValues(0, "b", ColumnType("b", "c")), rightColumn1.ref); TestActor.KeepRunning
+      case ScanColumn(Some(_)) => sender ! ScannedValues(0, "b", ColumnType("b", "c")); TestActor.KeepRunning
+    })
+
+    val rightColumn2 = TestProbe("RightColumn2")
+    rightColumn2.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case ScanColumn(None) => sender.tell(ScannedValues(0, "b", ColumnType("d", "e")), rightColumn2.ref); TestActor.KeepRunning
+      case ScanColumn(Some(_)) => sender ! ScannedValues(0, "b", ColumnType("d")); TestActor.KeepRunning
+    })
+
+    val leftPartition1 = TestProbe("LeftPartition1")
+    leftPartition1.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetColumns() ⇒ sender.tell(ColumnsRetrieved(Map("a" -> leftColumn1.ref)), leftPartition1.ref); TestActor.KeepRunning
+    })
+
+    val leftPartition2 = TestProbe("LeftPartition1")
+    leftPartition2.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetColumns() ⇒ sender.tell(ColumnsRetrieved(Map("a" -> leftColumn2.ref)), leftPartition2.ref); TestActor.KeepRunning
+    })
+
+    val rightPartition1 = TestProbe("RightPartition1")
+    rightPartition1.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetColumns() ⇒ sender.tell(ColumnsRetrieved(Map("b" -> rightColumn1.ref)), rightPartition1.ref); TestActor.KeepRunning
+    })
+
+    val rightPartition2 = TestProbe("RightPartition2")
+    rightPartition2.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetColumns() ⇒ sender.tell(ColumnsRetrieved(Map("b" -> rightColumn2.ref)), rightPartition2.ref); TestActor.KeepRunning
+    })
+
+    val leftTable = TestProbe("LeftTable")
+    leftTable.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetPartitions() ⇒ sender.tell(PartitionsInTable(Seq(leftPartition1.ref, leftPartition2.ref)), leftTable.ref); TestActor.KeepRunning
+      case ListColumnsInTable() => sender.tell(ColumnList(Seq("a")), leftTable.ref); TestActor.KeepRunning
+    })
+
+    val rightTable = TestProbe("LeftTable")
+    rightTable.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
+      case GetPartitions() ⇒ sender.tell(PartitionsInTable(Seq(rightPartition1.ref, rightPartition2.ref)), rightTable.ref); TestActor.KeepRunning
+      case ListColumnsInTable() => sender.tell(ColumnList(Seq("b")), rightTable.ref); TestActor.KeepRunning
+    })
+
+    val operator = system.actorOf(NestedLoopJoinOperator.props(leftTable.ref, rightTable.ref, "a", "b", _ == _))
+    operator ! Execute()
+
+    val result = expectMsgType[QueryResult]
+    checkTable(result.resultTable, Seq(
+      Map("a" -> ColumnType("b"), "b" -> ColumnType("b")),
+      Map("a" -> ColumnType("c"), "b" -> ColumnType("c")),
+      Map("a" -> ColumnType("d"), "b" -> ColumnType("d")),
+      Map.empty))
+  }
 }
