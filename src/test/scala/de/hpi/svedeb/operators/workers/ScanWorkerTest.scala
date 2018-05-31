@@ -1,7 +1,6 @@
-package de.hpi.svedeb.operators
+package de.hpi.svedeb.operators.workers
 
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.operators.workers.ScanWorker
 import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult}
 import de.hpi.svedeb.table.ColumnType
 import org.scalatest.Matchers._
