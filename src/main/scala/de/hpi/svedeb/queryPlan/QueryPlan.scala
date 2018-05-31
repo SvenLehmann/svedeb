@@ -16,7 +16,9 @@ case class QueryPlan(root: AbstractQueryPlanNode) {
         case Nil => None
         case None :: tail => iter(tail)
         case Some(node) :: tail =>
-          node.assignedWorker ! PoisonPill
+          if (node.assignedWorker.isDefined) {
+            node.assignedWorker.get ! PoisonPill
+          }
           iter(node.leftInput :: node.rightInput :: tail)
       }
     }
@@ -109,7 +111,7 @@ case class QueryPlan(root: AbstractQueryPlanNode) {
       remainingNodes match {
         case Nil => None
         case None :: tail => iter(tail)
-        case Some(node) :: _ if node.assignedWorker == workerRef => Some(node)
+        case Some(node) :: _ if node.assignedWorker.isDefined && node.assignedWorker.get == workerRef => Some(node)
         case Some(node) :: tail => iter(node.leftInput :: node.rightInput :: tail)
       }
     }

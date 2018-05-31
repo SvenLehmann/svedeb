@@ -17,10 +17,10 @@ class ColumnTypeTest extends AbstractTest {
   it should "filter by predicate" in {
     val columnType = ColumnType("a", "b", "a", "c")
 
-    val indicesForA = columnType.filterByPredicate(x => x == "a")
+    val indicesForA = columnType.filterByPredicate(_ == "a")
     indicesForA shouldEqual Seq(0, 2)
 
-    val indicesForC = columnType.filterByPredicate(x => x == "c")
+    val indicesForC = columnType.filterByPredicate(_ == "c")
     indicesForC shouldEqual Seq(3)
   }
 

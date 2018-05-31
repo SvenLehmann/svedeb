@@ -4,16 +4,16 @@ import akka.actor.ActorRef
 
 abstract class AbstractQueryPlanNode(var leftInput: Option[AbstractQueryPlanNode],
                                      var rightInput: Option[AbstractQueryPlanNode],
-                                     var assignedWorker: ActorRef = ActorRef.noSender,
-                                     var resultTable: ActorRef = ActorRef.noSender) {
+                                     var assignedWorker: Option[ActorRef],
+                                     var resultTable: Option[ActorRef]) {
 
   def saveIntermediateResult(intermediateResult: ActorRef): AbstractQueryPlanNode = {
-    resultTable = intermediateResult
+    resultTable = Some(intermediateResult)
     this
   }
 
   def updateAssignedWorker(worker: ActorRef) : AbstractQueryPlanNode = {
-    assignedWorker = worker
+    assignedWorker = Some(worker)
     this
   }
 
@@ -25,5 +25,5 @@ abstract class AbstractQueryPlanNode(var leftInput: Option[AbstractQueryPlanNode
     * We assume a node has not been executed if there is no result table assigned.
     * @return true if there is a result table else false
     */
-  def isExecuted: Boolean = resultTable != ActorRef.noSender
+  def isExecuted: Boolean = resultTable.isDefined
 }
