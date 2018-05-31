@@ -107,12 +107,8 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
 
     if (newState.leftColumnRefs.get.size + newState.rightColumnRefs.get.size == newState.result.size) {
       log.debug("Computed final result")
-      if (newState.result.forall(_._2.values.isEmpty)) {
-        newState.sender.get ! PartialResult(resultPartitionId, None)
-      } else {
-        val newPartition = context.actorOf(Partition.props(resultPartitionId, newState.result, Utils.defaultPartitionSize))
-        newState.sender.get ! PartialResult(resultPartitionId, Some(newPartition))
-      }
+      val newPartition = context.actorOf(Partition.props(resultPartitionId, newState.result, Utils.defaultPartitionSize))
+      newState.sender.get ! PartialResult(resultPartitionId, Some(newPartition))
     }
   }
 
@@ -134,11 +130,15 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
         }
       }
 
-      newState.leftColumnRefs.get.foreach { case (_, column) => column ! ScanColumn(Some(joinedIndices.map(_._1))) }
-      newState.rightColumnRefs.get.foreach { case (_, column) => column ! ScanColumn(Some(joinedIndices.map(_._2))) }
+      if (joinedIndices.isEmpty) {
+        newState.sender.get ! PartialResult(resultPartitionId, None)
+      } else {
+        newState.leftColumnRefs.get.foreach { case (_, column) => column ! ScanColumn(Some(joinedIndices.map(_._1))) }
+        newState.rightColumnRefs.get.foreach { case (_, column) => column ! ScanColumn(Some(joinedIndices.map(_._2))) }
 
-      val postJoinState = state.enterPostJoin()
-      context.become(active(postJoinState))
+        val postJoinState = state.enterPostJoin()
+        context.become(active(postJoinState))
+      }
     }
   }
 
