@@ -19,6 +19,10 @@ object NestedLoopJoinWorker {
                                      rightColumnValues: Option[ColumnType],
                                      postJoin: Boolean = false,
                                      result: Map[String, ColumnType] = Map.empty[String, ColumnType]) {
+    def hasFinished: Boolean = {
+      leftColumnRefs.get.size + rightColumnRefs.get.size == result.size
+    }
+
     def addResultForColumn(columnName: String, values: ColumnType): JoinWorkerState = {
       val newResultMap = result + (columnName -> values)
       JoinWorkerState(sender, leftColumnRefs, rightColumnRefs, leftColumnValues, rightColumnValues, postJoin, newResultMap)
@@ -71,7 +75,7 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
   override def receive: Receive = active(JoinWorkerState(None, None, None, None, None))
 
   private def beginJoinJob(state: JoinWorkerState): Unit = {
-    log.debug("Beginning Join Job")
+    log.debug("Begin Join Job")
     val newState = state.storeSender(sender())
     context.become(active(newState))
 
@@ -105,7 +109,7 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
 
     log.debug("Received a result")
 
-    if (newState.leftColumnRefs.get.size + newState.rightColumnRefs.get.size == newState.result.size) {
+    if (newState.hasFinished) {
       log.debug("Computed final result")
       val newPartition = context.actorOf(Partition.props(resultPartitionId, newState.result, Utils.defaultPartitionSize))
       newState.sender.get ! PartialResult(resultPartitionId, Some(newPartition))
@@ -120,21 +124,18 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
 
     if (newState.leftColumnValues.isDefined && newState.rightColumnValues.isDefined) {
       log.debug("Performing join")
-      val indexedLeft = newState.leftColumnValues.get.values.zipWithIndex
-      val indexedRight = newState.rightColumnValues.get.values.zipWithIndex
-
-      val joinedIndices = indexedLeft.flatMap { case (leftValue, leftIndex) =>
-        indexedRight.flatMap { case (rightValue, rightIndex) =>
-          if (predicate(leftValue,rightValue)) Some(leftIndex, rightIndex)
-          else None
-        }
-      }
+      val joinedIndices = for {
+        (leftValue, leftIndex) <- newState.leftColumnValues.get.values.zipWithIndex
+        (rightValue, rightIndex) <- newState.rightColumnValues.get.values.zipWithIndex
+        if predicate(leftValue, rightValue)
+      } yield (leftIndex, rightIndex)
 
       if (joinedIndices.isEmpty) {
+        // no need to fetch values again, simply return empty PartialResult
         newState.sender.get ! PartialResult(resultPartitionId, None)
       } else {
-        newState.leftColumnRefs.get.foreach { case (_, column) => column ! ScanColumn(Some(joinedIndices.map(_._1))) }
-        newState.rightColumnRefs.get.foreach { case (_, column) => column ! ScanColumn(Some(joinedIndices.map(_._2))) }
+        newState.leftColumnRefs.get.values.foreach(column => column ! ScanColumn(Some(joinedIndices.map(_._1))))
+        newState.rightColumnRefs.get.values.foreach(column => column ! ScanColumn(Some(joinedIndices.map(_._2))))
 
         val postJoinState = state.enterPostJoin()
         context.become(active(postJoinState))

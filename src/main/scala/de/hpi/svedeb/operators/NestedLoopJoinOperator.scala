@@ -75,19 +75,24 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
   }
 
   def handlePartitions(state: JoinState, partitions: Seq[ActorRef]): Unit = {
-    // save once with sender
     val newState = state.storePartitions(sender(), leftTable, rightTable, partitions)
     context.become(active(newState))
 
     if (newState.leftPartitions.isDefined && newState.rightPartitions.isDefined) {
+      log.debug("Invoke Join Workers")
       val rightPartitionSize = newState.rightPartitions.get.size
-      newState.leftPartitions.get.zipWithIndex.foreach{
-        case (leftPartition, leftIndex) => newState.rightPartitions.get.zipWithIndex.foreach{
-          case (rightPartition, rightIndex) =>
-            val newPartitionId = leftIndex * rightPartitionSize + rightIndex
-            val worker = context.actorOf(NestedLoopJoinWorker.props(leftPartition, rightPartition, newPartitionId, leftJoinColumn, rightJoinColumn, predicate))
-            worker ! JoinJob()
-      }}
+
+      for {
+        (leftPartition, leftIndex) <- newState.leftPartitions.get.zipWithIndex
+        (rightPartition, rightIndex) <- newState.rightPartitions.get.zipWithIndex
+      } yield {
+        val newPartitionId = leftIndex * rightPartitionSize + rightIndex
+        log.debug(s"PartitionId for NLJWorker: $newPartitionId")
+        val worker = context.actorOf(NestedLoopJoinWorker.props(
+          leftPartition, rightPartition, newPartitionId,
+          leftJoinColumn, rightJoinColumn, predicate))
+        worker ! JoinJob()
+      }
     }
   }
 
@@ -120,7 +125,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
 
   private def active(state: JoinState): Receive = {
     case Execute() => initializeJoin(state)
-    case PartitionsInTable(partitions) => handlePartitions(state, partitions)  // get partitions
+    case PartitionsInTable(partitions) => handlePartitions(state, partitions)
     case ColumnList(columnNames) => handleColumnNames(state, columnNames)
     case PartialResult(partitionId, partition) => handlePartialResult(state, partitionId, partition)
     case m => throw new Exception(s"Message not understood: $m")
