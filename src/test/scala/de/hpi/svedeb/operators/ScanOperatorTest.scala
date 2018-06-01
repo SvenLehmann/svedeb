@@ -1,47 +1,18 @@
 package de.hpi.svedeb.operators
 
-import akka.actor.ActorRef
-import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
-import de.hpi.svedeb.table.Column.{FilteredRowIndices, ScanColumn, ScannedValues}
-import de.hpi.svedeb.table.Partition.{ColumnNameList, ColumnsRetrieved, GetColumns, ListColumnNames}
-import de.hpi.svedeb.table.Table._
-import de.hpi.svedeb.table.{Column, ColumnType, Partition, Table}
+import de.hpi.svedeb.table.{ColumnType, Partition, Table}
 import org.scalatest.Matchers._
 
 // TODO: Consider splitting up this test into multiple smaller ones that do not have so many dependencies
 class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
 
   "A ScanOperator actor" should "scan whole table" in {
-    val table = TestProbe("Table")
+    val table = generateTableTestProbe(Seq(
+      Map("a" -> ColumnType("1", "2", "3"), "b" -> ColumnType("1", "2", "3"))))
 
-    val scanOperator = system.actorOf(ScanOperator.props(table.ref, "a", _ => true))
-
-    val partition = TestProbe("Partition")
-    val columnA = TestProbe("ColumnA")
-    val columnB = TestProbe("ColumnB")
-
-    partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case ListColumnNames() => sender ! ColumnNameList(Seq("a", "b")); TestActor.KeepRunning
-      case GetColumns() => sender ! ColumnsRetrieved(Map("a" -> columnA.ref, "b" -> columnB.ref)); TestActor.KeepRunning
-    })
-
-    table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case ListColumnsInTable() ⇒ sender ! ColumnList(Seq("a", "b")); TestActor.KeepRunning
-      case GetColumnFromTable("ColumnA") => sender ! ActorsForColumn("ColumnA", Seq(columnA.ref)); TestActor.KeepRunning
-      case GetColumnFromTable("ColumnB") => sender ! ActorsForColumn("ColumnB", Seq(columnB.ref)); TestActor.KeepRunning
-      case GetPartitions() => sender! PartitionsInTable(Seq(partition.ref)); TestActor.KeepRunning
-    })
-
-    columnA.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case Column.FilterColumn(predicate) => sender ! FilteredRowIndices(0, "a", Seq(0, 1, 2)); TestActor.KeepRunning
-      case Column.ScanColumn(_) => sender ! ScannedValues(0, "a", ColumnType("1", "2", "3")); TestActor.KeepRunning
-    })
-    columnB.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case Column.ScanColumn(_) => sender ! ScannedValues(0, "b", ColumnType("1", "2", "3")); TestActor.KeepRunning
-    })
-
+    val scanOperator = system.actorOf(ScanOperator.props(table, "a", _ => true))
     scanOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
 

@@ -67,6 +67,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
   override def receive: Receive = active(JoinState(ActorRef.noSender, None, None, None, None, Map.empty))
 
   def initializeJoin(state: JoinState): Unit = {
+    log.debug("Initialize Join")
     leftTable ! GetPartitions()
     rightTable ! GetPartitions()
     leftTable ! ListColumnsInTable()
@@ -75,6 +76,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
   }
 
   def handlePartitions(state: JoinState, partitions: Seq[ActorRef]): Unit = {
+    log.debug(s"Handle partitions $partitions")
     val newState = state.storePartitions(sender(), leftTable, rightTable, partitions)
     context.become(active(newState))
 
@@ -97,6 +99,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
   }
 
   def handleColumnNames(state: JoinState, columnNames: Seq[String]): Unit = {
+    log.debug(s"Handle column names $columnNames")
     val newState = state.storeColumnNames(sender(), leftTable, rightTable, columnNames)
     context.become(active(newState))
 
@@ -106,6 +109,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
   }
 
   def handlePartialResult(state: JoinState, partitionId: Int, partition: Option[ActorRef]): Unit = {
+    log.debug(s"Handle partial result for $partitionId with $partition")
     val newState = state.storePartialResult(partitionId, partition)
     context.become(active(newState))
 
@@ -115,6 +119,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
   }
 
   private def createNewTable(state: JoinState): Unit = {
+    log.debug("Create new table")
     val table = context.actorOf(Table.props(
       state.leftColumnNames.get ++ state.rightColumnNames.get,
       Utils.defaultPartitionSize,
