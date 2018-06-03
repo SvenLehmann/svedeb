@@ -18,7 +18,9 @@ object Column {
   case class ColumnName(name: String)
   case class ColumnSize(partitionId: Int, size: Int)
 
-  def props(partitionId: Int, columnName: String, values: ColumnType = ColumnType()): Props = Props(new Column(partitionId, columnName, values))
+  def props(partitionId: Int,
+            columnName: String,
+            values: ColumnType = ColumnType()): Props = Props(new Column(partitionId, columnName, values))
 }
 
 class Column(partitionId: Int, columnName: String, initialValues: ColumnType) extends Actor with ActorLogging {

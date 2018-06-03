@@ -2,10 +2,10 @@ package de.hpi.svedeb.queryPlan
 
 import akka.actor.ActorRef
 
-abstract class AbstractQueryPlanNode(var leftInput: Option[AbstractQueryPlanNode],
-                                     var rightInput: Option[AbstractQueryPlanNode],
-                                     var assignedWorker: Option[ActorRef],
-                                     var resultTable: Option[ActorRef]) {
+abstract class AbstractQueryPlanNode(var leftInput: Option[AbstractQueryPlanNode] = None,
+                                     var rightInput: Option[AbstractQueryPlanNode] = None,
+                                     var assignedWorker: Option[ActorRef] = None,
+                                     var resultTable: Option[ActorRef] = None) {
 
   def saveIntermediateResult(intermediateResult: ActorRef): AbstractQueryPlanNode = {
     resultTable = Some(intermediateResult)

@@ -63,7 +63,7 @@ class TableTest extends AbstractActorTest("TableTest") {
     val numberOfPartitions = 10
     val orderTable = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1), "orderTable")
 
-    (0 until numberOfPartitions).foreach(rowId => orderTable ! AddRowToTable(RowType(s"a$rowId", s"b$rowId", s"c$rowId", s"d$rowId")))
+    (0 until numberOfPartitions).foreach(id => orderTable ! AddRowToTable(RowType(s"a$id", s"b$id", s"c$id", s"d$id")))
     (0 until numberOfPartitions).foreach(_ => expectMsg(RowAddedToTable()))
 
     orderTable ! GetPartitions()
@@ -76,7 +76,11 @@ class TableTest extends AbstractActorTest("TableTest") {
       columnActors.columnActors.size shouldEqual numberOfPartitions
 
       columnActors.columnActors.foreach(columnActor => columnActor ! ScanColumn())
-      val values = (1 to numberOfPartitions).map(_ => expectMsgType[ScannedValues]).sortBy(c => c.partitionId).flatMap(c => c.values.values)
+      val values = (1 to numberOfPartitions)
+        .map(_ => expectMsgType[ScannedValues])
+        .sortBy(c => c.partitionId)
+        .flatMap(c => c.values.values)
+
       // Verify correct values
       values.sorted shouldEqual (0 until numberOfPartitions).map(index => suffix + index).toVector.sorted
       values

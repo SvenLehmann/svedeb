@@ -1,3 +1,8 @@
 package de.hpi.svedeb.queryPlan
 
-case class Join(left: AbstractQueryPlanNode, right: AbstractQueryPlanNode) extends AbstractQueryPlanNode(Some(left), Some(right), None, None)
+abstract class Join(left: AbstractQueryPlanNode,
+                    right: AbstractQueryPlanNode,
+                    leftColumn: String,
+                    rightColumn: String,
+                    predicate: (String, String) => Boolean
+                   ) extends AbstractQueryPlanNode(Some(left), Some(right))

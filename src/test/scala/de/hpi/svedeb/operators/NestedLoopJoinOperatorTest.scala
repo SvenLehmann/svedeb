@@ -27,7 +27,10 @@ class NestedLoopJoinOperatorTest extends AbstractActorTest("NestedLoopJoinOperat
     operator ! Execute()
 
     val result = expectMsgType[QueryResult]
-    checkTable(result.resultTable, Seq(Map("a" -> ColumnType("b"), "a2" -> ColumnType("y"), "b" -> ColumnType("b"), "b2" -> ColumnType("u"))))
+    val expectedResult = Seq(Map(
+      "a" -> ColumnType("b"), "a2" -> ColumnType("y"),
+      "b" -> ColumnType("b"), "b2" -> ColumnType("u")))
+    checkTable(result.resultTable, expectedResult)
   }
 
   it should "handle multiple partitions" in {

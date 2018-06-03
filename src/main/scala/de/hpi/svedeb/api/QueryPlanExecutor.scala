@@ -12,7 +12,9 @@ object QueryPlanExecutor {
 
   case class QueryFinished(queryId: Int, resultTable: ActorRef)
 
-  private case class QueryPlanExecutorState(sender: ActorRef, queryPlan: Option[QueryPlan] = None, queryId: Option[Int] = None) {
+  private case class QueryPlanExecutorState(sender: ActorRef,
+                                            queryPlan: Option[QueryPlan],
+                                            queryId: Option[Int]) {
     def storeQueryId(queryId: Int): QueryPlanExecutorState = {
       QueryPlanExecutorState(sender, queryPlan, Some(queryId))
     }
@@ -39,9 +41,11 @@ object QueryPlanExecutor {
 }
 
 class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging {
-  override def receive: Receive = active(QueryPlanExecutorState(ActorRef.noSender))
+  override def receive: Receive = active(QueryPlanExecutorState(ActorRef.noSender, None, None))
 
-  private def nodeToOperatorActor(node: AbstractQueryPlanNode, inputLeft: Option[ActorRef] = None, inputRight: Option[ActorRef] = None): ActorRef = {
+  private def nodeToOperatorActor(node: AbstractQueryPlanNode,
+                                  inputLeft: Option[ActorRef] = None,
+                                  inputRight: Option[ActorRef] = None): ActorRef = {
     node match {
       case GetTable(tableName: String) =>
         context.actorOf(GetTableOperator.props(tableManager, tableName))
@@ -51,8 +55,8 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
         context.actorOf(DropTableOperator.props(tableManager, tableName))
       case Scan(_, columnName: String, predicate: (String => Boolean)) =>
         context.actorOf(ScanOperator.props(inputLeft.get, columnName, predicate))
-//      case NestedLoopJoin() =>
-//        context.actorOf(NestedLoopJoinOperator.props(inputLeft.get, inputRight.get, ))
+      case NestedLoopJoin(_, _, leftColumn, rightColumn, predicate) =>
+        context.actorOf(NestedLoopJoinOperator.props(inputLeft.get, inputRight.get, leftColumn, rightColumn, predicate))
       case InsertRow(_, row: RowType) =>
         context.actorOf(InsertRowOperator.props(inputLeft.get, row))
       case _ => throw new Exception("Unknown node type, cannot build operator")

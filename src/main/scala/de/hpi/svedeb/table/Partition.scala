@@ -4,6 +4,14 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.table.Column.{AppendValue, ValueAppended}
 import de.hpi.svedeb.table.Partition._
 
+
+/**
+  * TODO: Improve transactional query processing of this actor
+  * Adding rows blocks the Partition Actor.
+  * However, for now we focus on analytical workloads that are read-only.
+  * Supporting transactional queries properly would require proper transactions.
+  */
+
 object Partition {
   case class ListColumnNames()
   case class GetColumn(name: String)
@@ -22,9 +30,14 @@ object Partition {
     Props(new Partition(partitionId, partitionSize, columns))
   }
 
-  def props(partitionId: Int, columns: Map[String, ColumnType], partitionSize: Int): Props = Props(new Partition(partitionId, partitionSize, columns))
+  def props(partitionId: Int,
+            columns: Map[String, ColumnType],
+            partitionSize: Int): Props = Props(new Partition(partitionId, partitionSize, columns))
 
-  private case class PartitionState(processingInsert: Boolean, rowCount: Int, remainingColumns: Int, originalSender: ActorRef, tableSender: ActorRef) {
+  private case class PartitionState(processingInsert: Boolean,
+                                    rowCount: Int,
+                                    remainingColumns: Int,
+                                    originalSender: ActorRef, tableSender: ActorRef) {
     def decreaseRemainingColumns(): PartitionState = {
       PartitionState(processingInsert, rowCount, remainingColumns - 1, originalSender, tableSender)
     }
@@ -35,10 +48,14 @@ object Partition {
   }
 }
 
-class Partition(partitionId: Int, partitionSize: Int, columns: Map[String, ColumnType] = Map.empty) extends Actor with ActorLogging {
+class Partition(partitionId: Int,
+                partitionSize: Int,
+                columns: Map[String, ColumnType] = Map.empty) extends Actor with ActorLogging {
 
   // Columns are initialized at actor creation time and cannot be mutated later on.
-  private val columnRefs = columns.map { case (name, values) => (name, context.actorOf(Column.props(partitionId, name, values), name)) }
+  private val columnRefs = columns.map {
+    case (name, values) => (name, context.actorOf(Column.props(partitionId, name, values), name))
+  }
 
   override def receive: Receive = active(PartitionState(processingInsert = false, 0, 0, ActorRef.noSender, ActorRef.noSender))
 
@@ -78,7 +95,7 @@ class Partition(partitionId: Int, partitionSize: Int, columns: Map[String, Colum
     }
   }
 
-  def handleValueAppended(state: PartitionState, partitionId: Int, columnName: String) {
+  def handleValueAppended(state: PartitionState, columnName: String) {
     val newState = state.decreaseRemainingColumns()
     context.become(active(newState))
 
@@ -98,7 +115,7 @@ class Partition(partitionId: Int, partitionSize: Int, columns: Map[String, Colum
       // Postpone message until previous insert is completed
       if (state.processingInsert) self forward AddRow(row, originalSender)
       else tryToAddRow(state, row, originalSender)
-    case ValueAppended(partitionId, columnName) => handleValueAppended(state, partitionId, columnName)
+    case ValueAppended(_, columnName) => handleValueAppended(state, columnName)
     case m => throw new Exception(s"Message not understood: $m")
   }
 }

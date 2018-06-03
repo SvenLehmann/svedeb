@@ -1,7 +1,8 @@
 package de.hpi.svedeb
 
 /*
- * TODO: Unused for now as we have to find out how to use TypedActors correctly.
+ * TODO: Implement and use if you want to support DataTypes other than String.
+ * Hint: Things get ugly when generics are used to extensively across actors.
  */
 sealed class DataType[T]
 object DataType {

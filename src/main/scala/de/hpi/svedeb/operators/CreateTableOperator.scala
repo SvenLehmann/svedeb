@@ -6,12 +6,16 @@ import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.CreateTableOperator.State
 
 object CreateTableOperator {
-  def props(tableManager: ActorRef, tableName: String, columnNames: Seq[String], partitionSize: Int): Props = Props(new CreateTableOperator(tableManager, tableName, columnNames, partitionSize))
+  def props(tableManager: ActorRef, tableName: String, columnNames: Seq[String], partitionSize: Int): Props =
+    Props(new CreateTableOperator(tableManager, tableName, columnNames, partitionSize))
 
   private case class State(sender: ActorRef)
 }
 
-class CreateTableOperator(tableManager: ActorRef, tableName: String, columnNames: Seq[String], partitionSize: Int) extends AbstractOperator {
+class CreateTableOperator(tableManager: ActorRef,
+                          tableName: String,
+                          columnNames: Seq[String],
+                          partitionSize: Int) extends AbstractOperator {
   override def receive: Receive = active(State(ActorRef.noSender))
 
   private def execute(): Unit = {

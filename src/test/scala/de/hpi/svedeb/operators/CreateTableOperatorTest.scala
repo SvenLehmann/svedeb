@@ -11,10 +11,13 @@ class CreateTableOperatorTest extends AbstractActorTest("CreateTableOperator") {
   "A CreateTableOperator" should "invoke creating in TableManager" in {
     val tableManager = TestProbe("TableManager")
     tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case AddTable(_, _, _) => sender ! TableAdded(ActorRef.noSender); TestActor.KeepRunning
+      case AddTable(_, _, _) =>
+        sender ! TableAdded(ActorRef.noSender)
+        TestActor.KeepRunning
     })
 
-    val createTableOperator = system.actorOf(CreateTableOperator.props(tableManager.ref, "SomeTable", Seq("columnA", "columnB"), 10))
+    val createTableOperator = system.actorOf(CreateTableOperator.props(
+      tableManager.ref, "SomeTable", Seq("columnA", "columnB"), partitionSize = 10))
     createTableOperator ! Execute()
 
     expectMsgType[QueryResult]

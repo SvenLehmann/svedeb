@@ -11,6 +11,8 @@ import org.scalatest.Matchers._
 abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name))
   with ImplicitSender with AbstractTest {
 
+  case class PartitionTestProbe(partition: ActorRef, columns: Map[String, ActorRef])
+
   override def afterAll: Unit = {
     TestKit.shutdownActorSystem(system)
   }
@@ -44,50 +46,69 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
     val column = TestProbe("Column")
 
     column.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case ScanColumn(None) => sender.tell(ScannedValues(partitionId, columnName, columnDefinition), column.ref); TestActor.KeepRunning
-      case ScanColumn(Some(indices)) => sender.tell(ScannedValues(partitionId, columnName, columnDefinition.filterByIndices(indices)), column.ref); TestActor.KeepRunning
-      case AppendValue(_) => sender.tell(ValueAppended(partitionId, columnName), column.ref); TestActor.KeepRunning
-      case FilterColumn(predicate) => sender.tell(FilteredRowIndices(partitionId, columnName, columnDefinition.filterByPredicate(predicate)), column.ref); TestActor.KeepRunning
+      case ScanColumn(None) =>
+        sender.tell(ScannedValues(partitionId, columnName, columnDefinition), column.ref)
+        TestActor.KeepRunning
+      case ScanColumn(Some(indices)) =>
+        sender.tell(ScannedValues(partitionId, columnName, columnDefinition.filterByIndices(indices)), column.ref)
+        TestActor.KeepRunning
+      case AppendValue(_) =>
+        sender.tell(ValueAppended(partitionId, columnName), column.ref); TestActor.KeepRunning
+      case FilterColumn(predicate) =>
+        val filteredIndices = columnDefinition.filterByPredicate(predicate)
+        sender.tell(FilteredRowIndices(partitionId, columnName, filteredIndices), column.ref)
+        TestActor.KeepRunning
     })
 
     column.ref
   }
 
-  def generatePartitionTestProbe(partitionId: Int, partitionDefinition: Map[String, ColumnType]): (ActorRef, Map[String, ActorRef]) = {
+  def generatePartitionTestProbe(partitionId: Int,
+                                 partitionDefinition: Map[String, ColumnType]): PartitionTestProbe = {
     val partition = TestProbe("Partition")
 
-    val columns = partitionDefinition.map{ case (columnName, values) => (columnName, generateColumnTestProbe(partitionId, columnName, values))}
+    val columns = partitionDefinition.map {
+      case (columnName, values) => (columnName, generateColumnTestProbe(partitionId, columnName, values))
+    }
 
     partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case ListColumnNames() => sender.tell(ColumnNameList(partitionDefinition.keys.toSeq), partition.ref); TestActor.KeepRunning
-      case GetColumns() => sender.tell(ColumnsRetrieved(columns), partition.ref); TestActor.KeepRunning
-      case GetColumn(columnName) => sender.tell(ColumnRetrieved(partitionId, columnName, columns(columnName)), partition.ref); TestActor.KeepRunning
-      case m => throw new Exception("Unexpected message type")
+      case ListColumnNames() =>
+        sender.tell(ColumnNameList(partitionDefinition.keys.toSeq), partition.ref)
+        TestActor.KeepRunning
+      case GetColumns() =>
+        sender.tell(ColumnsRetrieved(columns), partition.ref)
+        TestActor.KeepRunning
+      case GetColumn(columnName) =>
+        sender.tell(ColumnRetrieved(partitionId, columnName, columns(columnName)), partition.ref)
+        TestActor.KeepRunning
+      case _ => throw new Exception("Unexpected message type")
     })
 
-    (partition.ref, columns)
+    PartitionTestProbe(partition.ref, columns)
   }
 
   def generateTableTestProbe(tableDefinition: Seq[Map[String, ColumnType]]): ActorRef = {
     val table = TestProbe("Table")
 
-    val partitionsWithColumns = tableDefinition.zipWithIndex.map { case (partitionDefinition, partitionId) => generatePartitionTestProbe(partitionId, partitionDefinition)}
-    val partitions = partitionsWithColumns.map(_._1)
+    val partitionsWithColumns = tableDefinition.zipWithIndex.map {
+      case (partitionDefinition, partitionId) => generatePartitionTestProbe(partitionId, partitionDefinition)
+    }
+    val partitions = partitionsWithColumns.map(_.partition)
 
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case GetPartitions() => sender.tell(PartitionsInTable(partitions), table.ref); TestActor.KeepRunning
-      case ListColumnsInTable() => {
+      case ListColumnsInTable() =>
         if (tableDefinition.isEmpty) {
           sender.tell(ColumnList(Seq.empty), table.ref)
         } else {
           val columnNames = tableDefinition.head.keys.toSeq
           sender.tell(ColumnList(columnNames), table.ref)
         }
-      }; TestActor.KeepRunning
-      case GetColumnFromTable(columnName) => {
-        val columns = partitionsWithColumns.map {case (_, map) => map(columnName)}
+        TestActor.KeepRunning
+      case GetColumnFromTable(columnName) =>
+        val columns = partitionsWithColumns.map { _.columns(columnName) }
         sender.tell(ActorsForColumn(columnName, columns), table.ref)
-      }; TestActor.KeepRunning
+        TestActor.KeepRunning
     })
 
     table.ref

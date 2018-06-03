@@ -23,7 +23,9 @@ object TableManager {
 class TableManager extends Actor with ActorLogging {
   override def receive: Receive = active(Map.empty[String, ActorRef])
 
-  private def addTable(tables: Map[String, ActorRef], name: String, columnNames: Seq[String], partitionSize: Int): Unit = {
+  private def addTable(tables: Map[String, ActorRef],
+                       name: String, columnNames: Seq[String],
+                       partitionSize: Int): Unit = {
     log.debug("Adding Table")
     val table = context.actorOf(Table.props(columnNames, partitionSize), name)
     val newTables = tables + (name -> table)

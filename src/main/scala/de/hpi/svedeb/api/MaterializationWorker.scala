@@ -12,9 +12,9 @@ object MaterializationWorker {
   case class MaterializeTable(table: ActorRef)
   case class MaterializedTable(user: ActorRef, columns: Map[String, ColumnType])
 
-  private case class MaterializationWorkerState(partitionCount: Option[Int] = None,
-                                        columnCount: Option[Int] = None,
-                                        data: Map[Int, Map[String, ColumnType]] = Map.empty) {
+  private case class MaterializationWorkerState(partitionCount: Option[Int],
+                                        columnCount: Option[Int],
+                                        data: Map[Int, Map[String, ColumnType]]) {
     def addResult(partitionId: Int, columnName: String, values: ColumnType): MaterializationWorkerState = {
       val partitionMap = data(partitionId)
       val updatedPartition = partitionMap + (columnName -> values)
@@ -47,7 +47,7 @@ object MaterializationWorker {
 }
 
 class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with ActorLogging {
-  override def receive: Receive = active(MaterializationWorkerState())
+  override def receive: Receive = active(MaterializationWorkerState(None, None, Map.empty))
 
   private def fetchColumnNames(table: ActorRef): Unit = {
     log.debug("Fetching column names")
@@ -70,7 +70,10 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
     columnActors.foreach(columnActor => columnActor ! ScanColumn())
   }
 
-  private def saveScannedValues(state: MaterializationWorkerState, partitionId: Int, columnName: String, values: ColumnType): Unit = {
+  private def saveScannedValues(state: MaterializationWorkerState,
+                                partitionId: Int,
+                                columnName: String,
+                                values: ColumnType): Unit = {
     log.debug("Saving partial result for partition {} and column {}", partitionId, columnName)
     val newState = state.addResult(partitionId, columnName, values)
     context.become(active(newState))

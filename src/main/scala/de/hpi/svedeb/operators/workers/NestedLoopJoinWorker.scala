@@ -17,22 +17,27 @@ object NestedLoopJoinWorker {
                                      rightColumnRefs: Option[Map[String, ActorRef]],
                                      leftColumnValues: Option[ColumnType],
                                      rightColumnValues: Option[ColumnType],
-                                     postJoin: Boolean = false,
-                                     result: Map[String, ColumnType] = Map.empty[String, ColumnType]) {
+                                     postJoin: Boolean,
+                                     result: Map[String, ColumnType]) {
     def hasFinished: Boolean = {
       leftColumnRefs.get.size + rightColumnRefs.get.size == result.size
     }
 
     def addResultForColumn(columnName: String, values: ColumnType): JoinWorkerState = {
       val newResultMap = result + (columnName -> values)
-      JoinWorkerState(sender, leftColumnRefs, rightColumnRefs, leftColumnValues, rightColumnValues, postJoin, newResultMap)
+      JoinWorkerState(
+        sender, leftColumnRefs, rightColumnRefs, leftColumnValues, rightColumnValues, postJoin, newResultMap)
     }
 
-    def storeSender(sender: ActorRef): JoinWorkerState = {
-      JoinWorkerState(Some(sender), leftColumnRefs, rightColumnRefs, leftColumnValues, rightColumnValues, postJoin, result)
-    }
+    def storeSender(sender: ActorRef): JoinWorkerState = JoinWorkerState(
+        Some(sender), leftColumnRefs, rightColumnRefs, leftColumnValues, rightColumnValues, postJoin, result
+    )
 
-    def saveColumnRefs(partition: ActorRef, leftPartition: ActorRef, rightPartition: ActorRef, columns: Map[String, ActorRef]): JoinWorkerState = {
+
+    def saveColumnRefs(partition: ActorRef,
+                       leftPartition: ActorRef,
+                       rightPartition: ActorRef,
+                       columns: Map[String, ActorRef]): JoinWorkerState = {
       if (partition == leftPartition) {
         JoinWorkerState(sender, Some(columns), rightColumnRefs, leftColumnValues, rightColumnValues, postJoin, result)
       } else if (partition == rightPartition) {
@@ -42,7 +47,10 @@ object NestedLoopJoinWorker {
       }
     }
 
-    def saveColumnValues(columnRef: ActorRef, leftJoinColumn: ActorRef, rightJoinColumn: ActorRef, column: ColumnType): JoinWorkerState = {
+    def saveColumnValues(columnRef: ActorRef,
+                         leftJoinColumn: ActorRef,
+                         rightJoinColumn: ActorRef,
+                         column: ColumnType): JoinWorkerState = {
       if (columnRef == leftJoinColumn) {
         JoinWorkerState(sender, leftColumnRefs, rightColumnRefs, Some(column), rightColumnValues, postJoin, result)
       } else if (columnRef == rightJoinColumn) {
@@ -52,9 +60,8 @@ object NestedLoopJoinWorker {
       }
     }
 
-    def enterPostJoin(): JoinWorkerState = {
-      JoinWorkerState(sender, leftColumnRefs, rightColumnRefs, leftColumnValues, rightColumnValues, postJoin = true, result)
-    }
+    def enterPostJoin(): JoinWorkerState = JoinWorkerState(
+      sender, leftColumnRefs, rightColumnRefs, leftColumnValues, rightColumnValues, postJoin = true, result)
   }
 
   def props(leftPartition: ActorRef,
@@ -63,7 +70,9 @@ object NestedLoopJoinWorker {
             leftJoinColumn: String,
             rightJoinColumn: String,
             predicate: (String, String) => Boolean): Props =
-    Props(new NestedLoopJoinWorker(leftPartition, rightPartition, resultPartitionId, leftJoinColumn, rightJoinColumn, predicate))
+    Props(new NestedLoopJoinWorker(
+      leftPartition, rightPartition, resultPartitionId, leftJoinColumn, rightJoinColumn, predicate)
+    )
 }
 
 class NestedLoopJoinWorker(leftPartition: ActorRef,
@@ -72,7 +81,7 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
                            leftJoinColumn: String,
                            rightJoinColumn: String,
                            predicate: (String, String) => Boolean) extends Actor with ActorLogging {
-  override def receive: Receive = active(JoinWorkerState(None, None, None, None, None))
+  override def receive: Receive = active(JoinWorkerState(None, None, None, None, None, postJoin = false, Map.empty))
 
   private def beginJoinJob(state: JoinWorkerState): Unit = {
     log.debug("Begin Join Job")
@@ -83,7 +92,7 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
     rightPartition ! GetColumns()
   }
 
-  def handleColumnsRetrieved(state: JoinWorkerState, columns: Map[String, ActorRef]): Unit = {
+  private def handleColumnsRetrieved(state: JoinWorkerState, columns: Map[String, ActorRef]): Unit = {
     log.debug("Handle columns retrieved")
     val newState = state.saveColumnRefs(sender(), leftPartition, rightPartition, columns)
     context.become(active(newState))
@@ -96,7 +105,7 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
     }
   }
 
-  def handleScannedValues(state: JoinWorkerState, columnName: String, values: ColumnType): Unit = {
+  private def handleScannedValues(state: JoinWorkerState, columnName: String, values: ColumnType): Unit = {
     log.debug("Handle scanned values")
     if (state.postJoin) {
       storeResult(state, columnName, values)
@@ -119,13 +128,20 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
   }
 
   private def handleJoinInput(state: JoinWorkerState, values: ColumnType): Unit = {
-    val newState = state.saveColumnValues(sender(), state.leftColumnRefs.get.apply(leftJoinColumn), state.rightColumnRefs.get.apply(rightJoinColumn), values)
+    val newState = state.saveColumnValues(
+      sender(),
+      state.leftColumnRefs.get.apply(leftJoinColumn),
+      state.rightColumnRefs.get.apply(rightJoinColumn),
+      values
+    )
     context.become(active(newState))
 
     log.debug("Received Join input")
 
     if (newState.leftColumnValues.isDefined && newState.rightColumnValues.isDefined) {
       log.debug("Performing join")
+      // using for-comprehension to compute cross product of all potential join combinations
+      // Filtering by predicate
       val joinedIndices = for {
         (leftValue, leftIndex) <- newState.leftColumnValues.get.values.zipWithIndex
         (rightValue, rightIndex) <- newState.rightColumnValues.get.values.zipWithIndex
@@ -145,7 +161,7 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
     }
   }
 
-  def active(state: JoinWorkerState): Receive = {
+  private def active(state: JoinWorkerState): Receive = {
     case JoinJob() => beginJoinJob(state)
     case ColumnsRetrieved(columns) => handleColumnsRetrieved(state, columns)
     case ScannedValues(_, columnName, values) => handleScannedValues(state, columnName, values)
