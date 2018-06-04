@@ -15,22 +15,22 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
     scanOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
 
-    checkTable(operatorResult.resultTable, Seq(Map("a" -> ColumnType("1", "2", "3"), "b" -> ColumnType("1", "2", "3"))))
+    checkTable(operatorResult.resultTable, Map(0 -> Map("a" -> ColumnType("1", "2", "3"), "b" -> ColumnType("1", "2", "3"))))
   }
 
   it should "filter values without test probes" in {
     val partitionSize = 2
-    val partition1 = system.actorOf(Partition.props(0,
+    val partition1 = system.actorOf(Partition.props(1,
       Map("columnA" -> ColumnType("a1", "a2"), "columnB" -> ColumnType("b1", "b2")), partitionSize))
-    val partition2 = system.actorOf(Partition.props(1,
+    val partition2 = system.actorOf(Partition.props(2,
       Map("columnA" -> ColumnType("a3", "a4"), "columnB" -> ColumnType("b3", "b4")), partitionSize))
-    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), partitionSize, Seq(partition1, partition2)))
+    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), partitionSize, Map(1 -> partition1, 2 -> partition2)))
     val operator = system.actorOf(ScanOperator.props(table, "columnA", x => x.contains("1")))
 
     operator ! Execute()
     val msg = expectMsgType[QueryResult]
 
-    checkTable(msg.resultTable, Seq(
-      Map("columnA" -> ColumnType("a1"), "columnB" -> ColumnType("b1"))))
+    checkTable(msg.resultTable, Map(
+      1 -> Map("columnA" -> ColumnType("a1"), "columnB" -> ColumnType("b1"))))
   }
 }

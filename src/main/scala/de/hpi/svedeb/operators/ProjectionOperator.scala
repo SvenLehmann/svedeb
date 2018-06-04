@@ -58,16 +58,18 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
   private def createNewResultTable(state: ProjectionState): ActorRef = {
     log.debug("Create result table")
 
-    val partitions: Seq[ActorRef] = state.result.zipWithIndex
+    // TODO: remove zipWithIndex
+    val partitions: Map[Int, ActorRef] = state.result.zipWithIndex
       .map { case (partitionResult, partitionId) =>
-        context.actorOf(Partition.props(partitionId, partitionResult, Utils.defaultPartitionSize))
-      }
+        val partition = context.actorOf(Partition.props(partitionId, partitionResult, Utils.defaultPartitionSize))
+        (partitionId, partition)
+      }.toMap
     context.actorOf(Table.props(columnNames, Utils.defaultPartitionSize, partitions))
   }
 
   private def handleActorsForColumn(state: ProjectionState,
                                     columnName: String,
-                                    actorsForColumns: Seq[ActorRef]): Unit = {
+                                    actorsForColumns: Map[Int, ActorRef]): Unit = {
     log.debug(s"Handling actors for column $columnName")
     // Store partition count when first result is received
     if (state.result.isEmpty) {
@@ -76,7 +78,7 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
       context.become(active(newState))
     }
 
-    actorsForColumns.foreach(columnActor => columnActor ! ScanColumn(None))
+    actorsForColumns.values.foreach(columnActor => columnActor ! ScanColumn(None))
   }
 
   private def handleScannedValues(state: ProjectionState,

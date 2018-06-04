@@ -15,7 +15,7 @@ class ProjectionOperatorTest extends AbstractActorTest("ProjectionOperator") {
     projectionOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
 
-    checkTable(operatorResult.resultTable, Seq())
+    checkTable(operatorResult.resultTable, Map.empty)
   }
 
   "A ProjectionOperator projecting one column" should "return a result table" in {
@@ -25,8 +25,8 @@ class ProjectionOperatorTest extends AbstractActorTest("ProjectionOperator") {
     projectionOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
 
-    checkTable(operatorResult.resultTable, Seq(
-      Map("a" -> ColumnType("1", "2", "3"))))
+    checkTable(operatorResult.resultTable, Map(
+      0 -> Map("a" -> ColumnType("1", "2", "3"))))
   }
 
   it should "handle multiple partitions" in {
@@ -40,25 +40,25 @@ class ProjectionOperatorTest extends AbstractActorTest("ProjectionOperator") {
     projectionOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
 
-    checkTable(operatorResult.resultTable, Seq(
-      Map("a" -> ColumnType("1", "2", "3")),
-      Map("a" -> ColumnType("4", "5", "6")),
-      Map("a" -> ColumnType("7", "8", "9"))))
+    checkTable(operatorResult.resultTable, Map(
+      0 -> Map("a" -> ColumnType("1", "2", "3")),
+      1 -> Map("a" -> ColumnType("4", "5", "6")),
+      2 -> Map("a" -> ColumnType("7", "8", "9"))))
   }
 
   it should "work without test probes" in {
     val partitionSize = 2
     val partition1 = system.actorOf(Partition.props(0, Map("columnA" -> ColumnType("a1", "a2"), "columnB" -> ColumnType("b1", "b2")), partitionSize))
     val partition2 = system.actorOf(Partition.props(1, Map("columnA" -> ColumnType("a3", "a4"), "columnB" -> ColumnType("b3", "b4")), partitionSize))
-    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), partitionSize, Seq(partition1, partition2)))
+    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), partitionSize, Map(1 -> partition1, 2 -> partition2)))
 
     val operator = system.actorOf(ProjectionOperator.props(table, Seq("columnA")))
     operator ! Execute()
     val msg = expectMsgType[QueryResult]
 
-    checkTable(msg.resultTable, Seq(
-      Map("columnA" -> ColumnType("a1", "a2")),
-      Map("columnA" -> ColumnType("a3", "a4"))))
+    checkTable(msg.resultTable, Map(
+      0 -> Map("columnA" -> ColumnType("a1", "a2")),
+      1 -> Map("columnA" -> ColumnType("a3", "a4"))))
   }
 
   "A ProjectionOperator projecting multiple column" should "handle multiple partitions" in {
@@ -72,9 +72,9 @@ class ProjectionOperatorTest extends AbstractActorTest("ProjectionOperator") {
     projectionOperator ! Execute()
     val operatorResult = expectMsgType[QueryResult]
 
-    checkTable(operatorResult.resultTable, Seq(
-      Map("a" -> ColumnType("1", "2", "3"), "b" -> ColumnType("1", "2", "3")),
-      Map("a" -> ColumnType("4", "5", "6"), "b" -> ColumnType("4", "5", "6")),
-      Map("a" -> ColumnType("7", "8", "9"), "b" -> ColumnType("7", "8", "9"))))
+    checkTable(operatorResult.resultTable, Map(
+      0 -> Map("a" -> ColumnType("1", "2", "3"), "b" -> ColumnType("1", "2", "3")),
+      1 -> Map("a" -> ColumnType("4", "5", "6"), "b" -> ColumnType("4", "5", "6")),
+      2 -> Map("a" -> ColumnType("7", "8", "9"), "b" -> ColumnType("7", "8", "9"))))
   }
 }

@@ -12,33 +12,27 @@ object MaterializationWorker {
   case class MaterializeTable(table: ActorRef)
   case class MaterializedTable(user: ActorRef, columns: Map[String, ColumnType])
 
-  private case class MaterializationWorkerState(partitionCount: Option[Int],
-                                        columnCount: Option[Int],
+  private case class MaterializationWorkerState(columnCount: Option[Int],
                                         data: Map[Int, Map[String, ColumnType]]) {
     def addResult(partitionId: Int, columnName: String, values: ColumnType): MaterializationWorkerState = {
-      println(partitionId)
-      println(data.keys)
       val partitionMap = data(partitionId)
       val updatedPartition = partitionMap + (columnName -> values)
       val updatedMap = data + (partitionId -> updatedPartition)
-      MaterializationWorkerState(partitionCount, columnCount, updatedMap)
+      MaterializationWorkerState(columnCount, updatedMap)
     }
 
-    def setPartitionCount(partitionCount: Int): MaterializationWorkerState = {
-      // TODO: store actual partition ids, not just some counter
-      val maps = (0 until partitionCount).map(partitionId => partitionId -> Map.empty[String, ColumnType])
+    def setUpPartitions(partitionIds: Seq[Int]): MaterializationWorkerState = {
+      val partitions = partitionIds.map(partitionId => partitionId -> Map.empty[String, ColumnType])
       // maps:_* expands the Seq to a variable args argument
-      MaterializationWorkerState(Some(partitionCount), columnCount, Map(maps:_*))
+      MaterializationWorkerState(columnCount, Map(partitions:_*))
     }
 
     def setColumnCount(columnCount: Int): MaterializationWorkerState = {
-      MaterializationWorkerState(partitionCount, Some(columnCount), data)
+      MaterializationWorkerState(Some(columnCount), data)
     }
 
     def hasFinished: Boolean = {
-      partitionCount.isDefined &&
         columnCount.isDefined &&
-        data.size == partitionCount.get &&
         !data.values.exists(partitionMap => partitionMap.size != columnCount.get)
     }
 
@@ -50,12 +44,11 @@ object MaterializationWorker {
 }
 
 class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with ActorLogging {
-  override def receive: Receive = active(MaterializationWorkerState(None, None, Map.empty))
+  override def receive: Receive = active(MaterializationWorkerState(None, Map.empty))
 
   private def fetchColumnNames(table: ActorRef): Unit = {
     log.debug("Fetching column names")
     table ! ListColumnsInTable()
-    table !
   }
 
   private def fetchColumns(state: MaterializationWorkerState, table: ActorRef, columnNames: Seq[String]): Unit = {
@@ -66,12 +59,12 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
     columnNames.foreach(name => table ! GetColumnFromTable(name))
   }
 
-  private def fetchData(state: MaterializationWorkerState, columnActors: Seq[ActorRef]): Unit = {
+  private def fetchData(state: MaterializationWorkerState, columnActors: Map[Int, ActorRef]): Unit = {
     log.debug("Fetching data from column actors")
-    val newState = state.setPartitionCount(columnActors.size)
+    val newState = state.setUpPartitions(columnActors.keys.toSeq)
     context.become(active(newState))
 
-    columnActors.foreach(columnActor => columnActor ! ScanColumn())
+    columnActors.values.foreach(columnActor => columnActor ! ScanColumn())
   }
 
   private def saveScannedValues(state: MaterializationWorkerState,

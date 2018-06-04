@@ -35,11 +35,11 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
     actualPartition shouldEqual expectedPartition
   }
 
-  def checkTable(table: ActorRef, expectedTable: Seq[Map[String, ColumnType]]): Unit = {
+  def checkTable(table: ActorRef, expectedTable: Map[Int, Map[String, ColumnType]]): Unit = {
     table ! GetPartitions()
     val partitions = expectMsgType[PartitionsInTable]
     partitions.partitions.size shouldEqual expectedTable.size
-    partitions.partitions.zipWithIndex.foreach{ case (partition, id) => checkPartition(partition, expectedTable(id))}
+    partitions.partitions.foreach{ case (id, partition) => checkPartition(partition, expectedTable(id))}
   }
 
   def generateColumnTestProbe(partitionId: Int, columnName: String, columnDefinition: ColumnType): ActorRef = {
@@ -91,9 +91,9 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
     val table = TestProbe("Table")
 
     val partitionsWithColumns = tableDefinition.zipWithIndex.map {
-      case (partitionDefinition, partitionId) => generatePartitionTestProbe(partitionId, partitionDefinition)
-    }
-    val partitions = partitionsWithColumns.map(_.partition)
+      case (partitionDefinition, partitionId) => (partitionId, generatePartitionTestProbe(partitionId, partitionDefinition))
+    }.toMap
+    val partitions = partitionsWithColumns.mapValues(_.partition)
 
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
       case GetPartitions() => sender.tell(PartitionsInTable(partitions), table.ref); TestActor.KeepRunning
@@ -106,7 +106,7 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
         }
         TestActor.KeepRunning
       case GetColumnFromTable(columnName) =>
-        val columns = partitionsWithColumns.map { _.columns(columnName) }
+        val columns = partitionsWithColumns.mapValues { _.columns(columnName) }
         sender.tell(ActorsForColumn(columnName, columns), table.ref)
         TestActor.KeepRunning
     })

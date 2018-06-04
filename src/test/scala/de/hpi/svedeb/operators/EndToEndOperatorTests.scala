@@ -9,7 +9,9 @@ import de.hpi.svedeb.table.{ColumnType, Partition, Table}
 class EndToEndOperatorTests extends AbstractActorTest("EndToEndTest") {
 
   private def setupTable(partitionSize: Int, table: Seq[Map[String, ColumnType]]): ActorRef = {
-    val partitions = table.zipWithIndex.map { case (partition, id) => system.actorOf(Partition.props(id, partition, partitionSize)) }
+    val partitions = table.zipWithIndex.map {
+      case (partition, id) => (id, system.actorOf(Partition.props(id, partition, partitionSize)))
+    }.toMap
     system.actorOf(Table.props(table.headOption.getOrElse(Map()).keys.toSeq, partitionSize, partitions))
   }
 
@@ -29,7 +31,7 @@ class EndToEndOperatorTests extends AbstractActorTest("EndToEndTest") {
     projectionOperator ! Execute()
     val projectionResult = expectMsgType[QueryResult]
 
-    checkTable(projectionResult.resultTable, Seq(Map("columnA" -> ColumnType("a2"))))
+    checkTable(projectionResult.resultTable, Map(0 -> Map("columnA" -> ColumnType("a2"))))
   }
 
 }

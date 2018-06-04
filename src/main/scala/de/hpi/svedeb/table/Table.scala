@@ -16,18 +16,18 @@ object Table {
   // Result events
   case class RowAddedToTable()
   case class ColumnList(columnNames: Seq[String])
-  case class ActorsForColumn(columnName: String, columnActors: Seq[ActorRef])
-  case class PartitionsInTable(partitions: Seq[ActorRef])
+  case class ActorsForColumn(columnName: String, columnActors: Map[Int, ActorRef])
+  case class PartitionsInTable(partitions: Map[Int, ActorRef])
 
   // TODO: store map of (partition id -> partition)
   def props(columnNames: Seq[String],
             partitionSize: Int = Utils.defaultPartitionSize,
-            initialPartitions: Seq[ActorRef] = Seq.empty): Props =
+            initialPartitions: Map[Int, ActorRef] = Map.empty): Props =
     Props(new Table(columnNames, partitionSize, initialPartitions))
 
-  private case class TableState(cachedColumns: Map[String, Map[Int, ActorRef]], partitions: Seq[ActorRef]) {
-    def addPartition(newPartition: ActorRef): TableState = {
-      TableState(cachedColumns, partitions :+ newPartition)
+  private case class TableState(cachedColumns: Map[String, Map[Int, ActorRef]], partitions: Map[Int, ActorRef]) {
+    def addPartition(partitionId: Int, newPartition: ActorRef): TableState = {
+      TableState(cachedColumns, partitions + (partitionId -> newPartition))
     }
 
     def addColumn(partitionId: Int, columnName: String, column: ActorRef): TableState = {
@@ -44,7 +44,7 @@ object Table {
 
 class Table(columnNames: Seq[String],
             partitionSize: Int,
-            initialPartitions: Seq[ActorRef]) extends Actor with ActorLogging {
+            initialPartitions: Map[Int, ActorRef]) extends Actor with ActorLogging {
 
   override def receive: Receive = active(TableState(Map.empty, initialPartitions))
 
@@ -61,7 +61,7 @@ class Table(columnNames: Seq[String],
     log.debug("Creating new partition")
     val newPartitionId = state.partitions.size
     val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize))
-    val newState = state.addPartition(newPartition)
+    val newState = state.addPartition(newPartitionId, newPartition)
     context.become(active(newState))
     newPartition ! AddRow(row, originalSender)
   }
@@ -71,10 +71,10 @@ class Table(columnNames: Seq[String],
       val newPartition = context.actorOf(Partition.props(0, columnNames, partitionSize))
       newPartition ! AddRow(row, sender())
 
-      val newState = state.addPartition(newPartition)
+      val newState = state.addPartition(0, newPartition)
       context.become(active(newState))
     } else {
-      state.partitions.last ! AddRow(row, sender())
+      state.partitions.last._2 ! AddRow(row, sender())
     }
   }
 

@@ -15,7 +15,7 @@ class NestedLoopJoinOperatorTest extends AbstractActorTest("NestedLoopJoinOperat
     operator ! Execute()
 
     val result = expectMsgType[QueryResult]
-    checkTable(result.resultTable, Seq(Map("a" -> ColumnType("b"), "b" -> ColumnType("b"))))
+    checkTable(result.resultTable, Map(0 -> Map("a" -> ColumnType("b"), "b" -> ColumnType("b"))))
   }
 
   it should "handle multiple columns" in {
@@ -27,7 +27,7 @@ class NestedLoopJoinOperatorTest extends AbstractActorTest("NestedLoopJoinOperat
     operator ! Execute()
 
     val result = expectMsgType[QueryResult]
-    val expectedResult = Seq(Map(
+    val expectedResult = Map(0 -> Map(
       "a" -> ColumnType("b"), "a2" -> ColumnType("y"),
       "b" -> ColumnType("b"), "b2" -> ColumnType("u")))
     checkTable(result.resultTable, expectedResult)
@@ -42,10 +42,10 @@ class NestedLoopJoinOperatorTest extends AbstractActorTest("NestedLoopJoinOperat
     operator ! Execute()
 
     val result = expectMsgType[QueryResult]
-    checkTable(result.resultTable, Seq(
-      Map("a" -> ColumnType("b"), "b" -> ColumnType("b")),
-      Map("a" -> ColumnType("c"), "b" -> ColumnType("c")),
-      Map("a" -> ColumnType("d"), "b" -> ColumnType("d"))))
+    checkTable(result.resultTable, Map(
+      0 -> Map("a" -> ColumnType("b"), "b" -> ColumnType("b")),
+      2 -> Map("a" -> ColumnType("c"), "b" -> ColumnType("c")),
+      3 -> Map("a" -> ColumnType("d"), "b" -> ColumnType("d"))))
   }
 
   it should "handle multiple partitions (part2)" in {
@@ -57,9 +57,9 @@ class NestedLoopJoinOperatorTest extends AbstractActorTest("NestedLoopJoinOperat
     operator ! Execute()
 
     val result = expectMsgType[QueryResult]
-    checkTable(result.resultTable, Seq(
-      Map("a" -> ColumnType("b", "c"), "b" -> ColumnType("b", "c")),
-      Map("a" -> ColumnType("d"), "b" -> ColumnType("d"))))
+    checkTable(result.resultTable, Map(
+      0 -> Map("a" -> ColumnType("b", "c"), "b" -> ColumnType("b", "c")),
+      3 -> Map("a" -> ColumnType("d"), "b" -> ColumnType("d"))))
   }
 
   it should "handle inequality joins" in {
@@ -71,6 +71,6 @@ class NestedLoopJoinOperatorTest extends AbstractActorTest("NestedLoopJoinOperat
     operator ! Execute()
 
     val result = expectMsgType[QueryResult]
-    checkTable(result.resultTable, Seq(Map("a" -> ColumnType("a", "a", "b"), "b" -> ColumnType("b", "c", "c"))))
+    checkTable(result.resultTable, Map(0 -> Map("a" -> ColumnType("a", "a", "b"), "b" -> ColumnType("b", "c", "c"))))
   }
 }

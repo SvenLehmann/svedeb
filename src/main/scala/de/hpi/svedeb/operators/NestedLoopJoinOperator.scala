@@ -17,8 +17,8 @@ object NestedLoopJoinOperator {
     Props(new NestedLoopJoinOperator(leftTable, rightTable, leftJoinColumn, rightJoinColumn, predicate))
 
   private case class JoinState(originalSender: ActorRef,
-                               leftPartitions: Option[Seq[ActorRef]],
-                               rightPartitions: Option[Seq[ActorRef]],
+                               leftPartitions: Option[Map[Int, ActorRef]],
+                               rightPartitions: Option[Map[Int, ActorRef]],
                                leftColumnNames: Option[Seq[String]],
                                rightColumnNames: Option[Seq[String]],
                                result: Map[Int, Option[ActorRef]]) {
@@ -29,7 +29,7 @@ object NestedLoopJoinOperator {
     def storePartitions(sender: ActorRef,
                         leftTable: ActorRef,
                         rightTable: ActorRef,
-                        partitions: Seq[ActorRef]): JoinState = {
+                        partitions: Map[Int, ActorRef]): JoinState = {
       if (sender == leftTable) {
         JoinState(originalSender, Some(partitions), rightPartitions, leftColumnNames, rightColumnNames, result)
       } else if (sender == rightTable) {
@@ -83,7 +83,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
     context.become(active(state.storeSender(sender())))
   }
 
-  private def handlePartitions(state: JoinState, partitions: Seq[ActorRef]): Unit = {
+  private def handlePartitions(state: JoinState, partitions: Map[Int, ActorRef]): Unit = {
     log.debug(s"Handle partitions $partitions")
     val newState = state.storePartitions(sender(), leftTable, rightTable, partitions)
     context.become(active(newState))
@@ -99,7 +99,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
         val newPartitionId = leftIndex * rightPartitionSize + rightIndex
         log.debug(s"PartitionId for NLJWorker: $newPartitionId")
         val worker = context.actorOf(NestedLoopJoinWorker.props(
-          leftPartition, rightPartition, newPartitionId,
+          leftPartition._2, rightPartition._2, newPartitionId,
           leftJoinColumn, rightJoinColumn, predicate))
         worker ! JoinJob()
       }
@@ -131,7 +131,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
     val table = context.actorOf(Table.props(
       state.leftColumnNames.get ++ state.rightColumnNames.get,
       Utils.defaultPartitionSize,
-      state.result.toSeq.sortBy(_._1).flatMap(_._2)))
+      state.result.filter(_._2.isDefined).mapValues(_.get)))
     log.debug("Created output table, sending to {}", state.originalSender)
     state.originalSender ! QueryResult(table)
   }

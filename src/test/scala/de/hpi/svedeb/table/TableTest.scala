@@ -75,7 +75,7 @@ class TableTest extends AbstractActorTest("TableTest") {
       val columnActors = expectMsgType[ActorsForColumn]
       columnActors.columnActors.size shouldEqual numberOfPartitions
 
-      columnActors.columnActors.foreach(columnActor => columnActor ! ScanColumn())
+      columnActors.columnActors.values.foreach(columnActor => columnActor ! ScanColumn())
       val values = (1 to numberOfPartitions)
         .map(_ => expectMsgType[ScannedValues])
         .sortBy(c => c.partitionId)

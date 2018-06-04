@@ -27,7 +27,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case GetPartitions() => sender ! PartitionsInTable(Seq(partition.ref)); TestActor.KeepRunning
+      case GetPartitions() => sender ! PartitionsInTable(Map(0 -> partition.ref)); TestActor.KeepRunning
       case ListColumnsInTable() => sender ! ColumnList(Seq("a")); TestActor.KeepRunning
     })
 
@@ -45,7 +45,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     queryPlanExecutor ! Run(0, queryPlan)
 
     val query = expectMsgType[QueryFinished]
-    checkTable(query.resultTable, Seq(Map("a" -> ColumnType("a", "b"))))
+    checkTable(query.resultTable, Map(0 -> Map("a" -> ColumnType("a", "b"))))
   }
 
   it should "create an empty table" in {
@@ -57,7 +57,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case GetPartitions() => sender ! PartitionsInTable(Seq()); TestActor.KeepRunning
+      case GetPartitions() => sender ! PartitionsInTable(Map.empty); TestActor.KeepRunning
       case ListColumnsInTable() => sender ! ColumnList(Seq("a", "b")); TestActor.KeepRunning
     })
 
@@ -65,7 +65,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     queryPlanExecutor ! Run(0, QueryPlan(CreateTable("SomeTable", Seq("a", "b"), 10)))
 
     val query = expectMsgType[QueryFinished]
-    checkTable(query.resultTable, Seq())
+    checkTable(query.resultTable, Map.empty)
   }
 
   it should "drop a table" in {
@@ -94,10 +94,10 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     })
 
     table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case GetPartitions() => sender ! PartitionsInTable(Seq(partition.ref)); TestActor.KeepRunning
+      case GetPartitions() => sender ! PartitionsInTable(Map(0 -> partition.ref)); TestActor.KeepRunning
       case ListColumnsInTable() => sender ! ColumnList(Seq("a")); TestActor.KeepRunning
-      case GetColumnFromTable("a") => sender ! ActorsForColumn("a", Seq(columnA.ref)); TestActor.KeepRunning
-      case GetColumnFromTable("b") => sender ! ActorsForColumn("b", Seq(columnB.ref)); TestActor.KeepRunning
+      case GetColumnFromTable("a") => sender ! ActorsForColumn("a", Map(0 -> columnA.ref)); TestActor.KeepRunning
+      case GetColumnFromTable("b") => sender ! ActorsForColumn("b", Map(0 -> columnB.ref)); TestActor.KeepRunning
     })
 
     partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
@@ -118,7 +118,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     queryPlanExecutor ! Run(0, QueryPlan(Scan(Scan(GetTable("SomeTable"), "a", _ == "x"), "b", _ == "y")))
 
     val resultTable = expectMsgType[QueryFinished]
-    checkTable(resultTable.resultTable, Seq(Map("a" -> ColumnType("x", "x"), "b" -> ColumnType("y", "y"))))
+    checkTable(resultTable.resultTable, Map(0 -> Map("a" -> ColumnType("x", "x"), "b" -> ColumnType("y", "y"))))
   }
 
   it should "insert a row" in {

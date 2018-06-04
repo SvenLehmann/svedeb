@@ -57,14 +57,14 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
     table ! ListColumnsInTable()
   }
 
-  private def invokeScanJobs(state: ScanState, partitions: Seq[ActorRef]): Unit = {
+  private def invokeScanJobs(state: ScanState, partitions: Map[Int, ActorRef]): Unit = {
     log.debug("Invoking scan workers")
     // TODO consider using router instead
     val newState = state.storePartitionCount(partitions.size)
     context.become(active(newState))
 
-    partitions.zipWithIndex
-      .map { case (partition, index) =>
+    partitions
+      .map { case (index, partition) =>
         context.actorOf(ScanWorker.props(partition, index, state.columnName, state.predicate))
       }.foreach(worker => worker ! ScanJob())
   }
@@ -92,7 +92,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boo
 
   private def createNewTable(state: ScanState): Unit = {
     val table = context.actorOf(Table.props(
-      state.columnNames.get, Utils.defaultPartitionSize, state.results.toSeq.sortBy(_._1).flatMap(_._2)))
+      state.columnNames.get, Utils.defaultPartitionSize, state.results.filter(_._2.isDefined).mapValues(_.get)))
     log.debug("Created output table, sending to {}", state.sender)
     state.sender ! QueryResult(table)
   }

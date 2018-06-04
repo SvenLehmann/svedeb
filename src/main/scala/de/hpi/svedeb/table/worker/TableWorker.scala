@@ -7,9 +7,9 @@ import de.hpi.svedeb.table.worker.TableWorker.{GetColumnFromTableWorker, Interna
 object TableWorker {
   case class GetColumnFromTableWorker(originalSender: ActorRef, columnName:String)
 
-  case class InternalActorsForColumn(originalSender:ActorRef, columnName: String, columnActors: Seq[ActorRef])
+  case class InternalActorsForColumn(originalSender:ActorRef, columnName: String, columnActors: Map[Int, ActorRef])
 
-  def props(partitions: Seq[ActorRef]): Props = Props(new TableWorker(partitions))
+  def props(partitions: Map[Int, ActorRef]): Props = Props(new TableWorker(partitions))
 
   private case class TableWorkerState(originalSender: ActorRef, tableSender: ActorRef, columns: Map[Int, ActorRef]) {
     def storeSender(originalSender: ActorRef, sender: ActorRef): TableWorkerState = {
@@ -24,15 +24,10 @@ object TableWorker {
     def allColumnsRetrieved(columnName: String, numberOfPartitions: Int): Boolean = {
       columns.size == numberOfPartitions
     }
-
-    def sortedColumns(): Seq[ActorRef] = {
-      // sort by partition id to ensure order of column actors
-      columns.toSeq.sortBy(_._1).map(_._2)
-    }
   }
 }
 
-class TableWorker(partitions: Seq[ActorRef]) extends Actor with ActorLogging {
+class TableWorker(partitions: Map[Int, ActorRef]) extends Actor with ActorLogging {
   override def receive: Receive = active(TableWorkerState(ActorRef.noSender, ActorRef.noSender, Map.empty))
 
   private def handleGetColumn(state: TableWorkerState, originalSender: ActorRef, columnName: String): Unit = {
@@ -41,9 +36,9 @@ class TableWorker(partitions: Seq[ActorRef]) extends Actor with ActorLogging {
     context.become(active(newState))
 
     if (partitions.isEmpty) {
-      newState.tableSender ! InternalActorsForColumn(newState.originalSender, columnName, Seq.empty)
+      newState.tableSender ! InternalActorsForColumn(newState.originalSender, columnName, Map.empty)
     } else {
-      partitions.foreach(partition => partition ! GetColumn(columnName))
+      partitions.values.foreach(partition => partition ! GetColumn(columnName))
     }
   }
 
@@ -54,7 +49,7 @@ class TableWorker(partitions: Seq[ActorRef]) extends Actor with ActorLogging {
 
     if (newState.allColumnsRetrieved(columnName, partitions.size)) {
       log.debug("Received all column actors")
-      newState.tableSender ! InternalActorsForColumn(newState.originalSender, columnName, newState.sortedColumns())
+      newState.tableSender ! InternalActorsForColumn(newState.originalSender, columnName, newState.columns)
     }
   }
 
