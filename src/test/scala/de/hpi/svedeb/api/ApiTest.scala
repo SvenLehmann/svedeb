@@ -7,6 +7,8 @@ import de.hpi.svedeb.api.MaterializationWorker.{MaterializeTable, MaterializedTa
 import de.hpi.svedeb.table.ColumnType
 import org.scalatest.Matchers._
 
+
+// TODO: Implement
 class ApiTest extends AbstractActorTest("Api") {
   "An API" should "materialize a table" in {
     val materializationWorker = TestProbe()

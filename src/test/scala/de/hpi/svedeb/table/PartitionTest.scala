@@ -56,7 +56,8 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
     expectMsg(RowAdded(ActorRef.noSender))
     expectMsg(RowAdded(ActorRef.noSender))
 
-    checkPartition(partition, Map("column1" -> ColumnType("value1", "value3"), "column2" -> ColumnType("value2", "value4")))
+    val expectedPartition = Map("column1" -> ColumnType("value1", "value3"), "column2" -> ColumnType("value2", "value4"))
+    checkPartition(partition, expectedPartition)
   }
 
   it should "return Partition Full" in {

@@ -14,7 +14,7 @@ object ScanWorker {
 
   private case class State(sender: Option[ActorRef],
                    columnRefs: Option[Map[String, ActorRef]],
-                   result: Map[String, ColumnType] = Map.empty[String, ColumnType]) {
+                   result: Map[String, ColumnType]) {
     def addResultForColumn(columnName: String, values: ColumnType): State = {
       val newResultMap = result + (columnName -> values)
       State(sender, columnRefs, newResultMap)
@@ -36,7 +36,7 @@ class ScanWorker(partition: ActorRef,
                  scanColumn: String,
                  predicate: String => Boolean) extends Actor with ActorLogging {
 
-  override def receive: Receive = active(State(None, None))
+  override def receive: Receive = active(State(None, None, Map.empty))
 
   private def beginScanJob(state: State): Unit = {
     val newState = state.storeSender(sender())

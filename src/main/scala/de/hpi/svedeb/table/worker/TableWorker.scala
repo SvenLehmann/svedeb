@@ -39,6 +39,7 @@ class TableWorker(partitions: Seq[ActorRef]) extends Actor with ActorLogging {
     log.debug("Received get column job")
     val newState = state.storeSender(originalSender, sender())
     context.become(active(newState))
+
     if (partitions.isEmpty) {
       newState.tableSender ! InternalActorsForColumn(newState.originalSender, columnName, Seq.empty)
     } else {

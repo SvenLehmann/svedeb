@@ -13,7 +13,8 @@ import de.hpi.svedeb.utils.Utils
 object NestedLoopJoinOperator {
   def props(leftTable: ActorRef, rightTable: ActorRef, leftJoinColumn: String,
             rightJoinColumn: String,
-            predicate: (String, String) => Boolean): Props = Props(new NestedLoopJoinOperator(leftTable, rightTable, leftJoinColumn, rightJoinColumn, predicate))
+            predicate: (String, String) => Boolean): Props =
+    Props(new NestedLoopJoinOperator(leftTable, rightTable, leftJoinColumn, rightJoinColumn, predicate))
 
   private case class JoinState(originalSender: ActorRef,
                                leftPartitions: Option[Seq[ActorRef]],
@@ -25,7 +26,10 @@ object NestedLoopJoinOperator {
       JoinState(sender, leftPartitions, rightPartitions, leftColumnNames, rightColumnNames, result)
     }
 
-    def storePartitions(sender: ActorRef, leftTable: ActorRef, rightTable: ActorRef, partitions: Seq[ActorRef]): JoinState = {
+    def storePartitions(sender: ActorRef,
+                        leftTable: ActorRef,
+                        rightTable: ActorRef,
+                        partitions: Seq[ActorRef]): JoinState = {
       if (sender == leftTable) {
         JoinState(originalSender, Some(partitions), rightPartitions, leftColumnNames, rightColumnNames, result)
       } else if (sender == rightTable) {
@@ -36,10 +40,14 @@ object NestedLoopJoinOperator {
     }
 
     def storePartialResult(partitionId: Int, partition: Option[ActorRef]): JoinState = {
-      JoinState(originalSender, leftPartitions, rightPartitions, leftColumnNames, rightColumnNames, result + (partitionId -> partition))
+      val newResult = result + (partitionId -> partition)
+      JoinState(originalSender, leftPartitions, rightPartitions, leftColumnNames, rightColumnNames, newResult)
     }
 
-    def storeColumnNames(sender: ActorRef, leftTable: ActorRef, rightTable: ActorRef, columnNames: Seq[String]): JoinState = {
+    def storeColumnNames(sender: ActorRef,
+                         leftTable: ActorRef,
+                         rightTable: ActorRef,
+                         columnNames: Seq[String]): JoinState = {
       if (sender == leftTable) {
         JoinState(originalSender, leftPartitions, rightPartitions, Some(columnNames), rightColumnNames, result)
       } else if (sender == rightTable) {
@@ -66,7 +74,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
                              predicate: (String, String) => Boolean) extends AbstractOperator {
   override def receive: Receive = active(JoinState(ActorRef.noSender, None, None, None, None, Map.empty))
 
-  def initializeJoin(state: JoinState): Unit = {
+  private def initializeJoin(state: JoinState): Unit = {
     log.debug("Initialize Join")
     leftTable ! GetPartitions()
     rightTable ! GetPartitions()
@@ -75,7 +83,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
     context.become(active(state.storeSender(sender())))
   }
 
-  def handlePartitions(state: JoinState, partitions: Seq[ActorRef]): Unit = {
+  private def handlePartitions(state: JoinState, partitions: Seq[ActorRef]): Unit = {
     log.debug(s"Handle partitions $partitions")
     val newState = state.storePartitions(sender(), leftTable, rightTable, partitions)
     context.become(active(newState))
@@ -98,7 +106,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
     }
   }
 
-  def handleColumnNames(state: JoinState, columnNames: Seq[String]): Unit = {
+  private def handleColumnNames(state: JoinState, columnNames: Seq[String]): Unit = {
     log.debug(s"Handle column names $columnNames")
     val newState = state.storeColumnNames(sender(), leftTable, rightTable, columnNames)
     context.become(active(newState))
@@ -108,7 +116,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
     }
   }
 
-  def handlePartialResult(state: JoinState, partitionId: Int, partition: Option[ActorRef]): Unit = {
+  private def handlePartialResult(state: JoinState, partitionId: Int, partition: Option[ActorRef]): Unit = {
     log.debug(s"Handle partial result for $partitionId with $partition")
     val newState = state.storePartialResult(partitionId, partition)
     context.become(active(newState))

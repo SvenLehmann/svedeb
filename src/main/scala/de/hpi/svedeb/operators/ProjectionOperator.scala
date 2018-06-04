@@ -11,7 +11,7 @@ import de.hpi.svedeb.utils.Utils
 object ProjectionOperator {
   def props(input: ActorRef, columnNames: Seq[String]): Props = Props(new ProjectionOperator(input, columnNames))
 
-  private case class ProjectionState(sender: ActorRef = ActorRef.noSender, result: Seq[Map[String, ColumnType]] = Seq.empty) {
+  private case class ProjectionState(sender: ActorRef, result: Seq[Map[String, ColumnType]]) {
     def storeSender(sender: ActorRef): ProjectionState = {
       ProjectionState(sender, result)
     }
@@ -40,9 +40,9 @@ object ProjectionOperator {
 }
 
 class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends AbstractOperator {
-  override def receive: Receive = active(ProjectionState())
+  override def receive: Receive = active(ProjectionState(ActorRef.noSender, Seq.empty))
 
-  def handleQuery(state: ProjectionState, sender: ActorRef): Unit = {
+  private def handleQuery(state: ProjectionState, sender: ActorRef): Unit = {
     log.debug("Handling Projection Query")
     val newState = state.storeSender(sender)
     context.become(active(newState))
@@ -55,7 +55,7 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
     }
   }
 
-  def createNewResultTable(state: ProjectionState): ActorRef = {
+  private def createNewResultTable(state: ProjectionState): ActorRef = {
     log.debug("Create result table")
 
     val partitions: Seq[ActorRef] = state.result.zipWithIndex
@@ -65,7 +65,9 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
     context.actorOf(Table.props(columnNames, Utils.defaultPartitionSize, partitions))
   }
 
-  def handleActorsForColumn(state: ProjectionState, columnName: String, actorsForColumns: Seq[ActorRef]): Unit = {
+  private def handleActorsForColumn(state: ProjectionState,
+                                    columnName: String,
+                                    actorsForColumns: Seq[ActorRef]): Unit = {
     log.debug(s"Handling actors for column $columnName")
     // Store partition count when first result is received
     if (state.result.isEmpty) {
@@ -77,7 +79,10 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
     actorsForColumns.foreach(columnActor => columnActor ! ScanColumn(None))
   }
 
-  def handleScannedValues(state: ProjectionState, partitionId: Int, columnName: String, values: ColumnType): Unit = {
+  private def handleScannedValues(state: ProjectionState,
+                                  partitionId: Int,
+                                  columnName: String,
+                                  values: ColumnType): Unit = {
     log.debug("Handling scanned values")
     val newState = state.addPartialResult(partitionId, columnName, values)
     context.become(active(newState))
