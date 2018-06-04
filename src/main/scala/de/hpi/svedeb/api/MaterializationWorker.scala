@@ -16,6 +16,8 @@ object MaterializationWorker {
                                         columnCount: Option[Int],
                                         data: Map[Int, Map[String, ColumnType]]) {
     def addResult(partitionId: Int, columnName: String, values: ColumnType): MaterializationWorkerState = {
+      println(partitionId)
+      println(data.keys)
       val partitionMap = data(partitionId)
       val updatedPartition = partitionMap + (columnName -> values)
       val updatedMap = data + (partitionId -> updatedPartition)
@@ -23,6 +25,7 @@ object MaterializationWorker {
     }
 
     def setPartitionCount(partitionCount: Int): MaterializationWorkerState = {
+      // TODO: store actual partition ids, not just some counter
       val maps = (0 until partitionCount).map(partitionId => partitionId -> Map.empty[String, ColumnType])
       // maps:_* expands the Seq to a variable args argument
       MaterializationWorkerState(Some(partitionCount), columnCount, Map(maps:_*))
@@ -52,6 +55,7 @@ class MaterializationWorker(api: ActorRef, user: ActorRef) extends Actor with Ac
   private def fetchColumnNames(table: ActorRef): Unit = {
     log.debug("Fetching column names")
     table ! ListColumnsInTable()
+    table !
   }
 
   private def fetchColumns(state: MaterializationWorkerState, table: ActorRef, columnNames: Seq[String]): Unit = {

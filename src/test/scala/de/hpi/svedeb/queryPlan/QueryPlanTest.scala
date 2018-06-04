@@ -38,7 +38,6 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
 
   it should "find correct next stage" in {
     val firstNode = GetTable("s")
-
     val secondNode = Scan(firstNode, "a", _ => true)
 
     val queryPlan = QueryPlan(secondNode)
@@ -50,6 +49,34 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     queryPlan.saveIntermediateResult(worker.ref, table.ref)
 
     queryPlan.findNextStage() shouldEqual Some(secondNode)
+  }
+
+  it should "find next stage for join" in {
+    val firstTableNode = GetTable("s")
+    val secondTableNode = GetTable("t")
+    val joinNode = NestedLoopJoin(firstTableNode, secondTableNode, "a", "b", _ == _)
+
+    val queryPlan = QueryPlan(joinNode)
+    queryPlan.findNextStage() shouldEqual Some(firstTableNode)
+
+    val table = TestProbe("S")
+    val worker = TestProbe("worker")
+    queryPlan.updateWorker(firstTableNode, worker.ref)
+    queryPlan.saveIntermediateResult(worker.ref, table.ref)
+
+    queryPlan.findNextStage() shouldEqual Some(secondTableNode)
+
+    val worker2 = TestProbe("worker2")
+    queryPlan.updateWorker(secondTableNode, worker2.ref)
+    queryPlan.saveIntermediateResult(worker2.ref, table.ref)
+
+    queryPlan.findNextStage() shouldEqual Some(joinNode)
+
+    val worker3 = TestProbe("worker3")
+    queryPlan.updateWorker(joinNode, worker3.ref)
+    queryPlan.saveIntermediateResult(worker3.ref, table.ref)
+
+    queryPlan.findNextStage() shouldEqual None
   }
 
   it should "update the assigned worker" in {

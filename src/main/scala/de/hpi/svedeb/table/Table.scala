@@ -19,6 +19,7 @@ object Table {
   case class ActorsForColumn(columnName: String, columnActors: Seq[ActorRef])
   case class PartitionsInTable(partitions: Seq[ActorRef])
 
+  // TODO: store map of (partition id -> partition)
   def props(columnNames: Seq[String],
             partitionSize: Int = Utils.defaultPartitionSize,
             initialPartitions: Seq[ActorRef] = Seq.empty): Props =

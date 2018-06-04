@@ -43,9 +43,7 @@ object QueryPlanExecutor {
 class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging {
   override def receive: Receive = active(QueryPlanExecutorState(ActorRef.noSender, None, None))
 
-  private def nodeToOperatorActor(node: AbstractQueryPlanNode,
-                                  inputLeft: Option[ActorRef] = None,
-                                  inputRight: Option[ActorRef] = None): ActorRef = {
+  private def nodeToOperatorActor(node: AbstractQueryPlanNode): ActorRef = {
     node match {
       case GetTable(tableName: String) =>
         context.actorOf(GetTableOperator.props(tableManager, tableName))
@@ -54,11 +52,20 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
       case DropTable(tableName: String) =>
         context.actorOf(DropTableOperator.props(tableManager, tableName))
       case Scan(_, columnName: String, predicate: (String => Boolean)) =>
-        context.actorOf(ScanOperator.props(inputLeft.get, columnName, predicate))
+        context.actorOf(ScanOperator.props(node.leftInput.get.resultTable.get, columnName, predicate))
       case NestedLoopJoin(_, _, leftColumn, rightColumn, predicate) =>
-        context.actorOf(NestedLoopJoinOperator.props(inputLeft.get, inputRight.get, leftColumn, rightColumn, predicate))
+        if (node.leftInput.isEmpty || node.rightInput.isEmpty) {
+          throw new Exception("Join Input Tables do not exist. Should not happen. Bug in QueryPlan")
+        }
+        context.actorOf(NestedLoopJoinOperator.props(
+          node.leftInput.get.resultTable.get,
+          node.rightInput.get.resultTable.get,
+          leftColumn,
+          rightColumn,
+          predicate
+        ))
       case InsertRow(_, row: RowType) =>
-        context.actorOf(InsertRowOperator.props(inputLeft.get, row))
+        context.actorOf(InsertRowOperator.props(node.leftInput.get.resultTable.get, row))
       case _ => throw new Exception("Unknown node type, cannot build operator")
     }
   }
@@ -81,7 +88,6 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
     }
 
     val queryPlan = state.queryPlan.get
-
     queryPlan.saveIntermediateResult(sender(), resultTable)
     val nextStage = queryPlan.findNextStage()
 
@@ -90,7 +96,7 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
       queryPlan.cleanUpOperators()
       state.sender ! QueryFinished(state.queryId.get, resultTable)
     } else {
-      val operator = nodeToOperatorActor(nextStage.get, Some(resultTable))
+      val operator = nodeToOperatorActor(nextStage.get)
 
       val newState = state.nextStage(state.queryPlan.get, nextStage.get, operator)
       context.become(active(newState))

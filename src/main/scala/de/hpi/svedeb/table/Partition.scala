@@ -100,7 +100,7 @@ class Partition(partitionId: Int,
     context.become(active(newState))
 
     if (newState.remainingColumns == 0) {
-      log.info("remainingColumns zero")
+      log.debug("remainingColumns zero")
       val increasedRowCountState = newState.increaseRowCount()
       context.become(active(increasedRowCountState))
       state.tableSender ! RowAdded(state.originalSender)

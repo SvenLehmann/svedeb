@@ -87,7 +87,7 @@ case class QueryPlan(root: AbstractQueryPlanNode) {
       remainingNodes match {
         case Nil => None
         case None :: tail => iter(tail)
-        case Some(node) :: _ if node.isExecuted => None
+        case Some(node) :: tail if node.isExecuted => iter(tail)
         case Some(node) :: _ if node.isValidNextStage => Some(node)
         case Some(node) :: tail => iter(node.leftInput :: node.rightInput :: tail)
       }
