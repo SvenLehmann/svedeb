@@ -13,25 +13,25 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
   }
 
   it should "be initialized with values" in {
-    val column = system.actorOf(Column.props(0, "SomeColumnName", ColumnType("a", "b")))
+    val column = system.actorOf(Column.props(0, "SomeColumnName", ColumnType(1, 2)))
     column ! ScanColumn()
     val scannedValues = expectMsgType[ScannedValues]
     scannedValues.values.size() shouldEqual 2
-    scannedValues.values shouldEqual ColumnType("a", "b")
+    scannedValues.values shouldEqual ColumnType(1, 2)
   }
 
   it should "insert a new value" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
 
-    column ! AppendValue("SomeValue")
+    column ! AppendValue(3)
     expectMsg(ValueAppended(0, "SomeColumnName"))
   }
 
   it should "return all indices on wildcard" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
-    column ! AppendValue("value1")
-    column ! AppendValue("value2")
-    column ! AppendValue("value3")
+    column ! AppendValue(1)
+    column ! AppendValue(2)
+    column ! AppendValue(3)
     column ! FilterColumn(_ => true)
 
     expectMsg(ValueAppended(0, "SomeColumnName"))
@@ -42,10 +42,10 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
 
   it should "filter its values" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
-    column ! AppendValue("value1")
-    column ! AppendValue("value2")
-    column ! AppendValue("value3")
-    column ! FilterColumn(x => x.contains("2"))
+    column ! AppendValue(1)
+    column ! AppendValue(2)
+    column ! AppendValue(3)
+    column ! FilterColumn(_ == 2)
 
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
@@ -55,35 +55,35 @@ class ColumnTest extends AbstractActorTest("ColumnTest") {
 
   it should "scan its values with indices" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
-    column ! AppendValue("value1")
-    column ! AppendValue("value2")
-    column ! AppendValue("value3")
+    column ! AppendValue(1)
+    column ! AppendValue(2)
+    column ! AppendValue(3)
     column ! ScanColumn(Some(Seq(1, 2)))
 
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
-    expectMsg(ScannedValues(0, "SomeColumnName", ColumnType("value2", "value3")))
+    expectMsg(ScannedValues(0, "SomeColumnName", ColumnType(2, 3)))
   }
 
   it should "scan its values without indices" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
-    column ! AppendValue("value1")
-    column ! AppendValue("value2")
-    column ! AppendValue("value3")
+    column ! AppendValue(1)
+    column ! AppendValue(2)
+    column ! AppendValue(3)
     column ! ScanColumn()
 
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
     expectMsg(ValueAppended(0, "SomeColumnName"))
-    expectMsg(ScannedValues(0, "SomeColumnName", ColumnType("value1", "value2", "value3")))
+    expectMsg(ScannedValues(0, "SomeColumnName", ColumnType(1, 2, 3)))
   }
 
   it should "return column size" in {
     val column = system.actorOf(Column.props(0, "SomeColumnName"))
-    column ! AppendValue("value1")
-    column ! AppendValue("value2")
-    column ! AppendValue("value3")
+    column ! AppendValue(1)
+    column ! AppendValue(2)
+    column ! AppendValue(3)
 
     column ! GetColumnSize()
     expectMsg(ValueAppended(0, "SomeColumnName"))

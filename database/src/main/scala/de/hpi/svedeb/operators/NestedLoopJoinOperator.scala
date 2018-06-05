@@ -9,11 +9,12 @@ import de.hpi.svedeb.operators.workers.NestedLoopJoinWorker.{JoinJob, PartialRes
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table.{ColumnList, GetPartitions, ListColumnsInTable, PartitionsInTable}
 import de.hpi.svedeb.utils.Utils
+import de.hpi.svedeb.utils.Utils.ValueType
 
 object NestedLoopJoinOperator {
   def props(leftTable: ActorRef, rightTable: ActorRef, leftJoinColumn: String,
             rightJoinColumn: String,
-            predicate: (String, String) => Boolean): Props =
+            predicate: (ValueType, ValueType) => Boolean): Props =
     Props(new NestedLoopJoinOperator(leftTable, rightTable, leftJoinColumn, rightJoinColumn, predicate))
 
   private case class JoinState(originalSender: ActorRef,
@@ -71,7 +72,7 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
                              rightTable: ActorRef,
                              leftJoinColumn: String,
                              rightJoinColumn: String,
-                             predicate: (String, String) => Boolean) extends AbstractOperator {
+                             predicate: (ValueType, ValueType) => Boolean) extends AbstractOperator {
   override def receive: Receive = active(JoinState(ActorRef.noSender, None, None, None, None, Map.empty))
 
   private def initializeJoin(state: JoinState): Unit = {

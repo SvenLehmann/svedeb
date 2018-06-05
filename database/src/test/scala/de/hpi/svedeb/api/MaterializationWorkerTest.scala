@@ -13,7 +13,7 @@ class MaterializationWorkerTest extends AbstractActorTest("MaterializationWorker
 
   "A MaterializationWorker" should "materialize a simple table" in {
 
-    val data = Map("columnA" -> ColumnType("a", "b", "c"), "columnB" -> ColumnType("c", "b", "a"))
+    val data = Map("columnA" -> ColumnType(1, 2, 3), "columnB" -> ColumnType(3, 2, 1))
     val table = generateTableTestProbe(Seq(data))
 
     val worker = system.actorOf(MaterializationWorker.props(self, ActorRef.noSender), "MaterializationWorker")
@@ -27,9 +27,9 @@ class MaterializationWorkerTest extends AbstractActorTest("MaterializationWorker
   it should "materialize a table with multiple partitions" in {
 
     val table = generateTableTestProbe(Seq(
-      Map("columnA" -> ColumnType("a", "b"), "columnB" -> ColumnType("b", "a")),
-      Map("columnA" -> ColumnType("c", "d"), "columnB" -> ColumnType("f", "g")),
-      Map("columnA" -> ColumnType("e", "f", "g"), "columnB" -> ColumnType("e", "d", "c"))
+      Map("columnA" -> ColumnType(1, 2), "columnB" -> ColumnType(2, 1)),
+      Map("columnA" -> ColumnType(3, 4), "columnB" -> ColumnType(6, 7)),
+      Map("columnA" -> ColumnType(5, 6, 7), "columnB" -> ColumnType(5, 4, 3))
     ))
 
     val worker = system.actorOf(MaterializationWorker.props(self, ActorRef.noSender))
@@ -37,8 +37,8 @@ class MaterializationWorkerTest extends AbstractActorTest("MaterializationWorker
 
     val result = expectMsgType[MaterializedTable]
     result.user shouldEqual ActorRef.noSender
-    val valuesA = ColumnType("a", "b", "c", "d", "e", "f", "g")
-    val valuesB = ColumnType("b", "a", "f", "g", "e", "d", "c")
+    val valuesA = ColumnType(1, 2, 3, 4, 5, 6, 7)
+    val valuesB = ColumnType(2, 1, 6, 7, 5, 4, 3)
     result.columns shouldEqual Map("columnA" -> valuesA, "columnB" -> valuesB)
   }
 

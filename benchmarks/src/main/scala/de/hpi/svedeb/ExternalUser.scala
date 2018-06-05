@@ -17,7 +17,7 @@ object ExternalUser extends App {
 
   def insertData(tableName: String, count: Int): Result = {
     def insertRow(id: Int): Result = {
-      val queryPlanNode = InsertRow(GetTable(tableName), RowType(s"a$id", s"b$id"))
+      val queryPlanNode = InsertRow(GetTable(tableName), RowType(id, id))
       val queryFuture = api.ask(Query(QueryPlan(queryPlanNode)))
       Await.result(queryFuture, timeout.duration).asInstanceOf[Result]
     }
@@ -38,13 +38,13 @@ object ExternalUser extends App {
 
   def testDoubleScan(): Result = {
     // Scan table
-    val future = api.ask(Query(QueryPlan(Scan(Scan(GetTable("Table1"), "column1", x => x.contains("1")), "column2", _.contains("2")))))
+    val future = api.ask(Query(QueryPlan(Scan(Scan(GetTable("Table1"), "column1", _ == 1), "column2", _ == 2))))
     Await.result(future, timeout.duration).asInstanceOf[Result]
   }
 
   def testScan(): Result = {
     // Scan table
-    val queryFuture = api.ask(Query(QueryPlan(Scan(GetTable("Table1"), "column1", x => x.contains("10")))))
+    val queryFuture = api.ask(Query(QueryPlan(Scan(GetTable("Table1"), "column1", _ == 10))))
     Await.result(queryFuture, timeout.duration).asInstanceOf[Result]
   }
 

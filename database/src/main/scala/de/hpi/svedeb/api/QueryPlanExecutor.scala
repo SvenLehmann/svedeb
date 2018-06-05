@@ -51,7 +51,7 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
         context.actorOf(CreateTableOperator.props(tableManager, tableName, columnNames, partitionSize))
       case DropTable(tableName: String) =>
         context.actorOf(DropTableOperator.props(tableManager, tableName))
-      case Scan(_, columnName: String, predicate: (String => Boolean)) =>
+      case Scan(_, columnName: String, predicate) =>
         context.actorOf(ScanOperator.props(node.leftInput.get.resultTable.get, columnName, predicate))
       case NestedLoopJoin(_, _, leftColumn, rightColumn, predicate) =>
         if (node.leftInput.isEmpty || node.rightInput.isEmpty) {

@@ -10,7 +10,7 @@ import de.hpi.svedeb.table.RowType
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-object Benchmarks extends App {
+object JoinBenchmark extends App {
 
   // Join Benchmark
   val api = SvedeB.start()
@@ -22,20 +22,20 @@ object Benchmarks extends App {
     Await.result(future, timeout.duration).asInstanceOf[MaterializedResult]
   }
 
-  def insertData(tableName: String, count: Int): Result = {
-    def insertRow(id: Int): Result = {
-      val queryPlanNode = InsertRow(GetTable(tableName), RowType(s"a$id", s"b$id"))
+  def insertData(tableName: String, data: Seq[RowType]): Unit = {
+    def insertRow(row: RowType): Result = {
+      val queryPlanNode = InsertRow(GetTable(tableName), row)
       val queryFuture = api.ask(Query(QueryPlan(queryPlanNode)))
       Await.result(queryFuture, timeout.duration).asInstanceOf[Result]
     }
 
-    (0 until count).foldLeft(Result(ActorRef.noSender))((_, id) => insertRow(id))
+    data.foldLeft(Result(ActorRef.noSender))((_, row) => insertRow(row))
   }
 
   def loadData(tableName: String, columns: Seq[String], rowCount: Int): Unit = {
-    val future = api.ask(Query(QueryPlan(CreateTable(tableName, columns, 1000))))
+    val future = api.ask(Query(QueryPlan(CreateTable(tableName, columns, 100))))
     Await.result(future, timeout.duration).asInstanceOf[Result]
-    insertData(tableName, rowCount)
+    insertData(tableName, (0 to rowCount).map(i => RowType(i, i)))
   }
 
   def runQuery(name: String, function: => Result): Unit = {

@@ -32,7 +32,7 @@ class QueryPlanTest extends AbstractActorTest("QueryPlan") {
     assert(secondNode.isExecuted)
     assert(!thirdNode.isExecuted)
 
-    val fourthNode = Scan(Scan(GetTable("SomeTable"), "a", _ == "x"), "b", _ == "y")
+    val fourthNode = Scan(Scan(GetTable("SomeTable"), "a", _ == 1), "b", _ == 2)
     assert(!fourthNode.isExecuted)
   }
 

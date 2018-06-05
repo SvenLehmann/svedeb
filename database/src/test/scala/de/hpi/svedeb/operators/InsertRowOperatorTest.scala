@@ -15,7 +15,7 @@ class InsertRowOperatorTest extends AbstractActorTest("InsertRowOperator") {
       case AddRowToTable(_) => sender ! RowAddedToTable(); TestActor.KeepRunning
     })
 
-    val insertOperator = system.actorOf(InsertRowOperator.props(table.ref, RowType("value1", "value2")))
+    val insertOperator = system.actorOf(InsertRowOperator.props(table.ref, RowType(1, 2)))
     insertOperator ! Execute()
 
     expectMsgType[QueryResult]

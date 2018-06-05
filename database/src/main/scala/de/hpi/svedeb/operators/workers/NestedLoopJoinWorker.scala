@@ -6,6 +6,7 @@ import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.{ColumnType, Partition}
 import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
 import de.hpi.svedeb.utils.Utils
+import de.hpi.svedeb.utils.Utils.ValueType
 
 object NestedLoopJoinWorker {
   case class JoinJob()
@@ -69,7 +70,7 @@ object NestedLoopJoinWorker {
             resultPartitionId: Int,
             leftJoinColumn: String,
             rightJoinColumn: String,
-            predicate: (String, String) => Boolean): Props =
+            predicate: (ValueType, ValueType) => Boolean): Props =
     Props(new NestedLoopJoinWorker(
       leftPartition, rightPartition, resultPartitionId, leftJoinColumn, rightJoinColumn, predicate)
     )
@@ -80,7 +81,7 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
                            resultPartitionId: Int,
                            leftJoinColumn: String,
                            rightJoinColumn: String,
-                           predicate: (String, String) => Boolean) extends Actor with ActorLogging {
+                           predicate: (ValueType, ValueType) => Boolean) extends Actor with ActorLogging {
   override def receive: Receive = active(JoinWorkerState(None, None, None, None, None, postJoin = false, Map.empty))
 
   private def beginJoinJob(state: JoinWorkerState): Unit = {
@@ -142,11 +143,20 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
       log.debug("Performing join")
       // using for-comprehension to compute cross product of all potential join combinations
       // Filtering by predicate
-      val joinedIndices = for {
-        (leftValue, leftIndex) <- newState.leftColumnValues.get.values.zipWithIndex
-        (rightValue, rightIndex) <- newState.rightColumnValues.get.values.zipWithIndex
-        if predicate(leftValue, rightValue)
-      } yield (leftIndex, rightIndex)
+
+
+      log.info(s"Joining values: ${newState.leftColumnValues.get.values.size} vs. ${newState.rightColumnValues.get.values.size}")
+
+      def join(): Seq[(Int, Int)] = {
+        for {
+          (leftValue, leftIndex) <- newState.leftColumnValues.get.values.zipWithIndex
+          (rightValue, rightIndex) <- newState.rightColumnValues.get.values.zipWithIndex
+          if predicate(leftValue, rightValue)
+        } yield (leftIndex, rightIndex)
+      }
+
+//      val joinedIndices = Utils.time("Joining in NestedLoopJoinWorker", join())
+      val joinedIndices = join()
 
       if (joinedIndices.isEmpty) {
         // no need to fetch values again, simply return empty PartialResult

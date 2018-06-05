@@ -6,6 +6,7 @@ import de.hpi.svedeb.table.Column.{FilterColumn, FilteredRowIndices, ScanColumn,
 import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
 import de.hpi.svedeb.table.{ColumnType, Partition}
 import de.hpi.svedeb.utils.Utils
+import de.hpi.svedeb.utils.Utils.ValueType
 
 object ScanWorker {
   case class ScanJob()
@@ -28,13 +29,13 @@ object ScanWorker {
   def props(partition: ActorRef,
             partitionId: Int,
             scanColumn: String,
-            predicate: String => Boolean): Props = Props(new ScanWorker(partition, partitionId, scanColumn, predicate))
+            predicate: ValueType => Boolean): Props = Props(new ScanWorker(partition, partitionId, scanColumn, predicate))
 }
 
 class ScanWorker(partition: ActorRef,
                  partitionId: Int,
                  scanColumn: String,
-                 predicate: String => Boolean) extends Actor with ActorLogging {
+                 predicate: ValueType => Boolean) extends Actor with ActorLogging {
 
   override def receive: Receive = active(State(None, None, Map.empty))
 

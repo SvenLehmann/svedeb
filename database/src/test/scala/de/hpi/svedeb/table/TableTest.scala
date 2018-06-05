@@ -3,6 +3,7 @@ package de.hpi.svedeb.table
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Table._
+import de.hpi.svedeb.utils.Utils.ValueType
 import org.scalatest.Matchers._
 
 // TODO: Add Table test helper to create table from raw data
@@ -30,19 +31,19 @@ class TableTest extends AbstractActorTest("TableTest") {
 
   it should "add a row" in {
     val table = system.actorOf(Table.props(Seq("columnA", "columnB")), "table")
-    table ! AddRowToTable(RowType("valueA", "valueB"))
+    table ! AddRowToTable(RowType(1, 2))
     expectMsg(RowAddedToTable())
   }
 
   it should "create a new partition if existing ones are full" in {
     val table = system.actorOf(Table.props(Seq("columnA"), 2))
-    table ! AddRowToTable(RowType("value1"))
+    table ! AddRowToTable(RowType(1))
     expectMsg(RowAddedToTable())
 
-    table ! AddRowToTable(RowType("value2"))
+    table ! AddRowToTable(RowType(2))
     expectMsg(RowAddedToTable())
 
-    table ! AddRowToTable(RowType("value3"))
+    table ! AddRowToTable(RowType(3))
     expectMsg(RowAddedToTable())
 
     table ! GetPartitions()
@@ -56,21 +57,21 @@ class TableTest extends AbstractActorTest("TableTest") {
 
   it should "fail to add wrong row definition" in {
     val table = system.actorOf(Table.props(Seq("columnA"), 2))
-    table ! AddRowToTable(RowType("value1", "value2"))
+    table ! AddRowToTable(RowType(1, 2))
   }
 
   "A table with multiple partitions" should "insert rows correctly aligned" in {
     val numberOfPartitions = 10
     val orderTable = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1), "orderTable")
 
-    (0 until numberOfPartitions).foreach(id => orderTable ! AddRowToTable(RowType(s"a$id", s"b$id", s"c$id", s"d$id")))
+    (0 until numberOfPartitions).foreach(id => orderTable ! AddRowToTable(RowType(id, id, id, id)))
     (0 until numberOfPartitions).foreach(_ => expectMsg(RowAddedToTable()))
 
     orderTable ! GetPartitions()
     val partitions = expectMsgType[PartitionsInTable]
     partitions.partitions.size shouldEqual numberOfPartitions
 
-    def checkColumnValues(suffix: String): Seq[String] = {
+    def checkColumnValues(suffix: String): Seq[ValueType] = {
       orderTable ! GetColumnFromTable(s"column${suffix.toUpperCase}")
       val columnActors = expectMsgType[ActorsForColumn]
       columnActors.columnActors.size shouldEqual numberOfPartitions
@@ -82,7 +83,7 @@ class TableTest extends AbstractActorTest("TableTest") {
         .flatMap(c => c.values.values)
 
       // Verify correct values
-      values.sorted shouldEqual (0 until numberOfPartitions).map(index => suffix + index).toVector.sorted
+      values.sorted shouldEqual (0 until numberOfPartitions).toVector.sorted
       values
     }
 
@@ -91,11 +92,9 @@ class TableTest extends AbstractActorTest("TableTest") {
     val valuesC = checkColumnValues("c")
     val valuesD = checkColumnValues("d")
 
-    def extractIndex(values: Seq[String]): Seq[Char] = values.map(v => v.charAt(1))
-
-    extractIndex(valuesA) shouldEqual extractIndex(valuesB)
-    extractIndex(valuesA) shouldEqual extractIndex(valuesC)
-    extractIndex(valuesA) shouldEqual extractIndex(valuesD)
+    valuesA shouldEqual valuesB
+    valuesA shouldEqual valuesC
+    valuesA shouldEqual valuesD
 
   }
 }

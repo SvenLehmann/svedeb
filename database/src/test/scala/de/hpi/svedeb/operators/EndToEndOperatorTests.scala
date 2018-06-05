@@ -18,12 +18,12 @@ class EndToEndOperatorTests extends AbstractActorTest("EndToEndTest") {
   "A query" should "work with chained operators" in {
     val partitionSize = 2
     val content = Seq(
-      Map("columnA" -> ColumnType("a1", "a2"), "columnB" -> ColumnType("b1", "b2")),
-      Map("columnA" -> ColumnType("a3", "a4"), "columnB" -> ColumnType("b3", "b4"))
+      Map("columnA" -> ColumnType(1, 2), "columnB" -> ColumnType(1, 2)),
+      Map("columnA" -> ColumnType(3, 4), "columnB" -> ColumnType(3, 4))
     )
     val table = setupTable(partitionSize, content)
 
-    val scanOperator = system.actorOf(ScanOperator.props(table, "columnA", _ == "a2"))
+    val scanOperator = system.actorOf(ScanOperator.props(table, "columnA", _ == 2))
     scanOperator ! Execute()
     val scanResult = expectMsgType[QueryResult]
 
@@ -31,7 +31,7 @@ class EndToEndOperatorTests extends AbstractActorTest("EndToEndTest") {
     projectionOperator ! Execute()
     val projectionResult = expectMsgType[QueryResult]
 
-    checkTable(projectionResult.resultTable, Map(0 -> Map("columnA" -> ColumnType("a2"))))
+    checkTable(projectionResult.resultTable, Map(0 -> Map("columnA" -> ColumnType(2))))
   }
 
 }

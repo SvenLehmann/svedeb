@@ -2,17 +2,18 @@ package de.hpi.svedeb.table
 
 import akka.actor.{Actor, ActorLogging, Props}
 import de.hpi.svedeb.table.Column._
+import de.hpi.svedeb.utils.Utils.{RowId, ValueType}
 
 object Column {
-  case class AppendValue(value: String)
-  case class FilterColumn(predicate: String => Boolean)
+  case class AppendValue(value: ValueType)
+  case class FilterColumn(predicate: ValueType => Boolean)
   // None returns all values
-  case class ScanColumn(indices: Option[Seq[Int]] = None)
+  case class ScanColumn(indices: Option[Seq[RowId]] = None)
   case class GetColumnName()
   case class GetColumnSize()
 
   // Result events
-  case class FilteredRowIndices(partitionId: Int, columnName: String, indices: Seq[Int])
+  case class FilteredRowIndices(partitionId: Int, columnName: String, indices: Seq[RowId])
   case class ScannedValues(partitionId: Int, columnName: String, values: ColumnType)
   case class ValueAppended(partitionId: Int, columnName: String)
   case class ColumnName(name: String)
@@ -26,12 +27,12 @@ object Column {
 class Column(partitionId: Int, columnName: String, initialValues: ColumnType) extends Actor with ActorLogging {
   override def receive: Receive = active(initialValues)
 
-  private def filter(values: ColumnType, predicate: String => Boolean): Unit = {
+  private def filter(values: ColumnType, predicate: ValueType => Boolean): Unit = {
     val filteredIndices = values.filterByPredicate(predicate)
     sender() ! FilteredRowIndices(partitionId, columnName, filteredIndices)
   }
 
-  private def scan(values: ColumnType, indices: Option[Seq[Int]]): Unit = {
+  private def scan(values: ColumnType, indices: Option[Seq[RowId]]): Unit = {
     if (indices.isDefined) {
       val scannedValues = values.filterByIndices(indices.get)
       sender() ! ScannedValues(partitionId, columnName, scannedValues)
@@ -40,7 +41,7 @@ class Column(partitionId: Int, columnName: String, initialValues: ColumnType) ex
     }
   }
 
-  private def addRow(values: ColumnType, value: String): Unit = {
+  private def addRow(values: ColumnType, value: ValueType): Unit = {
     log.debug("Appending value: {}", value)
     context.become(active(values.append(value)))
 
@@ -48,7 +49,7 @@ class Column(partitionId: Int, columnName: String, initialValues: ColumnType) ex
   }
 
   private def active(values: ColumnType): Receive = {
-    case AppendValue(value: String) => addRow(values, value)
+    case AppendValue(value) => addRow(values, value)
     case FilterColumn(predicate) => filter(values, predicate)
     case ScanColumn(indices) => scan(values, indices)
     case GetColumnName() => sender() ! ColumnName(columnName)

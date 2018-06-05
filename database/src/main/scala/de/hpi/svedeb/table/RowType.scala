@@ -1,3 +1,5 @@
 package de.hpi.svedeb.table
 
-case class RowType(row: String*)
+import de.hpi.svedeb.utils.Utils.ValueType
+
+case class RowType(row: ValueType*)

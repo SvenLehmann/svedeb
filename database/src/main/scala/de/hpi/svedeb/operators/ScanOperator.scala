@@ -8,15 +8,16 @@ import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult}
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table._
 import de.hpi.svedeb.utils.Utils
+import de.hpi.svedeb.utils.Utils.ValueType
 
 object ScanOperator {
   def props(table: ActorRef,
             columnName: String,
-            predicate: String => Boolean): Props = Props(new ScanOperator(table, columnName, predicate))
+            predicate: ValueType => Boolean): Props = Props(new ScanOperator(table, columnName, predicate))
 
   private case class ScanState(sender: ActorRef,
                                columnName: String,
-                               predicate: String => Boolean,
+                               predicate: ValueType => Boolean,
                                numberOfPartitions: Option[Int],
                                columnNames: Option[Seq[String]],
                                results: Map[Int, Option[ActorRef]]) {
@@ -31,7 +32,7 @@ object ScanOperator {
         columnNames.isDefined
     }
 
-    def initializeScan(sender: ActorRef, columnName: String, predicate: String => Boolean): ScanState = {
+    def initializeScan(sender: ActorRef, columnName: String, predicate: ValueType => Boolean): ScanState = {
       ScanState(sender, columnName, predicate, numberOfPartitions, columnNames, results)
     }
 
@@ -45,10 +46,10 @@ object ScanOperator {
   }
 }
 
-class ScanOperator(table: ActorRef, columnName: String, predicate: String => Boolean) extends AbstractOperator {
+class ScanOperator(table: ActorRef, columnName: String, predicate: ValueType => Boolean) extends AbstractOperator {
   override def receive: Receive = active(ScanState(ActorRef.noSender, null, null, None, None, Map.empty))
 
-  private def initializeScan(state: ScanState, columnName: String, predicate: String => Boolean): Unit = {
+  private def initializeScan(state: ScanState, columnName: String, predicate: ValueType => Boolean): Unit = {
     val newState = state.initializeScan(sender(), columnName, predicate)
     context.become(active(newState))
 
