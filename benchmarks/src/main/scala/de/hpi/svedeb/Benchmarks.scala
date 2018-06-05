@@ -14,16 +14,8 @@ object Benchmarks extends App {
 
   // Join Benchmark
   val api = SvedeB.start()
-  implicit val timeout: Timeout = Timeout(30 seconds)
+  implicit val timeout: Timeout = Timeout(3000 seconds)
 
-
-  def time[R](description: String, block: => R): R = {
-    val t0 = System.nanoTime()
-    val result = block    // call-by-name
-    val t1 = System.nanoTime()
-    println(s"Elapsed time in $description: ${(t1 - t0)/1000000.0}ms")
-    result
-  }
 
   def testMaterialize(table: ActorRef): MaterializedResult = {
     val future = api.ask(Materialize(table))
@@ -47,8 +39,8 @@ object Benchmarks extends App {
   }
 
   def runQuery(name: String, function: => Result): Unit = {
-    val resultTable = time(name, function)
-    val materializedResult = time(s"Materializing of $name", testMaterialize(resultTable.resultTable))
+    val resultTable = Utils.time(name, function)
+    val materializedResult = Utils.time(s"Materializing of $name", testMaterialize(resultTable.resultTable))
 
     val rowCount = materializedResult.result.head._2.size()
     println(s"Result Rowcount of $name: $rowCount")
@@ -60,6 +52,7 @@ object Benchmarks extends App {
   loadData("table2", Seq("columnA2", "columnB2"), 2000)
 
   println("Finished loading")
+  Thread.sleep(10000)
 
   def testJoin(): Result = {
     // Perform Join

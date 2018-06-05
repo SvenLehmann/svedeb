@@ -38,7 +38,7 @@ object ExternalUser extends App {
 
   def testDoubleScan(): Result = {
     // Scan table
-    val future = api.ask(Query(QueryPlan(Scan(Scan(GetTable("Table1"), "column1", x => x.contains("1")), "column2", x => x.contains("2")))))
+    val future = api.ask(Query(QueryPlan(Scan(Scan(GetTable("Table1"), "column1", x => x.contains("1")), "column2", _.contains("2")))))
     Await.result(future, timeout.duration).asInstanceOf[Result]
   }
 
@@ -53,17 +53,9 @@ object ExternalUser extends App {
     Await.result(future, timeout.duration).asInstanceOf[Result]
   }
 
-  def time[R](description: String, block: => R): R = {
-    val t0 = System.nanoTime()
-    val result = block    // call-by-name
-    val t1 = System.nanoTime()
-    println(s"Elapsed time in $description: ${(t1 - t0)/1000000.0}ms")
-    result
-  }
-
   def runQuery(name: String, function: => Result): Unit = {
-    val resultTable = time(name, function)
-    val materializedResult = time(s"Materializing of $name", testMaterialize(resultTable.resultTable))
+    val resultTable = Utils.time(name, function)
+    val materializedResult = Utils.time(s"Materializing of $name", testMaterialize(resultTable.resultTable))
 
     val rowCount = materializedResult.result.head._2.size()
     println(s"Result Rowcount of $name: $rowCount")
@@ -71,7 +63,7 @@ object ExternalUser extends App {
   }
 
   try {
-    time("Load", loadData())
+    Utils.time("Load", loadData())
     runQuery("GetTable", testGetTable())
     runQuery("DoubleScan", testDoubleScan())
     runQuery("Scan", testScan())
