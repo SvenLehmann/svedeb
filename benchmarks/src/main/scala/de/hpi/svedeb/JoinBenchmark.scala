@@ -33,7 +33,7 @@ object JoinBenchmark extends App {
   }
 
   def loadData(tableName: String, columns: Seq[String], rowCount: Int): Unit = {
-    val future = api.ask(Query(QueryPlan(CreateTable(tableName, columns, 100))))
+    val future = api.ask(Query(QueryPlan(CreateTable(tableName, columns, 10))))
     Await.result(future, timeout.duration).asInstanceOf[Result]
     insertData(tableName, (0 to rowCount).map(i => RowType(i, i)))
   }
@@ -48,11 +48,10 @@ object JoinBenchmark extends App {
   }
 
   // Load 2 tables
-  loadData("table1", Seq("columnA1", "columnB1"), 2000)
-  loadData("table2", Seq("columnA2", "columnB2"), 2000)
+  loadData("table1", Seq("columnA1", "columnB1"), 200)
+  loadData("table2", Seq("columnA2", "columnB2"), 200)
 
   println("Finished loading")
-  Thread.sleep(10000)
 
   def testJoin(): Result = {
     // Perform Join

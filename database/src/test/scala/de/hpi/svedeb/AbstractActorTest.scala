@@ -17,29 +17,46 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
     TestKit.shutdownActorSystem(system)
   }
 
-  def checkColumnsValues(column: ActorRef, expectedValues: ColumnType): Unit = {
+  def materializeColumn(column: ActorRef): ColumnType = {
     column ! ScanColumn()
-    val scannedValues = expectMsgType[ScannedValues]
-    scannedValues.values shouldEqual expectedValues
+    expectMsgType[ScannedValues].values
+  }
+
+  def materializePartition(partition: ActorRef): Map[String, ColumnType] = {
+    partition ! GetColumns()
+    val columns = expectMsgType[ColumnsRetrieved]
+    columns.columns.mapValues(columnRef => materializeColumn(columnRef))
+  }
+
+  def materializeTable(table: ActorRef): Map[Int, Map[String, ColumnType]] = {
+    table ! GetPartitions()
+    val partitions = expectMsgType[PartitionsInTable]
+    partitions.partitions.mapValues(partition => materializePartition(partition))
+  }
+
+  def checkColumnsValues(column: ActorRef, expectedValues: ColumnType): Unit = {
+    val actualColumn = materializeColumn(column)
+    actualColumn shouldEqual expectedValues
   }
 
   def checkPartition(partition: ActorRef, expectedPartition: Map[String, ColumnType]): Unit = {
-    partition ! GetColumns()
-    val columns = expectMsgType[ColumnsRetrieved]
-    val actualPartition = columns.columns.mapValues(columnRef => {
-      columnRef ! ScanColumn()
-      val values = expectMsgType[ScannedValues]
-      values.values
-    })
-
+    val actualPartition = materializePartition(partition)
     actualPartition shouldEqual expectedPartition
   }
 
   def checkTable(table: ActorRef, expectedTable: Map[Int, Map[String, ColumnType]]): Unit = {
-    table ! GetPartitions()
-    val partitions = expectMsgType[PartitionsInTable]
-    partitions.partitions.size shouldEqual expectedTable.size
-    partitions.partitions.foreach{ case (id, partition) => checkPartition(partition, expectedTable(id))}
+    val actualTable = materializeTable(table)
+    actualTable shouldEqual expectedTable
+  }
+
+  def checkTableIgnoreOrder(table: ActorRef, expectedTable: Map[Int, Map[String, ColumnType]]): Unit = {
+    val actualTable = materializeTable(table)
+
+    actualTable.foreach {
+      case (_, actualPartition) => expectedTable.exists {
+        case (_, expectedPartition) => actualPartition == expectedPartition
+      }
+    }
   }
 
   def generateColumnTestProbe(partitionId: Int, columnName: String, columnDefinition: ColumnType): ActorRef = {

@@ -10,7 +10,6 @@ import org.scalatest.Matchers._
 class PartitionTest extends AbstractActorTest("PartitionTest") {
 
   "A partition actor" should "be initialized with columns" in {
-    val column = TestProbe("SomeColumn")
     val partition = system.actorOf(Partition.props(0, Seq("someColumn")))
 
     partition ! ListColumnNames()
@@ -38,14 +37,14 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
     val partition = system.actorOf(Partition.props(0, Seq("someColumn")))
 
     partition ! AddRow(RowType(1), ActorRef.noSender)
-    expectMsg(RowAdded(ActorRef.noSender))
+    expectMsgType[RowAdded]
   }
 
   it should "add a row with multiple columns" in {
     val partition = system.actorOf(Partition.props(0, Seq("column1", "column2")))
 
     partition ! AddRow(RowType(1, 2), ActorRef.noSender)
-    expectMsg(RowAdded(ActorRef.noSender))
+    expectMsgType[RowAdded]
   }
 
   it should "add multiple rows with multiple columns" in {
@@ -53,8 +52,8 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
 
     partition ! AddRow(RowType(1, 2), ActorRef.noSender)
     partition ! AddRow(RowType(3, 4), ActorRef.noSender)
-    expectMsg(RowAdded(ActorRef.noSender))
-    expectMsg(RowAdded(ActorRef.noSender))
+    expectMsgType[RowAdded]
+    expectMsgType[RowAdded]
 
     val expectedPartition = Map("column1" -> ColumnType(1, 3), "column2" -> ColumnType(2, 4))
     checkPartition(partition, expectedPartition)
@@ -64,12 +63,31 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
     val partition = system.actorOf(Partition.props(0, Seq("column1", "column2"), 1))
 
     partition ! AddRow(RowType(1, 2), ActorRef.noSender)
-    expectMsg(RowAdded(ActorRef.noSender))
+    expectMsgType[RowAdded]
 
     val row = RowType(3, 4)
     partition ! AddRow(row, ActorRef.noSender)
-    expectMsg(PartitionFull(row, ActorRef.noSender))
+    expectMsgType[PartitionFull]
 
+    // Order of inserted rows is only guaranteed due to blocking 'expectMsgType' calls.
     checkPartition(partition, Map("column1" -> ColumnType(1), "column2" -> ColumnType(2)))
+  }
+
+  it should "return PartitionFull (2)" in {
+    val partitionSize = 2
+    val partition = system.actorOf(Partition.props(0, Seq("column1", "column2"), partitionSize))
+
+    partition ! AddRow(RowType(1, 1), ActorRef.noSender)
+    partition ! AddRow(RowType(2, 2), ActorRef.noSender)
+    partition ! AddRow(RowType(3, 3), ActorRef.noSender)
+    partition ! AddRow(RowType(4, 4), ActorRef.noSender)
+
+    expectMsgType[RowAdded]
+    expectMsgType[RowAdded]
+    expectMsgType[PartitionFull]
+    expectMsgType[PartitionFull]
+
+    val actualPartition = materializePartition(partition)
+    actualPartition.foreach { case (_, column) => column.size() shouldEqual partitionSize }
   }
 }

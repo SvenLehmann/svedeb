@@ -1,100 +1,147 @@
 package de.hpi.svedeb.table
 
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.Table._
-import de.hpi.svedeb.utils.Utils.ValueType
 import org.scalatest.Matchers._
 
-// TODO: Add Table test helper to create table from raw data
 class TableTest extends AbstractActorTest("TableTest") {
 
   "A new table actor" should "store columns" in {
-    val table = system.actorOf(Table.props(Seq("columnA", "columnB")))
+    val table = system.actorOf(Table.props(Seq("a", "b")))
     table ! ListColumnsInTable()
-    expectMsg(ColumnList(Seq("columnA", "columnB")))
+    expectMsg(ColumnList(Seq("a", "b")))
   }
 
   it should "not contain partitions" in {
-    val table = system.actorOf(Table.props(Seq("columnA")))
+    val table = system.actorOf(Table.props(Seq("a")))
     table ! GetPartitions()
     val partitions = expectMsgType[PartitionsInTable]
     partitions.partitions.size shouldEqual 0
   }
 
   it should "retrieve columns" in {
-    val table = system.actorOf(Table.props(Seq("columnA")))
-    table ! GetColumnFromTable("columnA")
+    val table = system.actorOf(Table.props(Seq("a")))
+    table ! GetColumnFromTable("a")
     val actorsForColumn = expectMsgType[ActorsForColumn]
     actorsForColumn.columnActors.size shouldEqual  0
   }
 
   it should "add a row" in {
-    val table = system.actorOf(Table.props(Seq("columnA", "columnB")), "table")
+    val table = system.actorOf(Table.props(Seq("a", "b")), "table")
     table ! AddRowToTable(RowType(1, 2))
-    expectMsg(RowAddedToTable())
+    expectMsgType[RowAddedToTable]
+
+    checkTable(table, Map(0 -> Map("a" -> ColumnType(1), "b" -> ColumnType(2))))
   }
 
   it should "create a new partition if existing ones are full" in {
-    val table = system.actorOf(Table.props(Seq("columnA"), 2))
+    val table = system.actorOf(Table.props(Seq("a"), 2))
     table ! AddRowToTable(RowType(1))
-    expectMsg(RowAddedToTable())
+    expectMsgType[RowAddedToTable]
 
     table ! AddRowToTable(RowType(2))
-    expectMsg(RowAddedToTable())
+    expectMsgType[RowAddedToTable]
 
     table ! AddRowToTable(RowType(3))
-    expectMsg(RowAddedToTable())
+    expectMsgType[RowAddedToTable]
 
-    table ! GetPartitions()
-    val partitions = expectMsgType[PartitionsInTable]
-    partitions.partitions.size shouldEqual 2
-
-    table ! GetColumnFromTable("columnA")
-    val actorsForColumn = expectMsgType[ActorsForColumn]
-    actorsForColumn.columnActors.size shouldEqual  2
+    checkTable(table, Map(0 -> Map("a" -> ColumnType(1, 2)), 1 -> Map("a" -> ColumnType(3))))
   }
 
   it should "fail to add wrong row definition" in {
-    val table = system.actorOf(Table.props(Seq("columnA"), 2))
+    val table = system.actorOf(Table.props(Seq("a"), 2))
     table ! AddRowToTable(RowType(1, 2))
   }
 
   "A table with multiple partitions" should "insert rows correctly aligned" in {
-    val numberOfPartitions = 10
-    val orderTable = system.actorOf(Table.props(Seq("columnA", "columnB", "columnC", "columnD"), 1), "orderTable")
+    val numberOfRows = 10
+    val partitionSize = 1
+    val table = system.actorOf(Table.props(Seq("a", "b", "c", "d"), partitionSize))
 
-    (0 until numberOfPartitions).foreach(id => orderTable ! AddRowToTable(RowType(id, id, id, id)))
-    (0 until numberOfPartitions).foreach(_ => expectMsg(RowAddedToTable()))
+    (0 until numberOfRows).foreach(id => table ! AddRowToTable(RowType(id, id, id, id)))
+    (0 until numberOfRows).foreach(_ => expectMsg(RowAddedToTable()))
 
-    orderTable ! GetPartitions()
+    table ! GetPartitions()
     val partitions = expectMsgType[PartitionsInTable]
-    partitions.partitions.size shouldEqual numberOfPartitions
+    partitions.partitions.size shouldEqual numberOfRows
 
-    def checkColumnValues(suffix: String): Seq[ValueType] = {
-      orderTable ! GetColumnFromTable(s"column${suffix.toUpperCase}")
-      val columnActors = expectMsgType[ActorsForColumn]
-      columnActors.columnActors.size shouldEqual numberOfPartitions
-
-      columnActors.columnActors.values.foreach(columnActor => columnActor ! ScanColumn())
-      val values = (1 to numberOfPartitions)
-        .map(_ => expectMsgType[ScannedValues])
-        .sortBy(c => c.partitionId)
-        .flatMap(c => c.values.values)
-
-      // Verify correct values
-      values.sorted shouldEqual (0 until numberOfPartitions).toVector.sorted
-      values
+    val materializedTable = partitions.partitions.mapValues(p => materializePartition(p))
+    materializedTable.foreach {
+      case (id, partition) if id < (materializedTable.size - 1) => partition.values.head.size shouldEqual partitionSize
+      case _ => // ignore
     }
 
-    val valuesA = checkColumnValues("a")
-    val valuesB = checkColumnValues("b")
-    val valuesC = checkColumnValues("c")
-    val valuesD = checkColumnValues("d")
+    checkTableIgnoreOrder(table, Map(
+      0 -> Map("a" -> ColumnType(0), "b" -> ColumnType(0), "c" -> ColumnType(0), "d" -> ColumnType(0)),
+      1 -> Map("a" -> ColumnType(1), "b" -> ColumnType(1), "c" -> ColumnType(1), "d" -> ColumnType(1)),
+      2 -> Map("a" -> ColumnType(2), "b" -> ColumnType(2), "c" -> ColumnType(2), "d" -> ColumnType(2)),
+      3 -> Map("a" -> ColumnType(3), "b" -> ColumnType(3), "c" -> ColumnType(3), "d" -> ColumnType(3)),
+      4 -> Map("a" -> ColumnType(4), "b" -> ColumnType(4), "c" -> ColumnType(4), "d" -> ColumnType(4)),
+      5 -> Map("a" -> ColumnType(5), "b" -> ColumnType(5), "c" -> ColumnType(5), "d" -> ColumnType(5)),
+      6 -> Map("a" -> ColumnType(6), "b" -> ColumnType(6), "c" -> ColumnType(6), "d" -> ColumnType(6)),
+      7 -> Map("a" -> ColumnType(7), "b" -> ColumnType(7), "c" -> ColumnType(7), "d" -> ColumnType(7)),
+      8 -> Map("a" -> ColumnType(8), "b" -> ColumnType(8), "c" -> ColumnType(8), "d" -> ColumnType(8)),
+      9 -> Map("a" -> ColumnType(9), "b" -> ColumnType(9), "c" -> ColumnType(9), "d" -> ColumnType(9))
+    ))
+  }
 
-    valuesA shouldEqual valuesB
-    valuesA shouldEqual valuesC
-    valuesA shouldEqual valuesD
+  it should "insert rows correctly aligned (2)" in {
+    val numberOfRows = 10
+    val partitionSize = 2
+    val table = system.actorOf(Table.props(Seq("a", "b", "c", "d"), partitionSize))
 
+    (0 until numberOfRows).foreach(id => table ! AddRowToTable(RowType(id, id, id, id)))
+    (0 until numberOfRows).foreach(_ => expectMsg(RowAddedToTable()))
+
+    table ! GetPartitions()
+    val partitions = expectMsgType[PartitionsInTable]
+    partitions.partitions.size shouldEqual (numberOfRows / 2)
+
+    val materializedTable = partitions.partitions.mapValues(p => materializePartition(p))
+    materializedTable.foreach {
+      case (id, partition) if id < (materializedTable.size - 1) => partition.values.head.size shouldEqual partitionSize
+      case _ => // ignore
+    }
+
+    checkTableIgnoreOrder(table, Map(
+      0 -> Map("a" -> ColumnType(0, 1), "b" -> ColumnType(0, 1), "c" -> ColumnType(0, 1), "d" -> ColumnType(0, 1)),
+      1 -> Map("a" -> ColumnType(2, 3), "b" -> ColumnType(2, 3), "c" -> ColumnType(2, 3), "d" -> ColumnType(2, 3)),
+      2 -> Map("a" -> ColumnType(4, 5), "b" -> ColumnType(4, 5), "c" -> ColumnType(4, 5), "d" -> ColumnType(4, 5)),
+      3 -> Map("a" -> ColumnType(6, 7), "b" -> ColumnType(6, 7), "c" -> ColumnType(6, 7), "d" -> ColumnType(6, 7)),
+      4 -> Map("a" -> ColumnType(8, 9), "b" -> ColumnType(8, 9), "c" -> ColumnType(8, 9), "d" -> ColumnType(8, 9))
+    ))
+  }
+
+  it should "insert rows correctly aligned (3)" in {
+    val numberOfRows = 10
+    val partitionSize = 3
+    val table = system.actorOf(Table.props(Seq("a", "b", "c", "d"), partitionSize))
+
+    (0 until numberOfRows).foreach(id => table ! AddRowToTable(RowType(id, id, id, id)))
+    (0 until numberOfRows).foreach(_ => expectMsg(RowAddedToTable()))
+
+    table ! GetPartitions()
+    val partitions = expectMsgType[PartitionsInTable]
+//    partitions.partitions.size shouldEqual (numberOfRows / 3.0).ceil.toInt
+
+    val materializedTable = partitions.partitions.mapValues(p => materializePartition(p))
+
+    val foo = materializedTable.mapValues(_.mapValues(_.size()))
+    println(foo)
+
+
+    materializedTable.foreach {
+      case (id, partition) if id < (materializedTable.size - 1) => partition.values.head.size shouldEqual partitionSize
+      case _ => // ignore
+    }
+
+
+
+    checkTableIgnoreOrder(table, Map(
+      0 -> Map("a" -> ColumnType(0, 1, 2), "b" -> ColumnType(0, 1, 2), "c" -> ColumnType(0, 1, 2), "d" -> ColumnType(0, 1, 2)),
+      1 -> Map("a" -> ColumnType(3, 4, 5), "b" -> ColumnType(3, 4, 5), "c" -> ColumnType(3, 4, 5), "d" -> ColumnType(3, 4, 5)),
+      2 -> Map("a" -> ColumnType(6, 7, 8), "b" -> ColumnType(6, 7, 8), "c" -> ColumnType(6, 7, 8), "d" -> ColumnType(6, 7, 8)),
+      3 -> Map("a" -> ColumnType(9), "b" -> ColumnType(9), "c" -> ColumnType(9), "d" -> ColumnType(9))
+    ))
   }
 }
