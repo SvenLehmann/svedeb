@@ -1,11 +1,11 @@
 package de.hpi.svedeb.api
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import de.hpi.svedeb.api.QueryPlanExecutor.{QueryPlanExecutorState, QueryFinished, Run}
+import de.hpi.svedeb.api.QueryPlanExecutor.{QueryFinished, QueryPlanExecutorState, Run}
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators._
 import de.hpi.svedeb.queryPlan._
-import de.hpi.svedeb.table.RowType
+import de.hpi.svedeb.table.{ColumnType, RowType}
 
 object QueryPlanExecutor {
   case class Run(queryId: Int, queryPlan: QueryPlan)
@@ -47,8 +47,8 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
     node match {
       case GetTable(tableName: String) =>
         context.actorOf(GetTableOperator.props(tableManager, tableName))
-      case CreateTable(tableName: String, columnNames: List[String], partitionSize: Int) =>
-        context.actorOf(CreateTableOperator.props(tableManager, tableName, columnNames, partitionSize))
+      case CreateTable(tableName: String, data: Map[Int, Map[String, ColumnType]], partitionSize: Int) =>
+        context.actorOf(CreateTableOperator.props(tableManager, tableName, data, partitionSize))
       case DropTable(tableName: String) =>
         context.actorOf(DropTableOperator.props(tableManager, tableName))
       case Scan(_, columnName: String, predicate) =>

@@ -4,17 +4,18 @@ import akka.actor.{ActorRef, Props}
 import de.hpi.svedeb.management.TableManager.{AddTable, TableAdded}
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.CreateTableOperator.State
+import de.hpi.svedeb.table.ColumnType
 
 object CreateTableOperator {
-  def props(tableManager: ActorRef, tableName: String, columnNames: Seq[String], partitionSize: Int): Props =
-    Props(new CreateTableOperator(tableManager, tableName, columnNames, partitionSize))
+  def props(tableManager: ActorRef, tableName: String, data: Map[Int, Map[String, ColumnType]], partitionSize: Int): Props =
+    Props(new CreateTableOperator(tableManager, tableName, data, partitionSize))
 
   private case class State(sender: ActorRef)
 }
 
 class CreateTableOperator(tableManager: ActorRef,
                           tableName: String,
-                          columnNames: Seq[String],
+                          data: Map[Int, Map[String, ColumnType]],
                           partitionSize: Int) extends AbstractOperator {
   override def receive: Receive = active(State(ActorRef.noSender))
 
@@ -22,7 +23,7 @@ class CreateTableOperator(tableManager: ActorRef,
     val newState = State(sender())
     context.become(active(newState))
 
-    tableManager ! AddTable(tableName, columnNames, partitionSize)
+    tableManager ! AddTable(tableName, data, partitionSize)
   }
 
   private def handleTableAdded(state: State, tableRef: ActorRef): Unit = {

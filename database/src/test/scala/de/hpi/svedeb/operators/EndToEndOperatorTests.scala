@@ -12,7 +12,7 @@ class EndToEndOperatorTests extends AbstractActorTest("EndToEndTest") {
     val partitions = table.zipWithIndex.map {
       case (partition, id) => (id, system.actorOf(Partition.props(id, partition, partitionSize)))
     }.toMap
-    system.actorOf(Table.props(table.headOption.getOrElse(Map()).keys.toSeq, partitionSize, partitions))
+    system.actorOf(Table.propsWithPartitions(table.headOption.getOrElse(Map()).keys.toSeq, partitions))
   }
 
   "A query" should "work with chained operators" in {

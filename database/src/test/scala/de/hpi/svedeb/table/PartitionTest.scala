@@ -10,7 +10,7 @@ import org.scalatest.Matchers._
 class PartitionTest extends AbstractActorTest("PartitionTest") {
 
   "A partition actor" should "be initialized with columns" in {
-    val partition = system.actorOf(Partition.props(0, Seq("someColumn")))
+    val partition = system.actorOf(Partition.props(0, Map("someColumn" -> ColumnType())))
 
     partition ! ListColumnNames()
     val columnNameList = expectMsgType[ColumnNameList]
@@ -24,7 +24,7 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "return a column ref" in {
-    val partition = system.actorOf(Partition.props(0, Seq("someColumn", "someOtherColumn")))
+    val partition = system.actorOf(Partition.props(0, Map("someColumn" -> ColumnType(), "someOtherColumn" -> ColumnType())))
 
     partition ! GetColumn("someOtherColumn")
     val columnRetrieved = expectMsgType[ColumnRetrieved]
@@ -34,21 +34,25 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "add a row with one column" in {
-    val partition = system.actorOf(Partition.props(0, Seq("someColumn")))
+    val partition = system.actorOf(Partition.props(0, Map("someColumn" -> ColumnType())))
 
     partition ! AddRow(RowType(1), ActorRef.noSender)
     expectMsgType[RowAdded]
+
+    checkPartition(partition, Map("someColumn" -> ColumnType(1)))
   }
 
   it should "add a row with multiple columns" in {
-    val partition = system.actorOf(Partition.props(0, Seq("column1", "column2")))
+    val partition = system.actorOf(Partition.props(0, Map("column1" -> ColumnType(), "column2" -> ColumnType())))
 
     partition ! AddRow(RowType(1, 2), ActorRef.noSender)
     expectMsgType[RowAdded]
+
+    checkPartition(partition, Map("column1" -> ColumnType(1), "column2" -> ColumnType(2)))
   }
 
   it should "add multiple rows with multiple columns" in {
-    val partition = system.actorOf(Partition.props(0, Seq("column1", "column2")))
+    val partition = system.actorOf(Partition.props(0, Map("column1" -> ColumnType(), "column2" -> ColumnType())))
 
     partition ! AddRow(RowType(1, 2), ActorRef.noSender)
     partition ! AddRow(RowType(3, 4), ActorRef.noSender)
@@ -60,7 +64,7 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "return Partition Full" in {
-    val partition = system.actorOf(Partition.props(0, Seq("column1", "column2"), 1))
+    val partition = system.actorOf(Partition.props(0, Map("column1" -> ColumnType(), "column2" -> ColumnType()), 1))
 
     partition ! AddRow(RowType(1, 2), ActorRef.noSender)
     expectMsgType[RowAdded]
@@ -75,7 +79,7 @@ class PartitionTest extends AbstractActorTest("PartitionTest") {
 
   it should "return PartitionFull (2)" in {
     val partitionSize = 2
-    val partition = system.actorOf(Partition.props(0, Seq("column1", "column2"), partitionSize))
+    val partition = system.actorOf(Partition.props(0, Map("column1" -> ColumnType(), "column2" -> ColumnType()), partitionSize))
 
     partition ! AddRow(RowType(1, 1), ActorRef.noSender)
     partition ! AddRow(RowType(2, 2), ActorRef.noSender)

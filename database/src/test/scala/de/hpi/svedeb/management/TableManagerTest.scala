@@ -3,6 +3,7 @@ package de.hpi.svedeb.management
 import akka.actor.Status.Failure
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.management.TableManager._
+import de.hpi.svedeb.table.ColumnType
 
 class TableManagerTest extends AbstractActorTest("PartitionTest") {
 
@@ -15,7 +16,7 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
 
   it should "add a table" in {
     val tableManager = system.actorOf(TableManager.props())
-    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"))
+    tableManager ! AddTable("SomeTable", Map(0 -> Map("columnA" -> ColumnType(), "columnB" -> ColumnType())))
     expectMsgType[TableAdded]
 
     tableManager ! ListTables()
@@ -29,7 +30,7 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
     tableManager ! RemoveTable("SomeTable")
     expectMsgType[TableRemoved]
 
-    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"))
+    tableManager ! AddTable("SomeTable", Map(0 -> Map("columnA" -> ColumnType(), "columnB" -> ColumnType())))
     expectMsgType[TableAdded]
 
     tableManager ! RemoveTable("SomeTable")
@@ -38,7 +39,7 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
 
   it should "fetch a table" in {
     val tableManager = system.actorOf(TableManager.props())
-    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"))
+    tableManager ! AddTable("SomeTable", Map(0 -> Map("columnA" -> ColumnType(), "columnB" -> ColumnType())))
     expectMsgType[TableAdded]
 
     tableManager ! FetchTable("SomeTable")

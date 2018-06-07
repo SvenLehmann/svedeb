@@ -64,7 +64,7 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
         val partition = context.actorOf(Partition.props(partitionId, partitionResult, Utils.defaultPartitionSize))
         (partitionId, partition)
       }.toMap
-    context.actorOf(Table.props(columnNames, Utils.defaultPartitionSize, partitions))
+    context.actorOf(Table.propsWithPartitions(columnNames, partitions))
   }
 
   private def handleActorsForColumn(state: ProjectionState,

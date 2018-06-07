@@ -19,21 +19,28 @@ object Table {
   case class ActorsForColumn(columnName: String, columnActors: Map[Int, ActorRef])
   case class PartitionsInTable(partitions: Map[Int, ActorRef])
 
-  // TODO: store map of (partition id -> partition)
-  def props(columnNames: Seq[String],
-            partitionSize: Int = Utils.defaultPartitionSize,
-            initialPartitions: Map[Int, ActorRef] = Map.empty): Props =
-    Props(new Table(columnNames, partitionSize, initialPartitions))
 
-  private case class TableState(cachedColumns: Map[String, Map[Int, ActorRef]], partitions: Map[Int, ActorRef]) {
+  def propsWithData(data: Map[Int, Map[String, ColumnType]],
+                    partitionSize: Int = Utils.defaultPartitionSize
+           ): Props = {
+    Props(new TableWithData(data, partitionSize))
+  }
+
+  def propsWithPartitions(columnNames: Seq[String],
+                          partitions: Map[Int, ActorRef],
+                          partitionSize: Int = Utils.defaultPartitionSize): Props = {
+    Props(new TableWithPartitions(columnNames, partitions, partitionSize))
+  }
+
+  case class TableState(columnNames: Seq[String], cachedColumns: Map[String, Map[Int, ActorRef]], partitions: Map[Int, ActorRef]) {
     def addPartition(partitionId: Int, newPartition: ActorRef): TableState = {
-      TableState(cachedColumns, partitions + (partitionId -> newPartition))
+      TableState(columnNames, cachedColumns, partitions + (partitionId -> newPartition))
     }
 
     def addColumn(partitionId: Int, columnName: String, column: ActorRef): TableState = {
       val newInnerMap = cachedColumns(columnName) + (partitionId -> column)
       val newColumns = cachedColumns + (columnName -> newInnerMap)
-      TableState(newColumns, partitions)
+      TableState(columnNames, newColumns, partitions)
     }
 
     def isCacheComplete(columnName: String): Boolean = {
@@ -42,13 +49,9 @@ object Table {
   }
 }
 
-class Table(columnNames: Seq[String],
-            partitionSize: Int,
-            initialPartitions: Map[Int, ActorRef]) extends Actor with ActorLogging {
-
-  override def receive: Receive = active(TableState(Map.empty, initialPartitions))
-
-  private def listColumns(): ColumnList = {
+abstract class Table(partitionSize: Int) extends Actor with ActorLogging {
+  private def listColumns(state: TableState): ColumnList = {
+    val columnNames = state.columnNames
     log.debug("Listing columns: {}", columnNames)
     ColumnList(columnNames)
   }
@@ -60,15 +63,19 @@ class Table(columnNames: Seq[String],
   private def handlePartitionFull(state: TableState, row: RowType, originalSender: ActorRef): Unit = {
     log.debug("Creating new partition")
     val newPartitionId = state.partitions.size
-    val newPartition = context.actorOf(Partition.props(newPartitionId, columnNames, partitionSize))
+    val newPartition = createNewPartition(state, newPartitionId)
     val newState = state.addPartition(newPartitionId, newPartition)
     context.become(active(newState))
     newPartition ! AddRow(row, originalSender)
   }
 
+  private def createNewPartition(state: TableState, partitionId: Int): ActorRef = {
+    context.actorOf(Partition.props(partitionId, state.columnNames.map(name => (name, ColumnType())).toMap, partitionSize))
+  }
+
   private def handleAddRow(state: TableState, row: RowType): Unit = {
     if (state.partitions.isEmpty) {
-      val newPartition = context.actorOf(Partition.props(0, columnNames, partitionSize))
+      val newPartition = createNewPartition(state, 0)
       newPartition ! AddRow(row, sender())
 
       val newState = state.addPartition(0, newPartition)
@@ -84,9 +91,9 @@ class Table(columnNames: Seq[String],
     sender() ! PartitionsInTable(state.partitions)
   }
 
-  private def active(state: TableState): Receive = {
+  protected def active(state: TableState): Receive = {
     case AddRowToTable(row) => handleAddRow(state, row)
-    case ListColumnsInTable() => sender() ! listColumns()
+    case ListColumnsInTable() => sender() ! listColumns(state)
     case GetColumnFromTable(columnName) => fetchColumns(state, columnName)
     case GetPartitions() => handleGetPartitions(state)
     case RowAdded(originalSender) => originalSender ! RowAddedToTable()
@@ -95,6 +102,25 @@ class Table(columnNames: Seq[String],
       originalSender ! ActorsForColumn(columnName, columnActors)
     case m => throw new Exception(s"Message not understood: $m")
   }
+}
+
+class TableWithData(data: Map[Int, Map[String, ColumnType]], partitionSize: Int) extends Table(partitionSize) {
+  override def receive: Receive = active(TableState(
+    data.headOption.map { case (_, partition) => partition.keys.toSeq}.getOrElse(Seq()),
+    Map.empty,
+    data.map { case (id, partitionData) => (id, context.actorOf(Partition.props(id, partitionData, partitionSize))) }
+  ))
+}
+
+class TableWithPartitions(columnNames: Seq[String], partitions: Map[Int, ActorRef], partitionSize: Int) extends Table(partitionSize) {
+
+  override def receive: Receive = active(TableState(
+    columnNames,
+    Map.empty,
+    partitions
+  ))
+
+
 }
 
 

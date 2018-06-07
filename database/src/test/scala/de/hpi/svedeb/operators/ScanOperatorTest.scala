@@ -24,7 +24,7 @@ class ScanOperatorTest extends AbstractActorTest("ScanOperator") {
       Map("columnA" -> ColumnType(1, 2), "columnB" -> ColumnType(1, 2)), partitionSize))
     val partition2 = system.actorOf(Partition.props(2,
       Map("columnA" -> ColumnType(3, 4), "columnB" -> ColumnType(3, 4)), partitionSize))
-    val table = system.actorOf(Table.props(Seq("columnA", "columnB"), partitionSize, Map(1 -> partition1, 2 -> partition2)))
+    val table = system.actorOf(Table.propsWithPartitions(Seq("columnA", "columnB"), Map(1 -> partition1, 2 -> partition2)))
     val operator = system.actorOf(ScanOperator.props(table, "columnA", _ == 1))
 
     operator ! Execute()

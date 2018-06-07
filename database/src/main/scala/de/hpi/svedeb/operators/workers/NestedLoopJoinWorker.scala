@@ -144,8 +144,7 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
       // using for-comprehension to compute cross product of all potential join combinations
       // Filtering by predicate
 
-
-      log.info(s"Joining values: ${newState.leftColumnValues.get.values.size} vs. ${newState.rightColumnValues.get.values.size}")
+      log.debug(s"Joining values: ${newState.leftColumnValues.get.values.size} vs. ${newState.rightColumnValues.get.values.size}")
 
       def join(): Seq[(Int, Int)] = {
         for {

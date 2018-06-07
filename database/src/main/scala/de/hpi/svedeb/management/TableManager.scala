@@ -3,11 +3,11 @@ package de.hpi.svedeb.management
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.management.TableManager._
-import de.hpi.svedeb.table.Table
+import de.hpi.svedeb.table.{ColumnType, Table}
 import de.hpi.svedeb.utils.Utils
 
 object TableManager {
-  case class AddTable(name: String, columnNames: Seq[String], partitionSize: Int = Utils.defaultPartitionSize)
+  case class AddTable(name: String, data: Map[Int, Map[String, ColumnType]], partitionSize: Int = Utils.defaultPartitionSize)
   case class RemoveTable(name: String)
   case class ListTables()
   case class FetchTable(name: String)
@@ -24,10 +24,11 @@ class TableManager extends Actor with ActorLogging {
   override def receive: Receive = active(Map.empty[String, ActorRef])
 
   private def addTable(tables: Map[String, ActorRef],
-                       name: String, columnNames: Seq[String],
+                       name: String,
+                       data: Map[Int, Map[String, ColumnType]],
                        partitionSize: Int): Unit = {
     log.debug("Adding Table")
-    val table = context.actorOf(Table.props(columnNames, partitionSize), name)
+    val table = context.actorOf(Table.propsWithData(data, partitionSize), name)
     val newTables = tables + (name -> table)
     context.become(active(newTables))
     sender() ! TableAdded(table)
@@ -49,7 +50,7 @@ class TableManager extends Actor with ActorLogging {
   }
 
   private def active(tables: Map[String, ActorRef]): Receive = {
-    case AddTable(name, columnNames, partitionSize) => addTable(tables, name, columnNames, partitionSize)
+    case AddTable(name, data, partitionSize) => addTable(tables, name, data, partitionSize)
     case RemoveTable(name) => removeTable(tables, name)
     case ListTables() => sender() ! TableList(tables.keys.toList)
     case FetchTable(name) => fetchTable(tables, name)

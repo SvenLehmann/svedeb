@@ -129,10 +129,10 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
 
   private def createNewTable(state: JoinState): Unit = {
     log.debug("Create new table")
-    val table = context.actorOf(Table.props(
+    val table = context.actorOf(Table.propsWithPartitions(
       state.leftColumnNames.get ++ state.rightColumnNames.get,
-      Utils.defaultPartitionSize,
-      state.result.filter(_._2.isDefined).mapValues(_.get)))
+      state.result.filter(_._2.isDefined).mapValues(_.get)
+    ))
     log.debug("Created output table, sending to {}", state.originalSender)
     state.originalSender ! QueryResult(table)
   }

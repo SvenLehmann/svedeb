@@ -3,6 +3,7 @@ package de.hpi.svedeb.table
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.table.Column.{AppendValue, ValueAppended}
 import de.hpi.svedeb.table.Partition._
+import de.hpi.svedeb.utils.Utils
 
 
 /**
@@ -25,14 +26,9 @@ object Partition {
   case class RowAdded(originalSender: ActorRef)
   case class PartitionFull(row: RowType, originalSender: ActorRef)
 
-  def props(partitionId: Int, columnNames: Seq[String] = Seq.empty[String], partitionSize: Int = 10): Props = {
-    val columns = columnNames.map(name => (name, ColumnType())).toMap
-    Props(new Partition(partitionId, partitionSize, columns))
-  }
-
   def props(partitionId: Int,
             columns: Map[String, ColumnType],
-            partitionSize: Int): Props = Props(new Partition(partitionId, partitionSize, columns))
+            partitionSize: Int = Utils.defaultPartitionSize): Props = Props(new Partition(partitionId, partitionSize, columns))
 
   private case class PartitionState(processingInsert: Boolean,
                                     rowCount: Int,

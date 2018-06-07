@@ -5,6 +5,7 @@ import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.management.TableManager.{AddTable, TableAdded}
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
+import de.hpi.svedeb.table.ColumnType
 
 class CreateTableOperatorTest extends AbstractActorTest("CreateTableOperator") {
 
@@ -17,7 +18,11 @@ class CreateTableOperatorTest extends AbstractActorTest("CreateTableOperator") {
     })
 
     val createTableOperator = system.actorOf(CreateTableOperator.props(
-      tableManager.ref, "SomeTable", Seq("columnA", "columnB"), partitionSize = 10))
+      tableManager.ref,
+      "SomeTable",
+      Map(0 -> Map("columnA" -> ColumnType(), "columnB" -> ColumnType())),
+      partitionSize = 10
+    ))
     createTableOperator ! Execute()
 
     expectMsgType[QueryResult]
