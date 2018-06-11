@@ -13,9 +13,9 @@ object JoinBenchmark extends AbstractBenchmark {
 
   val partitionSize = 1000
 
-  override def setup(api: ActorRef): Unit = {
-    loadData(api, "table1", Seq("a1", "b1"), 20000, partitionSize)
-    loadData(api, "table2", Seq("a2", "b2"), 20000, partitionSize)
+  override def setup(api: ActorRef, tableSize: Int): Unit = {
+    loadData(api, "table1", Seq("a1", "b1"), tableSize, partitionSize)
+    loadData(api, "table2", Seq("a2", "b2"), tableSize / 10, partitionSize)
   }
 
   override def runBenchmark(api: ActorRef): Result = {

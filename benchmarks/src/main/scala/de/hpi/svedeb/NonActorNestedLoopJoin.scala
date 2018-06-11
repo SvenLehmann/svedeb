@@ -1,15 +1,23 @@
 package de.hpi.svedeb
 
-object NonActorNestedLoopJoin extends App {
+import akka.actor.ActorRef
+import de.hpi.svedeb.api.API.Result
+import de.hpi.svedeb.table.ColumnType
+
+object NonActorNestedLoopJoin extends AbstractBenchmark {
 
   val columns = Seq("a", "b")
-  val rowCount = 20000
   val partitionSize = 1000
 
-  val left = DataGenerator.generateData(columns, rowCount, partitionSize)
-  val right = DataGenerator.generateData(columns, rowCount, partitionSize)
+  private var left: Map[Int, Map[String, ColumnType]] = _
+  private var right: Map[Int, Map[String, ColumnType]] = _
 
-  def join(): Seq[(Int, Int)] = {
+  override def setup(api: ActorRef, tableSize: Int): Unit = {
+    left = DataGenerator.generateData(columns, tableSize, partitionSize)
+    right = DataGenerator.generateData(columns, tableSize/10, partitionSize)
+  }
+
+  override def runBenchmark(api: ActorRef): Result = {
     val result = left.flatMap {
       case (_, leftPartition) =>
         right.map {
@@ -25,8 +33,12 @@ object NonActorNestedLoopJoin extends App {
     }
 
     val flattened = result.flatten
-    flattened.toSeq
+    val flattenedSeq = flattened.toSeq
+
+    Result(ActorRef.noSender)
   }
 
-  val result = Utils.time("NonActorJoin", join())
+  override def tearDown(api: ActorRef): Unit = {}
+
+  override val name: String = "NonActorNestedLoopJoin"
 }

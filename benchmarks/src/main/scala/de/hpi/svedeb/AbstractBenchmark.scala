@@ -12,11 +12,11 @@ import scala.concurrent.Await
 import scala.language.postfixOps
 
 abstract class AbstractBenchmark {
-  implicit val timeout: Timeout = Timeout(3000 seconds)
+  implicit val timeout: Timeout = Timeout(30 minutes)
 
   val name: String
 
-  def setup(api: ActorRef): Unit
+  def setup(api: ActorRef, tableSize: Int): Unit
 
   def runBenchmark(api: ActorRef): Result
 
