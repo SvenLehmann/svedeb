@@ -11,11 +11,11 @@ import scala.language.postfixOps
 
 object JoinBenchmark extends AbstractBenchmark {
 
-  val partitionSize = 1000
+  val partitionSize = 10000
 
   override def setup(api: ActorRef, tableSize: Int): Unit = {
-    loadData(api, "table1", Seq("a1", "b1"), tableSize, partitionSize)
-    loadData(api, "table2", Seq("a2", "b2"), tableSize / 10, partitionSize)
+    loadData(api, "table1", Seq("a1"), tableSize, partitionSize)
+    loadData(api, "table2", Seq("a2"), tableSize / 10, partitionSize)
   }
 
   override def runBenchmark(api: ActorRef): Result = {

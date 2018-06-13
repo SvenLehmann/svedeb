@@ -11,14 +11,11 @@ import org.scalatest.Matchers._
 class GetTableOperatorTest extends AbstractActorTest("GetTableOperator") {
 
   "A GetTableOperator" should "retrieve a table" in {
-    val tableManager = TestProbe("TableManager")
     val table = TestProbe("Table")
 
-    tableManager.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case FetchTable(_) => sender ! TableFetched(table.ref); TestActor.KeepRunning
-    })
+    val tableManager = generateTableManagerTestProbe(Seq(table.ref))
 
-    val getTableOperator = system.actorOf(GetTableOperator.props(tableManager.ref, "SomeTable"))
+    val getTableOperator = system.actorOf(GetTableOperator.props(tableManager, "SomeTable"))
     getTableOperator ! Execute()
 
     val resultTable = expectMsgType[QueryResult]

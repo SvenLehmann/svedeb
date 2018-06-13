@@ -2,6 +2,7 @@ package de.hpi.svedeb
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.testkit.{ImplicitSender, TestActor, TestKit, TestProbe}
+import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.table.Column._
 import de.hpi.svedeb.table.ColumnType
 import de.hpi.svedeb.table.Partition._
@@ -62,19 +63,22 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
   def generateColumnTestProbe(partitionId: Int, columnName: String, columnDefinition: ColumnType): ActorRef = {
     val column = TestProbe("Column")
 
-    column.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case ScanColumn(None) =>
-        sender.tell(ScannedValues(partitionId, columnName, columnDefinition), column.ref)
-        TestActor.KeepRunning
-      case ScanColumn(Some(indices)) =>
-        sender.tell(ScannedValues(partitionId, columnName, columnDefinition.filterByIndices(indices)), column.ref)
-        TestActor.KeepRunning
-      case AppendValue(_) =>
-        sender.tell(ValueAppended(partitionId, columnName), column.ref); TestActor.KeepRunning
-      case FilterColumn(predicate) =>
-        val filteredIndices = columnDefinition.filterByPredicate(predicate)
-        sender.tell(FilteredRowIndices(partitionId, columnName, filteredIndices), column.ref)
-        TestActor.KeepRunning
+    column.setAutoPilot(new TestActor.AutoPilot {
+      def run(sender: ActorRef, msg: Any): TestActor.AutoPilot =
+        msg match {
+          case ScanColumn(None) =>
+            sender.tell(ScannedValues(partitionId, columnName, columnDefinition), column.ref)
+            TestActor.KeepRunning
+          case ScanColumn(Some(indices)) =>
+            sender.tell(ScannedValues(partitionId, columnName, columnDefinition.filterByIndices(indices)), column.ref)
+            TestActor.KeepRunning
+          case AppendValue(_) =>
+            sender.tell(ValueAppended(partitionId, columnName), column.ref); TestActor.KeepRunning
+          case FilterColumn(predicate) =>
+            val filteredIndices = columnDefinition.filterByPredicate(predicate)
+            sender.tell(FilteredRowIndices(partitionId, columnName, filteredIndices), column.ref)
+            TestActor.KeepRunning
+        }
     })
 
     column.ref
@@ -88,17 +92,20 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
       case (columnName, values) => (columnName, generateColumnTestProbe(partitionId, columnName, values))
     }
 
-    partition.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case ListColumnNames() =>
-        sender.tell(ColumnNameList(partitionDefinition.keys.toSeq), partition.ref)
-        TestActor.KeepRunning
-      case GetColumns() =>
-        sender.tell(ColumnsRetrieved(columns), partition.ref)
-        TestActor.KeepRunning
-      case GetColumn(columnName) =>
-        sender.tell(ColumnRetrieved(partitionId, columnName, columns(columnName)), partition.ref)
-        TestActor.KeepRunning
-      case _ => throw new Exception("Unexpected message type")
+    partition.setAutoPilot(new TestActor.AutoPilot {
+      def run(sender: ActorRef, msg: Any): TestActor.AutoPilot =
+        msg match {
+          case ListColumnNames() =>
+            sender.tell(ColumnNameList(partitionDefinition.keys.toSeq), partition.ref)
+            TestActor.KeepRunning
+          case GetColumns() =>
+            sender.tell(ColumnsRetrieved(columns), partition.ref)
+            TestActor.KeepRunning
+          case GetColumn(columnName) =>
+            sender.tell(ColumnRetrieved(partitionId, columnName, columns(columnName)), partition.ref)
+            TestActor.KeepRunning
+          case _ => throw new Exception("Unexpected message type")
+        }
     })
 
     PartitionTestProbe(partition.ref, columns)
@@ -112,23 +119,40 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
     }.toMap
     val partitions = partitionsWithColumns.mapValues(_.partition)
 
-    table.setAutoPilot((sender: ActorRef, msg: Any) => msg match {
-      case GetPartitions() => sender.tell(PartitionsInTable(partitions), table.ref); TestActor.KeepRunning
-      case ListColumnsInTable() =>
-        if (tableDefinition.isEmpty) {
-          sender.tell(ColumnList(Seq.empty), table.ref)
-        } else {
-          val columnNames = tableDefinition.head.keys.toSeq
-          sender.tell(ColumnList(columnNames), table.ref)
+    table.setAutoPilot(new TestActor.AutoPilot {
+      def run(sender: ActorRef, msg: Any): TestActor.AutoPilot =
+        msg match {
+          case GetPartitions() => sender.tell(PartitionsInTable(partitions), table.ref); TestActor.KeepRunning
+          case ListColumnsInTable() =>
+            if (tableDefinition.isEmpty) {
+              sender.tell(ColumnList(Seq.empty), table.ref)
+            } else {
+              val columnNames = tableDefinition.head.keys.toSeq
+              sender.tell(ColumnList(columnNames), table.ref)
+            }
+            TestActor.KeepRunning
+          case GetColumnFromTable(columnName) =>
+            val columns = partitionsWithColumns.mapValues { _.columns(columnName) }
+            sender.tell(ActorsForColumn(columnName, columns), table.ref)
+            TestActor.KeepRunning
         }
-        TestActor.KeepRunning
-      case GetColumnFromTable(columnName) =>
-        val columns = partitionsWithColumns.mapValues { _.columns(columnName) }
-        sender.tell(ActorsForColumn(columnName, columns), table.ref)
-        TestActor.KeepRunning
     })
 
     table.ref
+  }
+
+  def generateTableManagerTestProbe(tables: Seq[ActorRef]): ActorRef = {
+    val tableManager = TestProbe("TableManager")
+    tableManager.setAutoPilot(new TestActor.AutoPilot {
+      def run(sender: ActorRef, msg: Any): TestActor.AutoPilot =
+        msg match {
+          case FetchTable(_) => sender ! TableFetched(tables.head); TestActor.KeepRunning
+          case RemoveTable(_) => sender ! TableRemoved(); TestActor.KeepRunning
+          case AddTable(_, _, _) => sender ! TableAdded(ActorRef.noSender); TestActor.KeepRunning
+        }
+    })
+
+    tableManager.ref
   }
 }
 

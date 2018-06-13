@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import de.hpi.svedeb.api.API.Result
 import de.hpi.svedeb.table.ColumnType
 
-object NonActorNestedLoopJoin extends AbstractBenchmark {
+object NonActorHashJoin extends AbstractBenchmark {
 
   val columns = Seq("a")
   val partitionSize = 10000
@@ -18,27 +18,37 @@ object NonActorNestedLoopJoin extends AbstractBenchmark {
   }
 
   override def runBenchmark(api: ActorRef): Result = {
+    // Build hash table of right
+    val hashTable = right.mapValues { partition =>
+      partition("a")
+        .values
+        .groupBy(f => f)
+        .withDefaultValue(Seq())
+    }
+
+    // Probe with left
     val result = left.flatMap {
       case (_, leftPartition) =>
-        right.map {
-          case (_, rightPartition) =>
+        hashTable.map {
+          case (_, rightPartitionHashTable) =>
             val leftValues = leftPartition("a")
-            val rightValues = rightPartition("a")
             for {
               l <- leftValues.values
-              r <- rightValues.values
-              if l == r
-            } yield (l, r)
+              r <- rightPartitionHashTable(l)
+            } yield {
+              (l, r)
+            }
         }
     }
 
     val flattened = result.flatten
     val flattenedSeq = flattened.toSeq
 
+    flattenedSeq
     Result(ActorRef.noSender)
   }
 
   override def tearDown(api: ActorRef): Unit = {}
 
-  override val name: String = "NonActorNestedLoopJoin"
+  override val name: String = "NonActorHashJoin"
 }
