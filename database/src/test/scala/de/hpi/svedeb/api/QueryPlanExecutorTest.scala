@@ -28,7 +28,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
   }
 
   it should "create an empty table" in {
-    val table = generateTableTestProbe(Seq.empty)
+    val table = generateTableTestProbe(Seq(Map("a" -> ColumnType(), "b" -> ColumnType())))
 
     val tableManager = generateTableManagerTestProbe(Seq(table))
 
@@ -36,7 +36,7 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     queryPlanExecutor ! Run(0, QueryPlan(CreateTable("SomeTable", Seq("a", "b"), 10)))
 
     val query = expectMsgType[QueryFinished]
-    checkTable(query.resultTable, Map.empty)
+    checkTable(query.resultTable, Map(0 -> Map("a" -> ColumnType(Vector()), "b" -> ColumnType(Vector()))))
   }
 
   it should "drop a table" in {

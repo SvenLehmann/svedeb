@@ -135,6 +135,9 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
             val columns = partitionsWithColumns.mapValues { _.columns(columnName) }
             sender.tell(ActorsForColumn(columnName, columns), table.ref)
             TestActor.KeepRunning
+          case AddRowToTable(_) =>
+            sender.tell(RowAddedToTable(), table.ref)
+            TestActor.KeepRunning
         }
     })
 
@@ -148,7 +151,9 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
         msg match {
           case FetchTable(_) => sender ! TableFetched(tables.head); TestActor.KeepRunning
           case RemoveTable(_) => sender ! TableRemoved(); TestActor.KeepRunning
-          case AddTable(_, _, _) => sender ! TableAdded(ActorRef.noSender); TestActor.KeepRunning
+          case AddTable(_, _, _) =>
+            sender ! TableAdded(tables.headOption.getOrElse(ActorRef.noSender))
+            TestActor.KeepRunning
         }
     })
 
