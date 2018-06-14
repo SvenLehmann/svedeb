@@ -35,12 +35,14 @@ class TableManager extends Actor with ActorLogging {
   }
 
   private def removeTable(tables: Map[String, ActorRef], name: String): Unit = {
-    val oldTable = tables(name)
+    val oldTable = tables.getOrElse(name, ActorRef.noSender)
 
     val newTables = tables - name
     context.become(active(newTables))
 
-    oldTable ! PoisonPill
+    if (oldTable != ActorRef.noSender) {
+      oldTable ! PoisonPill
+    }
     sender() ! TableRemoved()
   }
 
