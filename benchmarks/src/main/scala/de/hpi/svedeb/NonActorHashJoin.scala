@@ -17,7 +17,7 @@ object NonActorHashJoin extends AbstractBenchmark {
     right = DataGenerator.generateData(columns, tableSize/10, partitionSize)
   }
 
-  override def runBenchmark(api: ActorRef): Result = {
+  override def runBenchmark(api: ActorRef): Unit = {
     // Build hash table of right
     val hashTable = right.mapValues { partition =>
       partition("a")
@@ -27,7 +27,7 @@ object NonActorHashJoin extends AbstractBenchmark {
     }
 
     // Probe with left
-    val result = left.flatMap {
+    left.flatMap {
       case (_, leftPartition) =>
         hashTable.map {
           case (_, rightPartitionHashTable) =>
@@ -40,12 +40,6 @@ object NonActorHashJoin extends AbstractBenchmark {
             }
         }
     }
-
-    val flattened = result.flatten
-    val flattenedSeq = flattened.toSeq
-
-    flattenedSeq
-    Result(ActorRef.noSender)
   }
 
   override def tearDown(api: ActorRef): Unit = {}

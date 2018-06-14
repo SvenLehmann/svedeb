@@ -5,8 +5,7 @@ import de.hpi.svedeb.api.API
 import de.hpi.svedeb.api.API.{Query, Result}
 import de.hpi.svedeb.queryPlan.{GetTable, QueryPlan, Scan}
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.concurrent.Future
 
 class ThroughputBenchmark(numberOfQueries: Int) extends AbstractBenchmark {
   val partitionSize = 1000
@@ -17,9 +16,9 @@ class ThroughputBenchmark(numberOfQueries: Int) extends AbstractBenchmark {
     loadData(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize)
   }
 
-  def singleQuery(api: ActorRef): API.Result = {
+  def singleQuery(api: ActorRef): Future[Any] = {
     // Perform Scan
-    val future = api.ask(Query(
+    api.ask(Query(
       QueryPlan(
         Scan(
           GetTable("table1"),
@@ -27,12 +26,10 @@ class ThroughputBenchmark(numberOfQueries: Int) extends AbstractBenchmark {
           _ < 55)
       )
     ))
-    Await.result(future, Duration.Inf).asInstanceOf[Result]
   }
 
-  override def runBenchmark(api: ActorRef): API.Result = {
-    (1 to numberOfQueries).par.foreach(_ => singleQuery(api))
-    Result(ActorRef.noSender)
+  override def runBenchmark(api: ActorRef): Unit = {
+    val futures = (1 to numberOfQueries).par.map(_ => singleQuery(api))
   }
 
   override def tearDown(api: ActorRef): Unit = {}

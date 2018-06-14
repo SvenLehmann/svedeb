@@ -7,7 +7,7 @@ scalaVersion in ThisBuild := "2.11.8"
 
 lazy val global = project
   .in(file("."))
-  .settings(settings)
+  .settings(commonSettings)
   .aggregate(
     benchmarks,
     database
@@ -16,15 +16,20 @@ lazy val global = project
 lazy val database = project
   .settings(
     name := "database",
-    settings,
+    commonSettings,
     libraryDependencies ++= commonDependencies
   )
 
 lazy val benchmarks = project
   .settings(
     name := "benchmarks",
-    settings,
-    libraryDependencies ++= (commonDependencies :+ dependencies.spark)
+    commonSettings,
+    libraryDependencies ++= (commonDependencies :+ dependencies.spark),
+    mainClass in assembly := Some("de.hpi.svedeb.BenchmarkRunner"),
+    assemblyMergeStrategy in assembly := {
+      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+      case x => MergeStrategy.first
+    }
   ).dependsOn(database)
 
 // Dependencies
@@ -47,4 +52,6 @@ lazy val commonDependencies = Seq(
 )
 
 // Settings
-lazy val settings = Seq()
+lazy val commonSettings = Seq(
+  test in assembly := {}
+)

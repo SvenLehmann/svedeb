@@ -15,7 +15,7 @@ object ScanBenchmark extends AbstractBenchmark {
     loadData(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize)
   }
 
-  override def runBenchmark(api: ActorRef): Result = {
+  override def runBenchmark(api: ActorRef): Unit = {
     // Perform Scan
     val future = api.ask(Query(
       QueryPlan(
@@ -25,10 +25,12 @@ object ScanBenchmark extends AbstractBenchmark {
           _ < 55)
       )
     ))
-    Await.result(future, Duration.Inf).asInstanceOf[Result]
+    Await.result(future, Duration.Inf)
   }
 
-  override def tearDown(api: ActorRef): Unit = {}
+  override def tearDown(api: ActorRef): Unit = {
+    dropTable(api, "table1")
+  }
 
   override val name: String = "Scan"
 }

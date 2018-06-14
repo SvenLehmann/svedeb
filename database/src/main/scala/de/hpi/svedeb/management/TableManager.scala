@@ -1,7 +1,7 @@
 package de.hpi.svedeb.management
 
 import akka.actor.Status.Failure
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.table.{ColumnType, Table}
 import de.hpi.svedeb.utils.Utils
@@ -28,15 +28,19 @@ class TableManager extends Actor with ActorLogging {
                        data: Map[Int, Map[String, ColumnType]],
                        partitionSize: Int): Unit = {
     log.debug("Adding Table")
-    val table = context.actorOf(Table.propsWithData(data, partitionSize), name)
+    val table = context.actorOf(Table.propsWithData(data, partitionSize))
     val newTables = tables + (name -> table)
     context.become(active(newTables))
     sender() ! TableAdded(table)
   }
 
   private def removeTable(tables: Map[String, ActorRef], name: String): Unit = {
+    val oldTable = tables(name)
+
     val newTables = tables - name
     context.become(active(newTables))
+
+    oldTable ! PoisonPill
     sender() ! TableRemoved()
   }
 

@@ -18,7 +18,7 @@ object JoinBenchmark extends AbstractBenchmark {
     loadData(api, "table2", Seq("a2"), tableSize / 10, partitionSize)
   }
 
-  override def runBenchmark(api: ActorRef): Result = {
+  override def runBenchmark(api: ActorRef): Unit = {
     // Perform Join
     val future = api.ask(Query(
       QueryPlan(
@@ -30,10 +30,13 @@ object JoinBenchmark extends AbstractBenchmark {
           _ == _)
       )
     ))
-    Await.result(future, Duration.Inf).asInstanceOf[Result]
+    Await.result(future, Duration.Inf)
   }
 
-  override def tearDown(api: ActorRef): Unit = {}
+  override def tearDown(api: ActorRef): Unit = {
+    dropTable(api, "table1")
+    dropTable(api, "table2")
+  }
 
   override val name: String = "NestedLoopJoin"
 }

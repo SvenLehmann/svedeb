@@ -1,7 +1,6 @@
 package de.hpi.svedeb
 
 import akka.actor.ActorRef
-import de.hpi.svedeb.api.API.Result
 import de.hpi.svedeb.table.ColumnType
 
 object NonActorNestedLoopJoin extends AbstractBenchmark {
@@ -17,8 +16,8 @@ object NonActorNestedLoopJoin extends AbstractBenchmark {
     right = DataGenerator.generateData(columns, tableSize/10, partitionSize)
   }
 
-  override def runBenchmark(api: ActorRef): Result = {
-    val result = left.flatMap {
+  override def runBenchmark(api: ActorRef): Unit = {
+    left.flatMap {
       case (_, leftPartition) =>
         right.map {
           case (_, rightPartition) =>
@@ -31,11 +30,6 @@ object NonActorNestedLoopJoin extends AbstractBenchmark {
             } yield (l, r)
         }
     }
-
-    val flattened = result.flatten
-    val flattenedSeq = flattened.toSeq
-
-    Result(ActorRef.noSender)
   }
 
   override def tearDown(api: ActorRef): Unit = {}
