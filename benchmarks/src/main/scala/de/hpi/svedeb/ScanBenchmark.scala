@@ -2,7 +2,7 @@ package de.hpi.svedeb
 
 import akka.actor.ActorRef
 import akka.pattern.ask
-import de.hpi.svedeb.api.API.{Query, Result}
+import de.hpi.svedeb.api.API.Query
 import de.hpi.svedeb.queryPlan.{GetTable, QueryPlan, Scan}
 
 import scala.concurrent.Await
@@ -12,7 +12,7 @@ object ScanBenchmark extends AbstractBenchmark {
   val partitionSize = 10000
 
   override def setup(api: ActorRef, tableSize: Int): Unit = {
-    loadData(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize)
+    Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {
@@ -29,7 +29,7 @@ object ScanBenchmark extends AbstractBenchmark {
   }
 
   override def tearDown(api: ActorRef): Unit = {
-    dropTable(api, "table1")
+    Utils.dropTable(api, "table1")
   }
 
   override val name: String = "Scan"

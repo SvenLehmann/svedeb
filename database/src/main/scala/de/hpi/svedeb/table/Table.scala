@@ -57,6 +57,7 @@ abstract class Table(partitionSize: Int) extends Actor with ActorLogging {
   }
 
   private def fetchColumns(state: TableState, columnName: String): Unit = {
+    log.debug("Fetch columns")
     context.actorOf(TableWorker.props(state.partitions)) ! GetColumnFromTableWorker(sender(), columnName)
   }
 

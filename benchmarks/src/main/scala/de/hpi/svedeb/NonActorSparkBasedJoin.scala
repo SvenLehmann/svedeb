@@ -1,7 +1,6 @@
 package de.hpi.svedeb
 
 import akka.actor.ActorRef
-import de.hpi.svedeb.api.API.Result
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 object NonActorSparkBasedJoin extends AbstractBenchmark {

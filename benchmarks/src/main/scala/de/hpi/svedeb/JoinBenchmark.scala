@@ -14,8 +14,8 @@ object JoinBenchmark extends AbstractBenchmark {
   val partitionSize = 10000
 
   override def setup(api: ActorRef, tableSize: Int): Unit = {
-    loadData(api, "table1", Seq("a1"), tableSize, partitionSize)
-    loadData(api, "table2", Seq("a2"), tableSize / 10, partitionSize)
+    Utils.createTable(api, "table1", Seq("a1"), tableSize, partitionSize)
+    Utils.createTable(api, "table2", Seq("a2"), tableSize / 10, partitionSize)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {
@@ -34,8 +34,8 @@ object JoinBenchmark extends AbstractBenchmark {
   }
 
   override def tearDown(api: ActorRef): Unit = {
-    dropTable(api, "table1")
-    dropTable(api, "table2")
+    Utils.dropTable(api, "table1")
+    Utils.dropTable(api, "table2")
   }
 
   override val name: String = "NestedLoopJoin"
