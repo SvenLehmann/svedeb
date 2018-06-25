@@ -6,8 +6,11 @@ import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.table.{ColumnType, Table}
 import de.hpi.svedeb.utils.Utils
 
+import scala.util.Random
+
 object TableManager {
   case class AddTable(name: String, data: Map[Int, Map[String, ColumnType]], partitionSize: Int = Utils.defaultPartitionSize)
+  case class InternalAddTable(originalSender: ActorRef, name: String, data: Map[Int, Map[String, ColumnType]], partitionSize: Int = Utils.defaultPartitionSize)
   case class RemoveTable(name: String)
   case class ListTables()
   case class FetchTable(name: String)
@@ -15,6 +18,7 @@ object TableManager {
   case class ListRemoteTableManagers()
 
   case class TableAdded(table: ActorRef)
+  case class InternalTableAdded(originalSender: ActorRef, table: ActorRef)
   case class TableRemoved()
   case class TableList(tableNames: Seq[String])
   case class TableFetched(table: ActorRef)
@@ -46,11 +50,22 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
                        name: String,
                        data: Map[Int, Map[String, ColumnType]],
                        partitionSize: Int): Unit = {
+    val allTableManagers = state.remoteTableManagers :+ this.self
+    val random = new Random()
+    val chosenTableManager = allTableManagers(random.nextInt(allTableManagers.length))
+    chosenTableManager ! InternalAddTable(sender(), name, data, partitionSize)
+  }
+
+  private def internalAddTable(state: TableManagerState,
+                               originalSender: ActorRef,
+                               name: String,
+                               data: Map[Int, Map[String, ColumnType]],
+                               partitionSize: Int): Unit = {
     log.debug("Adding Table")
     val table = context.actorOf(Table.propsWithData(data, partitionSize))
     val newTables = state.addTable(name, table)
     context.become(active(newTables))
-    sender() ! TableAdded(table)
+    sender() ! InternalTableAdded(originalSender, table)
   }
 
   private def storeNewTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
@@ -81,6 +96,8 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
     case AddNewTableManager() => storeNewTableManager(state, sender())
     case ListRemoteTableManagers() => sender() ! RemoteTableManagers(state.remoteTableManagers)
     case AddTable(name, data, partitionSize) => addTable(state, name, data, partitionSize)
+    case InternalAddTable(sender, name, data, partitionSize) => internalAddTable(state, sender, name, data, partitionSize)
+    case InternalTableAdded(originalSender, table) => originalSender ! TableAdded(table)
     case RemoveTable(name) => removeTable(state, name)
     case ListTables() => sender() ! TableList(state.tables.keys.toList)
     case FetchTable(name) => fetchTable(state, name)
