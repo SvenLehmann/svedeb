@@ -11,7 +11,7 @@ object TableManager {
   case class RemoveTable(name: String)
   case class ListTables()
   case class FetchTable(name: String)
-  case class AddNewTableManager(newTableManager: ActorRef)
+  case class AddNewTableManager()
   case class ListRemoteTableManagers()
 
   case class TableAdded(table: ActorRef)
@@ -38,6 +38,8 @@ object TableManager {
 }
 
 class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorLogging {
+  remoteTableManagers.foreach(_ ! AddNewTableManager())
+
   override def receive: Receive = active(TableManagerState(Map.empty, remoteTableManagers))
 
   private def addTable(state: TableManagerState,
@@ -76,7 +78,7 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
   }
 
   private def active(state: TableManagerState): Receive = {
-    case AddNewTableManager(tableManager) => storeNewTableManager(state, tableManager)
+    case AddNewTableManager() => storeNewTableManager(state, sender())
     case ListRemoteTableManagers() => sender() ! RemoteTableManagers(state.remoteTableManagers)
     case AddTable(name, data, partitionSize) => addTable(state, name, data, partitionSize)
     case RemoveTable(name) => removeTable(state, name)

@@ -57,5 +57,6 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
     api ! ListRemoteTableManagers()
     val remoteTableManagers = expectMsgType[RemoteTableManagers]
     remoteTableManagers.tableManagers shouldEqual Seq(remoteTableManager.ref)
+    remoteTableManager.expectMsgType[AddNewTableManager]
   }
 }

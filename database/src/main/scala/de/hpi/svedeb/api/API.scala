@@ -9,7 +9,7 @@ import de.hpi.svedeb.queryPlan.QueryPlan
 import de.hpi.svedeb.table.ColumnType
 
 object API {
-  case class AddNewAPI(newAPI: ActorRef)
+  case class AddNewAPI()
   case class ListRemoteAPIs()
   case class Query(queryPlan: QueryPlan)
   case class Materialize(table: ActorRef)
@@ -35,6 +35,8 @@ object API {
 }
 
 class API(tableManager: ActorRef, remoteAPIs: Seq[ActorRef]) extends Actor with ActorLogging {
+  remoteAPIs.foreach(_ ! AddNewAPI())
+
   override def receive: Receive = active(ApiState(0, Map.empty, remoteAPIs))
 
   private def materializeTable(user: ActorRef, resultTable: ActorRef): Unit = {
@@ -50,7 +52,7 @@ class API(tableManager: ActorRef, remoteAPIs: Seq[ActorRef]) extends Actor with 
   }
 
   private def active(state: ApiState): Receive = {
-    case AddNewAPI(newAPI) => context.become(active(state.addNewAPI(newAPI)))
+    case AddNewAPI() => context.become(active(state.addNewAPI(sender())))
     case ListRemoteAPIs() => sender() ! RemoteAPIs(state.remoteAPIs)
     case Materialize(table) => materializeTable(sender(), table)
     case MaterializedTable(user, columns) => user ! MaterializedResult(columns)

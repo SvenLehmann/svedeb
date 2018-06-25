@@ -3,7 +3,7 @@ package de.hpi.svedeb.api
 import akka.actor.ActorRef
 import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.api.API.{ListRemoteAPIs, RemoteAPIs}
+import de.hpi.svedeb.api.API.{AddNewAPI, ListRemoteAPIs, RemoteAPIs}
 import de.hpi.svedeb.api.MaterializationWorker.{MaterializeTable, MaterializedTable}
 import de.hpi.svedeb.table.ColumnType
 import org.scalatest.Matchers._
@@ -33,5 +33,6 @@ class ApiTest extends AbstractActorTest("Api") {
     api ! ListRemoteAPIs()
     val remoteAPIs = expectMsgType[RemoteAPIs]
     remoteAPIs.remoteAPIs shouldEqual Seq(remoteAPI.ref)
+    remoteAPI.expectMsgType[AddNewAPI]
   }
 }
