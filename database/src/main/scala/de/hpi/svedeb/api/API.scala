@@ -9,6 +9,7 @@ import de.hpi.svedeb.queryPlan.QueryPlan
 import de.hpi.svedeb.table.ColumnType
 
 object API {
+  case class AddNewAPI(newAPI: ActorRef)
   case class Query(queryPlan: QueryPlan)
   case class Materialize(table: ActorRef)
   case class Shutdown()
@@ -16,19 +17,23 @@ object API {
   case class MaterializedResult(result: Map[String, ColumnType])
   case class Result(resultTable: ActorRef)
 
-  private case class ApiState(queryCounter: Int = 0, runningQueries: Map[Int, ActorRef] = Map.empty) {
+  private case class ApiState(queryCounter: Int, runningQueries: Map[Int, ActorRef], remoteAPIs: Seq[ActorRef]) {
     def addQuery(sender: ActorRef): (ApiState, Int) = {
       val queryId = queryCounter + 1
-      val newState = ApiState(queryId, runningQueries + (queryId -> sender))
+      val newState = ApiState(queryId, runningQueries + (queryId -> sender), remoteAPIs)
       (newState, queryId)
+    }
+
+    def addNewAPI(newAPI: ActorRef): ApiState = {
+      ApiState(queryCounter, runningQueries, remoteAPIs :+ newAPI)
     }
   }
 
-  def props(tableManager: ActorRef): Props = Props(new API(tableManager))
+  def props(tableManager: ActorRef, remoteAPIs: Seq[ActorRef] = Seq.empty): Props = Props(new API(tableManager, remoteAPIs))
 }
 
-class API(tableManager: ActorRef) extends Actor with ActorLogging {
-  override def receive: Receive = active(ApiState())
+class API(tableManager: ActorRef, remoteAPIs: Seq[ActorRef]) extends Actor with ActorLogging {
+  override def receive: Receive = active(ApiState(0, Map.empty, remoteAPIs))
 
   private def materializeTable(user: ActorRef, resultTable: ActorRef): Unit = {
     val worker = context.actorOf(MaterializationWorker.props(self, user))
@@ -43,6 +48,7 @@ class API(tableManager: ActorRef) extends Actor with ActorLogging {
   }
 
   private def active(state: ApiState): Receive = {
+    case AddNewAPI(newAPI) => context.become(active(state.addNewAPI(newAPI)))
     case Materialize(table) => materializeTable(sender(), table)
     case MaterializedTable(user, columns) => user ! MaterializedResult(columns)
     case Query(queryPlan) =>

@@ -11,34 +11,52 @@ object TableManager {
   case class RemoveTable(name: String)
   case class ListTables()
   case class FetchTable(name: String)
+  case class AddNewTableManager(newTableManager: ActorRef)
 
   case class TableAdded(table: ActorRef)
   case class TableRemoved()
   case class TableList(tableNames: Seq[String])
   case class TableFetched(table: ActorRef)
 
-  def props(): Props = Props(new TableManager())
+  def props(remoteTableManagers: Seq[ActorRef] = Seq.empty): Props = Props(new TableManager(remoteTableManagers))
+
+  private case class TableManagerState(tables: Map[String, ActorRef], tableManagers: Seq[ActorRef]) {
+    def addTableManager(tableManager: ActorRef) : TableManagerState = {
+      TableManagerState(tables, tableManagers :+ tableManager)
+    }
+
+    def addTable(tableName: String, table: ActorRef) : TableManagerState = {
+      TableManagerState(tables + (tableName -> table), tableManagers)
+    }
+
+    def removeTable(tableName: String): TableManagerState = {
+      TableManagerState(tables - tableName, tableManagers)
+    }
+  }
 }
 
-class TableManager extends Actor with ActorLogging {
-  override def receive: Receive = active(Map.empty[String, ActorRef])
+class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorLogging {
+  override def receive: Receive = active(TableManagerState(Map.empty, remoteTableManagers))
 
-  private def addTable(tables: Map[String, ActorRef],
+  private def addTable(state: TableManagerState,
                        name: String,
                        data: Map[Int, Map[String, ColumnType]],
                        partitionSize: Int): Unit = {
     log.debug("Adding Table")
     val table = context.actorOf(Table.propsWithData(data, partitionSize))
-    val newTables = tables + (name -> table)
+    val newTables = state.addTable(name, table)
     context.become(active(newTables))
     sender() ! TableAdded(table)
   }
 
-  private def removeTable(tables: Map[String, ActorRef], name: String): Unit = {
-    val oldTable = tables.getOrElse(name, ActorRef.noSender)
+  private def storeNewTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
+    context.become(active(state.addTableManager(tableManager)))
+  }
 
-    val newTables = tables - name
-    context.become(active(newTables))
+  private def removeTable(state: TableManagerState, name: String): Unit = {
+    val oldTable = state.tables.getOrElse(name, ActorRef.noSender)
+
+    context.become(active(state.removeTable(name)))
 
     if (oldTable != ActorRef.noSender) {
       oldTable ! PoisonPill
@@ -46,8 +64,8 @@ class TableManager extends Actor with ActorLogging {
     sender() ! TableRemoved()
   }
 
-  private def fetchTable(tables: Map[String, ActorRef], name: String): Unit = {
-    val tableRef = tables.get(name)
+  private def fetchTable(state: TableManagerState, name: String): Unit = {
+    val tableRef = state.tables.get(name)
     if (tableRef.isDefined) {
       sender() ! TableFetched(tableRef.get)
     } else {
@@ -55,11 +73,12 @@ class TableManager extends Actor with ActorLogging {
     }
   }
 
-  private def active(tables: Map[String, ActorRef]): Receive = {
-    case AddTable(name, data, partitionSize) => addTable(tables, name, data, partitionSize)
-    case RemoveTable(name) => removeTable(tables, name)
-    case ListTables() => sender() ! TableList(tables.keys.toList)
-    case FetchTable(name) => fetchTable(tables, name)
+  private def active(state: TableManagerState): Receive = {
+    case AddNewTableManager(tableManager) => storeNewTableManager(state, tableManager)
+    case AddTable(name, data, partitionSize) => addTable(state, name, data, partitionSize)
+    case RemoveTable(name) => removeTable(state, name)
+    case ListTables() => sender() ! TableList(state.tables.keys.toList)
+    case FetchTable(name) => fetchTable(state, name)
     case m => throw new Exception(s"Message not understood: $m")
   }
 }
