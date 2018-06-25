@@ -10,10 +10,12 @@ import de.hpi.svedeb.table.ColumnType
 
 object API {
   case class AddNewAPI(newAPI: ActorRef)
+  case class ListRemoteAPIs()
   case class Query(queryPlan: QueryPlan)
   case class Materialize(table: ActorRef)
   case class Shutdown()
 
+  case class RemoteAPIs(remoteAPIs: Seq[ActorRef])
   case class MaterializedResult(result: Map[String, ColumnType])
   case class Result(resultTable: ActorRef)
 
@@ -49,6 +51,7 @@ class API(tableManager: ActorRef, remoteAPIs: Seq[ActorRef]) extends Actor with 
 
   private def active(state: ApiState): Receive = {
     case AddNewAPI(newAPI) => context.become(active(state.addNewAPI(newAPI)))
+    case ListRemoteAPIs() => sender() ! RemoteAPIs(state.remoteAPIs)
     case Materialize(table) => materializeTable(sender(), table)
     case MaterializedTable(user, columns) => user ! MaterializedResult(columns)
     case Query(queryPlan) =>

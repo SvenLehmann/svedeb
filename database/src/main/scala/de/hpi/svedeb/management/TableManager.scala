@@ -12,25 +12,27 @@ object TableManager {
   case class ListTables()
   case class FetchTable(name: String)
   case class AddNewTableManager(newTableManager: ActorRef)
+  case class ListRemoteTableManagers()
 
   case class TableAdded(table: ActorRef)
   case class TableRemoved()
   case class TableList(tableNames: Seq[String])
   case class TableFetched(table: ActorRef)
+  case class RemoteTableManagers(tableManagers: Seq[ActorRef])
 
   def props(remoteTableManagers: Seq[ActorRef] = Seq.empty): Props = Props(new TableManager(remoteTableManagers))
 
-  private case class TableManagerState(tables: Map[String, ActorRef], tableManagers: Seq[ActorRef]) {
+  private case class TableManagerState(tables: Map[String, ActorRef], remoteTableManagers: Seq[ActorRef]) {
     def addTableManager(tableManager: ActorRef) : TableManagerState = {
-      TableManagerState(tables, tableManagers :+ tableManager)
+      TableManagerState(tables, remoteTableManagers :+ tableManager)
     }
 
     def addTable(tableName: String, table: ActorRef) : TableManagerState = {
-      TableManagerState(tables + (tableName -> table), tableManagers)
+      TableManagerState(tables + (tableName -> table), remoteTableManagers)
     }
 
     def removeTable(tableName: String): TableManagerState = {
-      TableManagerState(tables - tableName, tableManagers)
+      TableManagerState(tables - tableName, remoteTableManagers)
     }
   }
 }
@@ -75,6 +77,7 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
 
   private def active(state: TableManagerState): Receive = {
     case AddNewTableManager(tableManager) => storeNewTableManager(state, tableManager)
+    case ListRemoteTableManagers() => sender() ! RemoteTableManagers(state.remoteTableManagers)
     case AddTable(name, data, partitionSize) => addTable(state, name, data, partitionSize)
     case RemoveTable(name) => removeTable(state, name)
     case ListTables() => sender() ! TableList(state.tables.keys.toList)
