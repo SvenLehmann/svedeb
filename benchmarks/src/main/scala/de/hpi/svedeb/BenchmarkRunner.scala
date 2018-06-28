@@ -32,7 +32,7 @@ object BenchmarkRunner extends App {
   private def nanosecondsToMilliseconds(time: Long): Double = time/1000000.0
 
   def runBenchmark(benchmark: AbstractBenchmark, tableSize: Int): Unit = {
-    val api = SvedeB.start()
+    val api = SvedeB.start().api
 
     try {
       val times = (1 to numberOfIterations).map(_ => {

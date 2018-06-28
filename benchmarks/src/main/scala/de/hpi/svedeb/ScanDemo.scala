@@ -14,7 +14,7 @@ object ScanDemo extends App {
   implicit val timeout: Timeout = Timeout(30 seconds)
   val tableName = "Table1"
 
-  val api = SvedeB.start()
+  val api = SvedeB.start().api
 
   try {
     val data = Map(

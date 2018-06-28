@@ -12,6 +12,7 @@ import scala.util.Random
 
 object TableManager {
   case class AddTable(name: String, data: Map[Int, Map[String, ColumnType]], partitionSize: Int = Utils.defaultPartitionSize)
+  case class AddRemoteTable(name: String, table: ActorRef)
   case class AddPartition(partitionId: Int, partitionData: Map[String, ColumnType], partitionSize: Int)
   case class InternalAddTable(originalSender: ActorRef, name: String, data: Map[Int, Map[String, ColumnType]], partitionSize: Int = Utils.defaultPartitionSize)
   case class RemoveTable(name: String)
@@ -89,8 +90,11 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
   private def handlePartitionsCreated(state: TableManagerState, originalSender: ActorRef, tableName: String, columnNames: Seq[String], partitions: Map[Int, ActorRef]) {
     log.debug("Handle Partitions created")
     val table = context.actorOf(Table.propsWithPartitions(columnNames, partitions))
-    val newTables = state.addTable(tableName, table)
-    context.become(active(newTables))
+
+    remoteTableManagers.foreach(_ ! AddRemoteTable(tableName, table))
+
+    val newState = state.addTable(tableName, table)
+    context.become(active(newState))
     originalSender ! TableAdded(table)
   }
 
@@ -127,7 +131,14 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
     sender() ! PartitionCreated(partitionId, newPartition)
   }
 
+  private def addRemoteTable(state: TableManagerState, tableName: String, table: ActorRef): Unit = {
+    log.debug(s"Adding remote table $tableName")
+    val newState = state.addTable(tableName, table)
+    context.become(active(newState))
+  }
+
   private def active(state: TableManagerState): Receive = {
+    case AddRemoteTable(tableName, table) => addRemoteTable(state, tableName, table)
     case AddNewTableManager() => storeNewTableManager(state, sender())
     case ListRemoteTableManagers() => sender() ! RemoteTableManagers(state.remoteTableManagers)
     case AddTable(name, data, partitionSize) => addTable(state, name, data, partitionSize)

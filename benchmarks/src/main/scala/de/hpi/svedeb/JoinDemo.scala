@@ -15,7 +15,7 @@ object JoinDemo extends App {
   val leftTableName = "Table1"
   val rightTableName = "Table2"
 
-  val api = SvedeB.start()
+  val api = SvedeB.start().api
 
   private def createTable(name: String, data: Map[Int, Map[String, ColumnType]]): Unit = {
     val createTableFuture = api.ask(
