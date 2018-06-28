@@ -4,7 +4,7 @@ import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.management.worker.TableManagerWorker
-import de.hpi.svedeb.operators.AbstractOperator.Execute
+import de.hpi.svedeb.management.worker.TableManagerWorker.{ExecuteTableManagerWorker, PartitionsCreated}
 import de.hpi.svedeb.table.{ColumnType, Partition, Table}
 import de.hpi.svedeb.utils.Utils
 
@@ -21,7 +21,6 @@ object TableManager {
   case class ListRemoteTableManagers()
 
   case class TableAdded(table: ActorRef)
-  case class InternalTableAdded(originalSender: ActorRef, table: ActorRef)
   case class TableRemoved()
   case class TableList(tableNames: Seq[String])
   case class TableFetched(table: ActorRef)
@@ -54,6 +53,7 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
                        name: String,
                        data: Map[Int, Map[String, ColumnType]],
                        partitionSize: Int): Unit = {
+    log.debug("Add table")
     val allTableManagers = state.remoteTableManagers :+ this.self
     val random = new Random()
     val chosenTableManager = allTableManagers(random.nextInt(allTableManagers.length))
@@ -65,6 +65,7 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
                                name: String,
                                data: Map[Int, Map[String, ColumnType]],
                                partitionSize: Int): Unit = {
+    log.debug("Internal add table")
     val allTableManagers = state.remoteTableManagers :+ this.self
     val partitionManagerMappings = data.map { case (partitionId, values) =>
       val random = new Random()
@@ -82,22 +83,24 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
       columnNames.toSeq,
       partitionManagerMappings.filter(_._3 != this.self).toSeq,
       localPartitions))
-    tableManagerWorker ! Execute()
+    tableManagerWorker ! ExecuteTableManagerWorker()
   }
 
-  def handlePartitionsCreated(state: TableManagerState, originalSender: ActorRef, tableName: String, columnNames: Seq[String], partitions: Map[Int, ActorRef]) {
-    log.debug("Adding Table")
+  private def handlePartitionsCreated(state: TableManagerState, originalSender: ActorRef, tableName: String, columnNames: Seq[String], partitions: Map[Int, ActorRef]) {
+    log.debug("Handle Partitions created")
     val table = context.actorOf(Table.propsWithPartitions(columnNames, partitions))
     val newTables = state.addTable(tableName, table)
     context.become(active(newTables))
-    sender() ! InternalTableAdded(originalSender, table)
+    originalSender ! TableAdded(table)
   }
 
   private def storeNewTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
+    log.debug("store new table manager")
     context.become(active(state.addTableManager(tableManager)))
   }
 
   private def removeTable(state: TableManagerState, name: String): Unit = {
+    log.debug("remove table")
     val oldTable = state.tables.getOrElse(name, ActorRef.noSender)
 
     context.become(active(state.removeTable(name)))
@@ -109,6 +112,7 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
   }
 
   private def fetchTable(state: TableManagerState, name: String): Unit = {
+    log.debug("fetch table")
     val tableRef = state.tables.get(name)
     if (tableRef.isDefined) {
       sender() ! TableFetched(tableRef.get)
@@ -117,12 +121,19 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
     }
   }
 
+  private def addPartition(partitionId: Int, partitionData: Map[String, ColumnType], partitionSize: Int): Unit = {
+    log.debug("Add partition")
+    val newPartition = context.actorOf(Partition.props(partitionId, partitionData, partitionSize))
+    sender() ! PartitionCreated(partitionId, newPartition)
+  }
+
   private def active(state: TableManagerState): Receive = {
     case AddNewTableManager() => storeNewTableManager(state, sender())
     case ListRemoteTableManagers() => sender() ! RemoteTableManagers(state.remoteTableManagers)
     case AddTable(name, data, partitionSize) => addTable(state, name, data, partitionSize)
+    case AddPartition(partitionId, partitionData, partitionSize) => addPartition(partitionId, partitionData, partitionSize)
     case InternalAddTable(sender, name, data, partitionSize) => internalAddTable(state, sender, name, data, partitionSize)
-    case InternalTableAdded(originalSender, table) => originalSender ! TableAdded(table)
+    case PartitionsCreated(originalSender, tableName, columnNames, partitions) => handlePartitionsCreated(state, originalSender, tableName, columnNames, partitions)
     case RemoveTable(name) => removeTable(state, name)
     case ListTables() => sender() ! TableList(state.tables.keys.toList)
     case FetchTable(name) => fetchTable(state, name)

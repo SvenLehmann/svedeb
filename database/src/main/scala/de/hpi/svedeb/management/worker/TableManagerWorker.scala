@@ -2,13 +2,16 @@ package de.hpi.svedeb.management.worker
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.management.TableManager.{AddPartition, PartitionCreated}
-import de.hpi.svedeb.management.worker.TableManagerWorker.{Execute, PartitionsCreated, TableManagerWorkerState}
+import de.hpi.svedeb.management.worker.TableManagerWorker.{ExecuteTableManagerWorker, PartitionsCreated, TableManagerWorkerState}
 import de.hpi.svedeb.table.ColumnType
 
 object TableManagerWorker {
-  case class Execute()
+  case class ExecuteTableManagerWorker()
 
-  case class PartitionsCreated(partitionMap: Map[Int, ActorRef])
+  case class PartitionsCreated(originalSender: ActorRef,
+                               tableName: String,
+                               columnNames: Seq[String],
+                               partitionMap: Map[Int, ActorRef])
 
   def props(originalSender: ActorRef,
             tableName: String,
@@ -50,20 +53,31 @@ class TableManagerWorker(originalSender: ActorRef,
   }
 
   private def initializePartitionCreation(state: TableManagerWorkerState): Unit = {
-    context.become(active(state.storeSender(sender())))
-    remainingPartitions.foreach{ case (partitionId, partitionData, remoteTableManager) => remoteTableManager ! AddPartition(partitionId, partitionData, partitionSize)}
+    log.debug("Initialize partition creation")
+    val newState = state.storeSender(sender())
+    context.become(active(newState))
+
+    if (newState.isFinished) {
+      newState.tableManager ! PartitionsCreated(originalSender, tableName, columnNames, newState.partitionMap)
+    } else {
+      remainingPartitions.foreach{ case (partitionId, partitionData, remoteTableManager) =>
+        remoteTableManager ! AddPartition(partitionId, partitionData, partitionSize)
+      }
+    }
   }
 
   private def handlePartitionCreated(state: TableManagerWorkerState, partitionId: Int, partition:ActorRef): Unit = {
+    log.debug("handle partition created")
     val newState = state.addPartialResult(partitionId, partition)
     context.become(active(newState))
     if (newState.isFinished) {
-      newState.tableManager ! PartitionsCreated(newState.partitionMap)
+      newState.tableManager ! PartitionsCreated(originalSender, tableName, columnNames, newState.partitionMap)
     }
   }
 
   private def active(state: TableManagerWorkerState): Receive = {
-    case Execute() => initializePartitionCreation(state)
+    case ExecuteTableManagerWorker() => initializePartitionCreation(state)
     case PartitionCreated(partitionId, partition) => handlePartitionCreated(state, partitionId, partition)
+    case m => throw new Exception(s"Message not understood: $m")
   }
 }
