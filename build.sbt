@@ -45,7 +45,8 @@ lazy val dependencies =
     val akkaClusterMetrics =  "com.typesafe.akka" %%  "akka-cluster-metrics"  % akkaV
     val akkaClusterTools =    "com.typesafe.akka" %%  "akka-cluster-tools"    % akkaV
     val akkaMultiNodeTestkit =  "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaV
-    val akkaRemote = "com.typesafe.akka" %%  "akka-remote"  % akkaV
+    val akkaRemote  = "com.typesafe.akka" %%  "akka-remote"   % akkaV
+
     val akkaTestkit = "com.typesafe.akka" %%  "akka-testkit"  % akkaV       % Test
     val scalatest   = "org.scalatest"     %%  "scalatest"     % scalatestV  % Test
   }

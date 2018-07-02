@@ -1,6 +1,7 @@
 package de.hpi.svedeb.operators
 
-import akka.actor.{ActorRef, Props}
+import akka.actor.{ActorRef, Deploy, Props}
+import akka.remote.RemoteScope
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.NestedLoopJoinOperator.JoinState
 import de.hpi.svedeb.operators.ScanOperator.ScanState
@@ -10,6 +11,8 @@ import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table.{ColumnList, GetPartitions, ListColumnsInTable, PartitionsInTable}
 import de.hpi.svedeb.utils.Utils
 import de.hpi.svedeb.utils.Utils.ValueType
+
+import scala.util.Random
 
 object NestedLoopJoinOperator {
   def props(leftTable: ActorRef, rightTable: ActorRef, leftJoinColumn: String,
@@ -99,9 +102,19 @@ class NestedLoopJoinOperator(leftTable: ActorRef,
       } yield {
         val newPartitionId = leftIndex * rightPartitionSize + rightIndex
         log.debug(s"PartitionId for NLJWorker: $newPartitionId")
+
+        // Decide on which node we are instantiating the Worker Actor. Choose randomly between left and right partition.
+        val random = new Random()
+        val addr = if (random.nextBoolean()) {
+          leftPartition._2.path.address
+        } else {
+          rightPartition._2.path.address
+        }
+
         val worker = context.actorOf(NestedLoopJoinWorker.props(
           leftPartition._2, rightPartition._2, newPartitionId,
-          leftJoinColumn, rightJoinColumn, predicate))
+          leftJoinColumn, rightJoinColumn, predicate).withDeploy(new Deploy(RemoteScope(addr)))
+        )
         worker ! JoinJob()
       }
     }

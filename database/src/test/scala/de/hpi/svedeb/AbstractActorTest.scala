@@ -149,11 +149,15 @@ abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name)
     tableManager.setAutoPilot(new TestActor.AutoPilot {
       def run(sender: ActorRef, msg: Any): TestActor.AutoPilot =
         msg match {
+          case AddPartition(partitionId, partitionData, _) =>
+            sender ! PartitionCreated(partitionId, generatePartitionTestProbe(partitionId, partitionData).partition)
+            TestActor.KeepRunning
           case FetchTable(_) => sender ! TableFetched(tables.head); TestActor.KeepRunning
           case RemoveTable(_) => sender ! TableRemoved(); TestActor.KeepRunning
           case AddTable(_, _, _) =>
             sender ! TableAdded(tables.headOption.getOrElse(ActorRef.noSender))
             TestActor.KeepRunning
+          case AddRemoteTable(_, _) => sender ! RemoteTableAdded(); TestActor.KeepRunning
         }
     })
 

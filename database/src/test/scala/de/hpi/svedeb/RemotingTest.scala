@@ -9,7 +9,7 @@ import org.scalatest.Matchers._
 
 class RemotingTest extends AbstractActorTest("Remoting") {
 
-  "Two instances" should "exchange table information" in {
+  ignore should "exchange table information" in {
 //    val firstInstance = SvedeB.start()
 //    val secondInstance = SvedeB.start(Seq(firstInstance.api), Seq(firstInstance.tableManager))
 //
@@ -25,6 +25,8 @@ class RemotingTest extends AbstractActorTest("Remoting") {
 //      tableList.tableNames shouldEqual Seq("SomeTable")
 //    }
 //
+//    // To avoid race conditions.. hacky fix
+//    Thread.sleep(5000)
 //    checkTableManager(firstInstance.tableManager)
 //    checkTableManager(secondInstance.tableManager)
   }

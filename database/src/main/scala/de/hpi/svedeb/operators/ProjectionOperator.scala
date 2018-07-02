@@ -8,6 +8,13 @@ import de.hpi.svedeb.table.Table.{ActorsForColumn, GetColumnFromTable}
 import de.hpi.svedeb.table.{ColumnType, Partition, Table}
 import de.hpi.svedeb.utils.Utils
 
+
+/**
+  * TODO: Projection is currently materializing the whole table in its local state.
+  *
+  * Better: Create ProjectionWorkers for each partition on those nodes that actually hold the partition
+  * Evaluate whether Column Actors should be copied by value or by reference to the new partition.
+  */
 object ProjectionOperator {
   def props(input: ActorRef, columnNames: Seq[String]): Props = Props(new ProjectionOperator(input, columnNames))
 
