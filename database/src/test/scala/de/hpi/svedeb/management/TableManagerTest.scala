@@ -17,8 +17,9 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "add a table" in {
+    val partition = TestProbe()
     val tableManager = system.actorOf(TableManager.props())
-    tableManager ! AddTable("SomeTable", Map(0 -> Map("columnA" -> ColumnType(), "columnB" -> ColumnType())))
+    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"), Map(0 -> partition.ref))
     expectMsgType[TableAdded]
 
     tableManager ! ListTables()
@@ -26,13 +27,14 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "drop a table" in {
+    val partition = TestProbe()
     val tableManager = system.actorOf(TableManager.props())
 
     // Non-existing tables can be removed as well..
     tableManager ! RemoveTable("SomeTable")
     expectMsgType[TableRemoved]
 
-    tableManager ! AddTable("SomeTable", Map(0 -> Map("columnA" -> ColumnType(), "columnB" -> ColumnType())))
+    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"), Map(0 -> partition.ref))
     expectMsgType[TableAdded]
 
     tableManager ! RemoveTable("SomeTable")
@@ -40,8 +42,9 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
   }
 
   it should "fetch a table" in {
+    val partition = TestProbe()
     val tableManager = system.actorOf(TableManager.props())
-    tableManager ! AddTable("SomeTable", Map(0 -> Map("columnA" -> ColumnType(), "columnB" -> ColumnType())))
+    tableManager ! AddTable("SomeTable", Seq("columnA", "columnB"), Map(0 -> partition.ref))
     expectMsgType[TableAdded]
 
     tableManager ! FetchTable("SomeTable")
