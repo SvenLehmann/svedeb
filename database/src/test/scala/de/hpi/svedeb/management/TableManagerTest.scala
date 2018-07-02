@@ -4,7 +4,6 @@ import akka.actor.Status.Failure
 import akka.testkit.TestProbe
 import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.management.TableManager._
-import de.hpi.svedeb.table.ColumnType
 import org.scalatest.Matchers._
 
 class TableManagerTest extends AbstractActorTest("PartitionTest") {
@@ -60,6 +59,6 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
     api ! ListRemoteTableManagers()
     val remoteTableManagers = expectMsgType[RemoteTableManagers]
     remoteTableManagers.tableManagers shouldEqual Seq(remoteTableManager.ref)
-    remoteTableManager.expectMsgType[AddNewTableManager]
+    remoteTableManager.expectMsgType[AddRemoteTableManager]
   }
 }
