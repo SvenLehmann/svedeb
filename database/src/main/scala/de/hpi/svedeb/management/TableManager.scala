@@ -1,7 +1,9 @@
 package de.hpi.svedeb.management
 
 import akka.actor.Status.Failure
-import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
+import akka.actor.{Actor, ActorLogging, ActorPath, ActorRef, ActorSelection, PoisonPill, Props}
+import akka.cluster.ClusterEvent.{InitialStateAsEvents, MemberEvent, UnreachableMember}
+import akka.cluster.{Cluster, MemberStatus}
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.management.worker.TableManagerWorker
 import de.hpi.svedeb.management.worker.TableManagerWorker.{ExecuteTableManagerWorker, PartitionsCreated}
@@ -11,6 +13,11 @@ import de.hpi.svedeb.utils.Utils
 import scala.util.Random
 
 object TableManager {
+  /*
+   * Internal
+   */
+
+
   case class AddTable(name: String, data: Map[Int, Map[String, ColumnType]], partitionSize: Int = Utils.defaultPartitionSize)
   case class AddRemoteTable(name: String, table: ActorRef)
   case class AddPartition(partitionId: Int, partitionData: Map[String, ColumnType], partitionSize: Int)
@@ -20,10 +27,13 @@ object TableManager {
   case class FetchTable(name: String)
   case class AddNewTableManager()
   case class ListRemoteTableManagers()
+  case class AddRemoteTableManager()
+  case class RemoteTableManagerAdded()
 
   case class TableAdded(table: ActorRef)
   case class TableRemoved()
   case class TableList(tableNames: Seq[String])
+
   case class TableFetched(table: ActorRef)
   case class RemoteTableManagers(tableManagers: Seq[ActorRef])
   case class PartitionCreated(partitionId: Int, partition: ActorRef)
@@ -48,13 +58,33 @@ object TableManager {
 class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorLogging {
   remoteTableManagers.foreach(_ ! AddNewTableManager())
 
+  val cluster = Cluster(context.system)
+
   override def receive: Receive = active(TableManagerState(Map.empty, remoteTableManagers))
+
+  // subscribe to cluster changes, re-subscribe when restart
+  override def preStart(): Unit = {
+    cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
+      classOf[MemberEvent], classOf[UnreachableMember])
+  }
+
+  override def postStop(): Unit = cluster.unsubscribe(self)
 
   private def addTable(state: TableManagerState,
                        name: String,
                        data: Map[Int, Map[String, ColumnType]],
                        partitionSize: Int): Unit = {
     log.debug("Add table")
+
+    val members = cluster.state.members.filter(_.status == MemberStatus.Up)
+    val tableManagers = members
+      .map { m =>
+        val u = m.uniqueAddress
+        val a = u.address
+        val ap = ActorPath.fromString(a + "/user/clusterNode/tableManager")
+        context.system.actorSelection(ap)
+      }
+
     val allTableManagers = state.remoteTableManagers :+ this.self
     val random = new Random()
     val chosenTableManager = allTableManagers(random.nextInt(allTableManagers.length))
@@ -98,9 +128,10 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
     originalSender ! TableAdded(table)
   }
 
-  private def storeNewTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
+  private def storeRemoteTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
     log.debug("store new table manager")
     context.become(active(state.addTableManager(tableManager)))
+    sender() ! RemoteTableManagerAdded()
   }
 
   private def removeTable(state: TableManagerState, name: String): Unit = {
@@ -139,7 +170,7 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
 
   private def active(state: TableManagerState): Receive = {
     case AddRemoteTable(tableName, table) => addRemoteTable(state, tableName, table)
-    case AddNewTableManager() => storeNewTableManager(state, sender())
+    case AddRemoteTableManager() => storeRemoteTableManager(state, sender())
     case ListRemoteTableManagers() => sender() ! RemoteTableManagers(state.remoteTableManagers)
     case AddTable(name, data, partitionSize) => addTable(state, name, data, partitionSize)
     case AddPartition(partitionId, partitionData, partitionSize) => addPartition(partitionId, partitionData, partitionSize)

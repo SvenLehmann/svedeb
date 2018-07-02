@@ -7,7 +7,7 @@ import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.table.ColumnType
 import org.scalatest.Matchers._
 
-class TableManagerTest extends AbstractActorTest("PartitionTest") {
+class TableManagerTest extends AbstractActorTest("TableManagerTest") {
 
   "A new TableManager" should "not contain tables" in {
     val tableManager = system.actorOf(TableManager.props())
@@ -57,6 +57,6 @@ class TableManagerTest extends AbstractActorTest("PartitionTest") {
     api ! ListRemoteTableManagers()
     val remoteTableManagers = expectMsgType[RemoteTableManagers]
     remoteTableManagers.tableManagers shouldEqual Seq(remoteTableManager.ref)
-    remoteTableManager.expectMsgType[AddNewTableManager]
+    remoteTableManager.expectMsgType[AddRemoteTableManager]
   }
 }
