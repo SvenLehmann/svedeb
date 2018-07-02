@@ -41,12 +41,15 @@ lazy val dependencies =
 
     val spark       = "org.apache.spark"  %%  "spark-sql"     % sparkV
     val akkaActor   = "com.typesafe.akka" %%  "akka-actor"    % akkaV
+    val akkaRemote  = "com.typesafe.akka" %%  "akka-remote"   % akkaV
+
     val akkaTestkit = "com.typesafe.akka" %%  "akka-testkit"  % akkaV       % Test
     val scalatest   = "org.scalatest"     %%  "scalatest"     % scalatestV  % Test
   }
 
 lazy val commonDependencies = Seq(
   dependencies.akkaActor,
+  dependencies.akkaRemote,
   dependencies.akkaTestkit,
   dependencies.scalatest
 )
