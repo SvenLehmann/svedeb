@@ -41,6 +41,10 @@ lazy val dependencies =
 
     val spark       = "org.apache.spark"  %%  "spark-sql"     % sparkV
     val akkaActor   = "com.typesafe.akka" %%  "akka-actor"    % akkaV
+    val akkaCluster = "com.typesafe.akka" %%  "akka-cluster"  % akkaV
+    val akkaClusterMetrics =  "com.typesafe.akka" %%  "akka-cluster-metrics"  % akkaV
+    val akkaClusterTools =    "com.typesafe.akka" %%  "akka-cluster-tools"    % akkaV
+    val akkaMultiNodeTestkit =  "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaV
     val akkaRemote  = "com.typesafe.akka" %%  "akka-remote"   % akkaV
 
     val akkaTestkit = "com.typesafe.akka" %%  "akka-testkit"  % akkaV       % Test
@@ -49,6 +53,10 @@ lazy val dependencies =
 
 lazy val commonDependencies = Seq(
   dependencies.akkaActor,
+  dependencies.akkaCluster,
+  dependencies.akkaClusterMetrics,
+  dependencies.akkaClusterTools,
+  dependencies.akkaMultiNodeTestkit,
   dependencies.akkaRemote,
   dependencies.akkaTestkit,
   dependencies.scalatest
