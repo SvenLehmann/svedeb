@@ -6,7 +6,7 @@ import de.hpi.svedeb.AbstractActorTest
 import de.hpi.svedeb.management.TableManager._
 import org.scalatest.Matchers._
 
-class TableManagerTest extends AbstractActorTest("PartitionTest") {
+class TableManagerTest extends AbstractActorTest("TableManagerTest") {
 
   "A new TableManager" should "not contain tables" in {
     val tableManager = system.actorOf(TableManager.props())

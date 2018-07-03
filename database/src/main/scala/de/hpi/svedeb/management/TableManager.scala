@@ -57,7 +57,7 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
     context.become(active(newState))
   }
 
-  private def storeNewTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
+  private def storeRemoteTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
     log.debug("store new table manager")
     context.become(active(state.addTableManager(tableManager)))
   }
@@ -100,7 +100,7 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
 
   private def active(state: TableManagerState): Receive = {
     case AddRemoteTable(tableName, table) => addRemoteTable(state, tableName, table)
-    case AddRemoteTableManager() => storeNewTableManager(state, sender())
+    case AddRemoteTableManager() => storeRemoteTableManager(state, sender())
     case ListRemoteTableManagers() => sender() ! RemoteTableManagers(state.remoteTableManagers)
     case AddTable(name, columnNames, partitions) => addTable(state, name, columnNames, partitions)
     case AddPartition(partitionId, partitionData, partitionSize) => addPartition(partitionId, partitionData, partitionSize)
