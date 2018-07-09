@@ -1,7 +1,9 @@
 package de.hpi.svedeb.management
 
 import akka.actor.Status.Failure
-import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
+import akka.actor.{Actor, ActorLogging, ActorPath, ActorRef, ActorSelection, PoisonPill, Props}
+import akka.cluster.Cluster
+import akka.cluster.ClusterEvent.{InitialStateAsEvents, MemberEvent, UnreachableMember}
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.table.{ColumnType, Partition, Table}
 
@@ -14,11 +16,13 @@ object TableManager {
   case class FetchTable(name: String)
   case class AddRemoteTableManager()
   case class ListRemoteTableManagers()
+  case class RemoteTableManagerAdded()
 
   case class RemoteTableAdded()
   case class TableAdded(table: ActorRef)
   case class TableRemoved()
   case class TableList(tableNames: Seq[String])
+
   case class TableFetched(table: ActorRef)
   case class RemoteTableManagers(tableManagers: Seq[ActorRef])
   case class PartitionCreated(partitionId: Int, partition: ActorRef)
@@ -43,7 +47,17 @@ object TableManager {
 class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorLogging {
   remoteTableManagers.foreach(_ ! AddRemoteTableManager())
 
+  val cluster = Cluster(context.system)
+
   override def receive: Receive = active(TableManagerState(Map.empty, remoteTableManagers))
+
+  // subscribe to cluster changes, re-subscribe when restart
+  override def preStart(): Unit = {
+    cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
+      classOf[MemberEvent], classOf[UnreachableMember])
+  }
+
+  override def postStop(): Unit = cluster.unsubscribe(self)
 
   private def addTable(state: TableManagerState,
                        name: String,
@@ -57,9 +71,10 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
     context.become(active(newState))
   }
 
-  private def storeNewTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
+  private def storeRemoteTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
     log.debug("store new table manager")
     context.become(active(state.addTableManager(tableManager)))
+    sender() ! RemoteTableManagerAdded()
   }
 
   private def removeTable(state: TableManagerState, name: String): Unit = {
@@ -100,7 +115,7 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
 
   private def active(state: TableManagerState): Receive = {
     case AddRemoteTable(tableName, table) => addRemoteTable(state, tableName, table)
-    case AddRemoteTableManager() => storeNewTableManager(state, sender())
+    case AddRemoteTableManager() => storeRemoteTableManager(state, sender())
     case ListRemoteTableManagers() => sender() ! RemoteTableManagers(state.remoteTableManagers)
     case AddTable(name, columnNames, partitions) => addTable(state, name, columnNames, partitions)
     case AddPartition(partitionId, partitionData, partitionSize) => addPartition(partitionId, partitionData, partitionSize)

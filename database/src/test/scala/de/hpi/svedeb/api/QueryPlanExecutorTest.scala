@@ -12,7 +12,7 @@ import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
 import de.hpi.svedeb.table.Table._
 import org.scalatest.Matchers._
 
-class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
+class QueryPlanExecutorTest extends AbstractActorTest("QueryPlanExecutorTest") {
   
   "An QueryPlanExecutor" should "query an empty table" in {
     val table = generateTableTestProbe(Seq(Map("a" -> ColumnType(1, 2))))
