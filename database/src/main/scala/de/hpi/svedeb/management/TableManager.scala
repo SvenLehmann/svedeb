@@ -14,9 +14,7 @@ object TableManager {
   case class RemoveTable(name: String)
   case class ListTables()
   case class FetchTable(name: String)
-  case class AddRemoteTableManager()
   case class ListRemoteTableManagers()
-  case class RemoteTableManagerAdded()
 
   case class RemoteTableAdded()
   case class TableAdded(table: ActorRef)
@@ -24,32 +22,28 @@ object TableManager {
   case class TableList(tableNames: Seq[String])
 
   case class TableFetched(table: ActorRef)
-  case class RemoteTableManagers(tableManagers: Seq[ActorRef])
+  case class RemoteTableManagers(tableManagers: Seq[ActorSelection])
   case class PartitionCreated(partitionId: Int, partition: ActorRef)
 
-  def props(remoteTableManagers: Seq[ActorRef] = Seq.empty): Props = Props(new TableManager(remoteTableManagers))
+  def props(): Props = Props(new TableManager())
 
-  private case class TableManagerState(tables: Map[String, ActorRef], remoteTableManagers: Seq[ActorRef]) {
-    def addTableManager(tableManager: ActorRef) : TableManagerState = {
-      TableManagerState(tables, remoteTableManagers :+ tableManager)
-    }
+  private case class TableManagerState(tables: Map[String, ActorRef]) {
 
     def addTable(tableName: String, table: ActorRef) : TableManagerState = {
-      TableManagerState(tables + (tableName -> table), remoteTableManagers)
+      TableManagerState(tables + (tableName -> table))
     }
 
     def removeTable(tableName: String): TableManagerState = {
-      TableManagerState(tables - tableName, remoteTableManagers)
+      TableManagerState(tables - tableName)
     }
   }
 }
 
-class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorLogging {
-  remoteTableManagers.foreach(_ ! AddRemoteTableManager())
+class TableManager() extends Actor with ActorLogging {
 
   val cluster = Cluster(context.system)
 
-  override def receive: Receive = active(TableManagerState(Map.empty, remoteTableManagers))
+  override def receive: Receive = active(TableManagerState(Map.empty))
 
   // subscribe to cluster changes, re-subscribe when restart
   override def preStart(): Unit = {
@@ -69,12 +63,6 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
 
     val newState = state.addTable(name, table)
     context.become(active(newState))
-  }
-
-  private def storeRemoteTableManager(state: TableManagerState, tableManager: ActorRef): Unit = {
-    log.debug("store new table manager")
-    context.become(active(state.addTableManager(tableManager)))
-    sender() ! RemoteTableManagerAdded()
   }
 
   private def removeTable(state: TableManagerState, name: String): Unit = {
@@ -113,10 +101,19 @@ class TableManager(remoteTableManagers: Seq[ActorRef]) extends Actor with ActorL
     sender() ! RemoteTableAdded()
   }
 
+  // TODO: Add MultiNodeTest
+  private def listRemoteTableManagers(): Unit = {
+    val remoteTableManagers = cluster.state.members.map{ m =>
+      val address = m.address
+      val path = ActorPath.fromString(s"$address/user/node${address.port.getOrElse(0)}/worker")
+      context.actorSelection(path)
+    }.toSeq
+    sender() ! RemoteTableManagers(remoteTableManagers)
+  }
+
   private def active(state: TableManagerState): Receive = {
     case AddRemoteTable(tableName, table) => addRemoteTable(state, tableName, table)
-    case AddRemoteTableManager() => storeRemoteTableManager(state, sender())
-    case ListRemoteTableManagers() => sender() ! RemoteTableManagers(state.remoteTableManagers)
+    case ListRemoteTableManagers() => listRemoteTableManagers()
     case AddTable(name, columnNames, partitions) => addTable(state, name, columnNames, partitions)
     case AddPartition(partitionId, partitionData, partitionSize) => addPartition(partitionId, partitionData, partitionSize)
     case RemoveTable(name) => removeTable(state, name)

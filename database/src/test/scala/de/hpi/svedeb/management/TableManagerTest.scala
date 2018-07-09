@@ -52,13 +52,4 @@ class TableManagerTest extends AbstractActorTest("TableManagerTest") {
     tableManager ! FetchTable("Non-existing table")
     expectMsgType[Failure]
   }
-
-  it should "list remote table managers" in {
-    val remoteTableManager = TestProbe()
-    val api = system.actorOf(TableManager.props(Seq(remoteTableManager.ref)))
-    api ! ListRemoteTableManagers()
-    val remoteTableManagers = expectMsgType[RemoteTableManagers]
-    remoteTableManagers.tableManagers shouldEqual Seq(remoteTableManager.ref)
-    remoteTableManager.expectMsgType[AddRemoteTableManager]
-  }
 }
