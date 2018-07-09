@@ -3,14 +3,18 @@ package de.hpi.svedeb
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
+import de.hpi.svedeb.ClusterNode.{FetchAPI, FetchedAPI}
 import de.hpi.svedeb.api.API
 import de.hpi.svedeb.management.TableManager
 
 object ClusterNode {
-  def start(remoteAPIs: Seq[ActorRef] = Seq.empty, remoteTableManagers: Seq[ActorRef] = Seq.empty): Unit = {
+  def start(): ActorRef = {
     val system = ActorSystem("SvedeB")
     system.actorOf(ClusterNode.props(), "clusterNode")
   }
+
+  case class FetchAPI()
+  case class FetchedAPI(api: ActorRef)
 
   def props(): Props = Props(new ClusterNode())
 }
@@ -36,8 +40,8 @@ class ClusterNode extends Actor with ActorLogging {
     case UnreachableMember(member) =>
       log.info("Member detected as unreachable: {}", member)
     case MemberRemoved(member, previousStatus) =>
-      log.info("Member is Removed: {} after {}",
-        member.address, previousStatus)
+      log.info("Member is Removed: {} after {}", member.address, previousStatus)
+    case FetchAPI() => sender() ! FetchedAPI(api)
     case _: MemberEvent => // ignore
   }
 

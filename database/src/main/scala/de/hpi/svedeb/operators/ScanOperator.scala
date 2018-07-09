@@ -8,17 +8,7 @@ import de.hpi.svedeb.operators.workers.ScanWorker
 import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult}
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table._
-import de.hpi.svedeb.utils.Utils
 import de.hpi.svedeb.utils.Utils.ValueType
-
-import akka.actor.ActorRef
-import akka.actor.Address
-import akka.actor.AddressFromURIString
-import akka.actor.Deploy
-import akka.actor.Props
-import akka.actor.ActorSystem
-import akka.remote.RemoteScope
-
 
 object ScanOperator {
   def props(table: ActorRef,

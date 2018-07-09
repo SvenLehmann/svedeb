@@ -20,12 +20,12 @@ object CreateTableOperator {
       tableAdded.forall(_._2)
     }
 
-    def updateResult(tableManager: ActorRef): CreateTableOperatorState = {
-      CreateTableOperatorState(originalSender, partitionMapping, tableAdded, tableManager)
+    def updateResult(resultTable: ActorRef): CreateTableOperatorState = {
+      CreateTableOperatorState(originalSender, partitionMapping, tableAdded, resultTable)
     }
 
-    def addRemoteTableAcknowledgement(tableManagerState: ActorRef): CreateTableOperatorState = {
-      val updatedTableAdded = tableAdded + (tableManagerState -> true)
+    def addRemoteTableAcknowledgement(remoteTable: ActorRef): CreateTableOperatorState = {
+      val updatedTableAdded = tableAdded + (remoteTable -> true)
       CreateTableOperatorState(originalSender, partitionMapping, updatedTableAdded, result)
     }
 
@@ -55,6 +55,7 @@ class CreateTableOperator(localTableManager: ActorRef,
   override def receive: Receive = active(CreateTableOperatorState(ActorRef.noSender, Map.empty, Map.empty, ActorRef.noSender))
 
   private def getAllTableManagers: Seq[ActorRef] = {
+    // TODO: get other remote TableManagers
     Seq(localTableManager)
   }
 

@@ -2,6 +2,7 @@ package de.hpi.svedeb
 
 import akka.pattern.ask
 import akka.util.Timeout
+import de.hpi.svedeb.ClusterNode.{FetchAPI, FetchedAPI}
 import de.hpi.svedeb.api.API._
 import de.hpi.svedeb.queryPlan._
 import de.hpi.svedeb.table.ColumnType
@@ -14,7 +15,10 @@ object ScanDemo extends App {
   implicit val timeout: Timeout = Timeout(30 seconds)
   val tableName = "Table1"
 
-  val api = SvedeB.start().api
+  val clusterNode = ClusterNode.start()
+  val apiFuture = clusterNode.ask(FetchAPI()) (5 seconds)
+  import scala.concurrent.Await
+  val api = Await.result(apiFuture, 5 seconds).asInstanceOf[FetchedAPI].api
 
   try {
     val data = Map(

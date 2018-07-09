@@ -4,7 +4,7 @@ import akka.actor.{ActorRef, Deploy, Props}
 import akka.remote.RemoteScope
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.ProjectionOperator.ProjectionState
-import de.hpi.svedeb.operators.workers.{ProjectionWorker, ScanWorker}
+import de.hpi.svedeb.operators.workers.ProjectionWorker
 import de.hpi.svedeb.operators.workers.ProjectionWorker.{ProjectionJob, ProjectionWorkerResult}
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table.{GetPartitions, PartitionsInTable}
