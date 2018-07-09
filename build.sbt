@@ -62,6 +62,8 @@ lazy val commonDependencies = Seq(
   dependencies.scalatest
 )
 
+parallelExecution in ThisBuild := false
+
 // Settings
 lazy val commonSettings = Seq(
   test in assembly := {}
