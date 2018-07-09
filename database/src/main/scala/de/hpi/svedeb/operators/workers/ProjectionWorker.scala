@@ -39,13 +39,10 @@ class ProjectionWorker(partitionId: Int, partition: ActorRef, columnNames: Seq[S
   }
 
   private def retrieveValuesFromColumn(state: ProjectionWorkerState, column: ActorRef): Unit = {
-    // TODO: Evaluate whether Column Actors should be copied by value or by reference to the new partition.
     column ! ScanColumn(None)
   }
 
-  // why does it make a difference if I hand the partitionId or not?
-  // Shouldn't it always be the same one as given in the constructor?
-  private def handleScannedValues(state: ProjectionWorkerState, partitionId: Int, columnName: String, values: ColumnType): Unit = {
+  private def handleScannedValues(state: ProjectionWorkerState, columnName: String, values: ColumnType): Unit = {
     val newState = state.addPartialResult(columnName, values)
     context.become(active(newState))
 
@@ -58,6 +55,6 @@ class ProjectionWorker(partitionId: Int, partition: ActorRef, columnNames: Seq[S
   private def active(state: ProjectionWorkerState): Receive = {
     case ProjectionJob() => retrieveColumnsFromPartition(state)
     case ColumnRetrieved(_, _, column) => retrieveValuesFromColumn(state, column)
-    case ScannedValues(pId, columnName, values) => handleScannedValues(state, pId, columnName, values)
+    case ScannedValues(_, columnName, values) => handleScannedValues(state, columnName, values)
   }
 }

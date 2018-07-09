@@ -51,6 +51,7 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
     context.become(active(newState))
 
     partitions.foreach{ case (partitionId, partition) =>
+      // TODO: create worker on same node as partition because data is copied between them
       val worker = context.actorOf(ProjectionWorker.props(partitionId, partition, columnNames))
       worker ! ProjectionJob()
     }
