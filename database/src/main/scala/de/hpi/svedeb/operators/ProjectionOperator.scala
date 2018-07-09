@@ -1,9 +1,10 @@
 package de.hpi.svedeb.operators
 
-import akka.actor.{ActorRef, Props}
+import akka.actor.{ActorRef, Deploy, Props}
+import akka.remote.RemoteScope
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.ProjectionOperator.ProjectionState
-import de.hpi.svedeb.operators.workers.ProjectionWorker
+import de.hpi.svedeb.operators.workers.{ProjectionWorker, ScanWorker}
 import de.hpi.svedeb.operators.workers.ProjectionWorker.{ProjectionJob, ProjectionWorkerResult}
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table.{GetPartitions, PartitionsInTable}
@@ -58,8 +59,13 @@ class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends Abst
     context.become(active(newState))
 
     partitions.foreach{ case (partitionId, partition) =>
-      // TODO: create worker on same node as partition because data is copied between them
-      val worker = context.actorOf(ProjectionWorker.props(partitionId, partition, columnNames))
+      // TODO: Add multi-node test
+      val address = partition.path.address
+      log.debug(s"Starting ProjectionWorker at $address")
+      val worker = context.system.actorOf(
+        ProjectionWorker
+          .props(partitionId, partition, columnNames)
+          .withDeploy(new Deploy(RemoteScope(address))))
       worker ! ProjectionJob()
     }
   }
