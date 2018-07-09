@@ -3,10 +3,11 @@ package de.hpi.svedeb.operators
 import akka.actor.{ActorRef, Props}
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.ProjectionOperator.ProjectionState
-import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
-import de.hpi.svedeb.table.Table.{ActorsForColumn, GetColumnFromTable}
-import de.hpi.svedeb.table.{ColumnType, Partition, Table}
-import de.hpi.svedeb.utils.Utils
+import de.hpi.svedeb.operators.workers.ProjectionWorker
+import de.hpi.svedeb.operators.workers.ProjectionWorker.{ProjectionJob, ProjectionWorkerResult}
+import de.hpi.svedeb.table.Table
+import de.hpi.svedeb.table.Table.{GetPartitions, PartitionsInTable}
+
 
 
 /**
@@ -18,94 +19,64 @@ import de.hpi.svedeb.utils.Utils
 object ProjectionOperator {
   def props(input: ActorRef, columnNames: Seq[String]): Props = Props(new ProjectionOperator(input, columnNames))
 
-  private case class ProjectionState(sender: ActorRef, result: Seq[Map[String, ColumnType]]) {
+  private case class ProjectionState(sender: ActorRef, result: Map[Int, ActorRef], outputPartitionCount: Int) {
     def storeSender(sender: ActorRef): ProjectionState = {
-      ProjectionState(sender, result)
+      ProjectionState(sender, result, outputPartitionCount)
     }
 
-    /**
-      * Stores and updates the output partition count
-      * @param count the partition count
-      * @return the updated state
-      */
     def storeOutputPartitionCount(count: Int): ProjectionState = {
-      // Prepare result maps to store intermediate results easily
-      val newResult = (0 until count).map(_ => Map.empty[String, ColumnType])
-      ProjectionState(sender, newResult)
+      ProjectionState(sender, result, count)
     }
 
-    def addPartialResult(partitionId: Int, columnName: String, values: ColumnType): ProjectionState = {
-      val newResultMap = result(partitionId) + (columnName -> values)
-      val newResult = result.updated(partitionId, newResultMap)
-      ProjectionState(sender, newResult)
+    def storeResultPartition(partitionId:Int, resultPartition: ActorRef): ProjectionState = {
+      ProjectionState(sender, result + (partitionId -> resultPartition), outputPartitionCount)
     }
 
-    def isFinished(expectedColumnNames: Seq[String]): Boolean = {
-      result.forall(partition => partition.keys.toSeq.sorted == expectedColumnNames.sorted)
+    def isFinished: Boolean = {
+      result.keys.toSeq.length == outputPartitionCount
     }
   }
 }
 
 class ProjectionOperator(input: ActorRef, columnNames: Seq[String]) extends AbstractOperator {
-  override def receive: Receive = active(ProjectionState(ActorRef.noSender, Seq.empty))
+  override def receive: Receive = active(ProjectionState(ActorRef.noSender, Map.empty, 0))
 
   private def handleQuery(state: ProjectionState, sender: ActorRef): Unit = {
-    log.debug("Handling Projection Query")
     val newState = state.storeSender(sender)
     context.become(active(newState))
 
     if (columnNames.isEmpty) {
-      val result = createNewResultTable(state)
-      sender ! QueryResult(result)
+      val emptyTable = context.actorOf(Table.propsWithPartitions(columnNames, Map.empty))
+      sender ! QueryResult(emptyTable)
     } else {
-      columnNames.foreach(name => input ! GetColumnFromTable(name))
+      input ! GetPartitions()
     }
   }
 
-  private def createNewResultTable(state: ProjectionState): ActorRef = {
-    log.debug("Create result table")
-
-    // TODO: remove zipWithIndex
-    val partitions: Map[Int, ActorRef] = state.result.zipWithIndex
-      .map { case (partitionResult, partitionId) =>
-        val partition = context.actorOf(Partition.props(partitionId, partitionResult, Utils.defaultPartitionSize))
-        (partitionId, partition)
-      }.toMap
-    context.actorOf(Table.propsWithPartitions(columnNames, partitions))
-  }
-
-  private def handleActorsForColumn(state: ProjectionState,
-                                    columnName: String,
-                                    actorsForColumns: Map[Int, ActorRef]): Unit = {
-    log.debug(s"Handling actors for column $columnName")
-    // Store partition count when first result is received
-    if (state.result.isEmpty) {
-      log.debug(s"Updating partition count to ${actorsForColumns.size}")
-      val newState = state.storeOutputPartitionCount(actorsForColumns.size)
-      context.become(active(newState))
-    }
-
-    actorsForColumns.values.foreach(columnActor => columnActor ! ScanColumn(None))
-  }
-
-  private def handleScannedValues(state: ProjectionState,
-                                  partitionId: Int,
-                                  columnName: String,
-                                  values: ColumnType): Unit = {
-    log.debug("Handling scanned values")
-    val newState = state.addPartialResult(partitionId, columnName, values)
+  private def handlePartitionsInTable(state: ProjectionState, partitions: Map[Int, ActorRef]): Unit = {
+    val newState = state.storeOutputPartitionCount(partitions.toSeq.length)
     context.become(active(newState))
 
-    if (newState.isFinished(columnNames)) {
-      log.debug("Query has finished")
-      val table = createNewResultTable(newState)
-      newState.sender ! QueryResult(table)
+    partitions.foreach{ case (partitionId, partition) =>
+      // TODO: create worker on same node as partition because data is copied between them
+      val worker = context.actorOf(ProjectionWorker.props(partitionId, partition, columnNames))
+      worker ! ProjectionJob()
+    }
+  }
+
+  private def handleWorkerResult(state: ProjectionState, partitionId: Int, resultPartition: ActorRef): Unit = {
+    val newState = state.storeResultPartition(partitionId, resultPartition)
+    context.become(active(newState))
+
+    if(newState.isFinished) {
+      val resultTable = context.actorOf(Table.propsWithPartitions(columnNames, newState.result))
+      newState.sender ! QueryResult(resultTable)
     }
   }
 
   private def active(state: ProjectionState): Receive = {
     case Execute() => handleQuery(state, sender())
-    case ActorsForColumn(columnName, actorsForColumn) => handleActorsForColumn(state, columnName, actorsForColumn)
-    case ScannedValues(partitionId, columnName, values) => handleScannedValues(state, partitionId, columnName, values)
+    case PartitionsInTable(partitions) => handlePartitionsInTable(state, partitions)
+    case ProjectionWorkerResult(partitionId, resultPartition) => handleWorkerResult(state, partitionId, resultPartition)
   }
 }
