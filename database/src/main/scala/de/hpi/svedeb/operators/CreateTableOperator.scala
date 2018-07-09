@@ -29,11 +29,11 @@ object CreateTableOperator {
       CreateTableOperatorState(originalSender, partitionMapping, updatedTableAdded, result)
     }
 
-    def addSender(sender: ActorRef): CreateTableOperatorState = {
+    def storeSender(sender: ActorRef): CreateTableOperatorState = {
       CreateTableOperatorState(sender, partitionMapping, tableAdded, result)
     }
 
-    def addPartitionMapping(partitionMapping: Map[Int, ActorRef]): CreateTableOperatorState = {
+    def storePartitionMapping(partitionMapping: Map[Int, ActorRef]): CreateTableOperatorState = {
       CreateTableOperatorState(originalSender, partitionMapping, tableAdded, result)
     }
 
@@ -61,7 +61,7 @@ class CreateTableOperator(localTableManager: ActorRef,
 
   private def execute(state: CreateTableOperatorState): Unit = {
     log.debug("Execute")
-    val addedSenderState = state.addSender(sender())
+    val addedSenderState = state.storeSender(sender())
     context.become(active(addedSenderState))
 
     val allTableManagers: Seq[ActorRef] = getAllTableManagers
@@ -72,7 +72,7 @@ class CreateTableOperator(localTableManager: ActorRef,
     }
 
     val emptyPartitionMap = partitionManagerMappings.map{ case (partitionId, _, _) => partitionId -> ActorRef.noSender}.toMap
-    val partitionMappingState = addedSenderState.addPartitionMapping(emptyPartitionMap)
+    val partitionMappingState = addedSenderState.storePartitionMapping(emptyPartitionMap)
     context.become(active(partitionMappingState))
 
     partitionManagerMappings.foreach{ case (partitionId, partitionData, tableManager) =>
