@@ -2,6 +2,7 @@ package de.hpi.svedeb
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.testkit.{ImplicitSender, TestActor, TestKit, TestProbe}
+import com.typesafe.config.ConfigFactory
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.table.Column._
 import de.hpi.svedeb.table.ColumnType
@@ -9,7 +10,16 @@ import de.hpi.svedeb.table.Partition._
 import de.hpi.svedeb.table.Table._
 import org.scalatest.Matchers._
 
-abstract class AbstractActorTest(name: String) extends TestKit(ActorSystem(name))
+object TestKitSpec {
+  def config: String = """
+  akka.actor.provider = "cluster"
+  akka.remote.netty.tcp.port = 0
+  akka.remote.artery.canonical.port = 0
+"""
+}
+
+abstract class AbstractActorTest(name: String)
+  extends TestKit(ActorSystem(name, ConfigFactory.parseString(TestKitSpec.config)))
   with ImplicitSender with AbstractTest {
 
   case class PartitionTestProbe(partition: ActorRef, columns: Map[String, ActorRef])

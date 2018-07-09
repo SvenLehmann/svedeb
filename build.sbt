@@ -1,3 +1,5 @@
+import com.typesafe.sbt.SbtMultiJvm.multiJvmSettings
+
 name := "svedeb"
 
 version in ThisBuild := "0.1"
@@ -7,6 +9,9 @@ scalaVersion in ThisBuild := "2.11.8"
 
 lazy val global = project
   .in(file("."))
+  .enablePlugins(MultiJvmPlugin) // use the plugin
+  .configs(MultiJvm) // load the multi-jvm configuration
+  .settings(multiJvmSettings: _*) // apply the default settings
   .settings(commonSettings)
   .aggregate(
     benchmarks,
@@ -62,7 +67,10 @@ lazy val commonDependencies = Seq(
   dependencies.scalatest
 )
 
+parallelExecution in ThisBuild := false
+
 // Settings
 lazy val commonSettings = Seq(
+  parallelExecution in Test := false, // do not run test cases in parallel
   test in assembly := {}
 )
