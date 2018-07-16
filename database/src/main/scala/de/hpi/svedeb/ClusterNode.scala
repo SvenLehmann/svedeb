@@ -7,7 +7,9 @@ import de.hpi.svedeb.ClusterNode.{FetchAPI, FetchedAPI}
 import de.hpi.svedeb.api.API
 import de.hpi.svedeb.management.TableManager
 
-object ClusterNode {
+object ClusterNode extends App {
+  start()
+
   def start(): ActorRef = {
     val system = ActorSystem("SvedeB")
     system.actorOf(ClusterNode.props(), "clusterNode")
