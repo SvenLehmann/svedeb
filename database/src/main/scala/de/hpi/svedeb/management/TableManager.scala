@@ -1,7 +1,7 @@
 package de.hpi.svedeb.management
 
 import akka.actor.Status.Failure
-import akka.actor.{Actor, ActorLogging, ActorPath, ActorRef, ActorSelection, PoisonPill, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent.{InitialStateAsEvents, MemberEvent, UnreachableMember}
 import de.hpi.svedeb.management.TableManager._
@@ -14,7 +14,6 @@ object TableManager {
   case class RemoveTable(name: String)
   case class ListTables()
   case class FetchTable(name: String)
-  case class ListRemoteTableManagers()
 
   case class RemoteTableAdded()
   case class TableAdded(table: ActorRef)
@@ -22,7 +21,6 @@ object TableManager {
   case class TableList(tableNames: Seq[String])
 
   case class TableFetched(table: ActorRef)
-  case class RemoteTableManagers(tableManagers: Seq[ActorSelection])
   case class PartitionCreated(partitionId: Int, partition: ActorRef)
 
   def props(): Props = Props(new TableManager())
@@ -101,19 +99,8 @@ class TableManager() extends Actor with ActorLogging {
     sender() ! RemoteTableAdded()
   }
 
-  // TODO: Add MultiNodeTest
-  private def listRemoteTableManagers(): Unit = {
-    val remoteTableManagers = cluster.state.members.map{ m =>
-      val address = m.address
-      val path = ActorPath.fromString(s"$address/user/node${address.port.getOrElse(0)}/worker")
-      context.actorSelection(path)
-    }.toSeq
-    sender() ! RemoteTableManagers(remoteTableManagers)
-  }
-
   private def active(state: TableManagerState): Receive = {
     case AddRemoteTable(tableName, table) => addRemoteTable(state, tableName, table)
-    case ListRemoteTableManagers() => listRemoteTableManagers()
     case AddTable(name, columnNames, partitions) => addTable(state, name, columnNames, partitions)
     case AddPartition(partitionId, partitionData, partitionSize) => addPartition(partitionId, partitionData, partitionSize)
     case RemoveTable(name) => removeTable(state, name)

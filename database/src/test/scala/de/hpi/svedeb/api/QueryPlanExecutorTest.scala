@@ -27,7 +27,8 @@ class QueryPlanExecutorTest extends AbstractActorTest("QueryPlanExecutorTest") {
     checkTable(query.resultTable, Map(0 -> Map("a" -> ColumnType(1, 2))))
   }
 
-  it should "create an empty table" in {
+  // TODO: uses Akka Cluster, therefor it must be a multi-node test
+  ignore should "create an empty table" in {
     val table = generateTableTestProbe(Seq(Map("a" -> ColumnType(), "b" -> ColumnType())))
 
     val tableManager = generateTableManagerTestProbe(Seq(table))

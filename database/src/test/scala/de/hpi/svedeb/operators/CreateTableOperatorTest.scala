@@ -6,7 +6,8 @@ import de.hpi.svedeb.table.ColumnType
 
 class CreateTableOperatorTest extends AbstractActorTest("CreateTableOperator") {
 
-  "A CreateTableOperator" should "invoke creating in TableManager" in {
+  //TODO: Test uses Akka Cluster, must be multi-node test
+  ignore should "invoke creating in TableManager" in {
     val tableManager = generateTableManagerTestProbe(Seq.empty)
 
     val createTableOperator = system.actorOf(CreateTableOperator.props(

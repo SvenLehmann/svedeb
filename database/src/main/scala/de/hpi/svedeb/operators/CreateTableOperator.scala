@@ -1,11 +1,17 @@
 package de.hpi.svedeb.operators
 
-import akka.actor.{ActorRef, Props}
+import java.util.concurrent.TimeUnit
+
+import akka.actor.{ActorContext, ActorPath, ActorRef, Props}
+import akka.cluster.Cluster
+import akka.cluster.ClusterEvent.{InitialStateAsEvents, MemberEvent, UnreachableMember}
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.CreateTableOperator.CreateTableOperatorState
 import de.hpi.svedeb.table.ColumnType
 
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration.FiniteDuration
 import scala.util.Random
 
 object CreateTableOperator {
@@ -54,9 +60,29 @@ class CreateTableOperator(localTableManager: ActorRef,
                           partitionSize: Int) extends AbstractOperator {
   override def receive: Receive = active(CreateTableOperatorState(ActorRef.noSender, Map.empty, Map.empty, ActorRef.noSender))
 
-  private def getAllTableManagers: Seq[ActorRef] = {
-    // TODO: get other remote TableManagers
-    Seq(localTableManager)
+  val cluster = Cluster(context.system)
+
+  // subscribe to cluster changes, re-subscribe when restart
+  override def preStart(): Unit = {
+    cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
+      classOf[MemberEvent], classOf[UnreachableMember])
+  }
+
+  override def postStop(): Unit = cluster.unsubscribe(self)
+
+  def remoteTableManagers(context: ActorContext, cluster: Cluster): Seq[ActorRef] = {
+    import scala.concurrent.ExecutionContext.Implicits.global
+
+    val actorSelectionFutures = cluster.state.members.map{ m =>
+      val address = m.address
+      val path = ActorPath.fromString(s"$address/user/clusterNode/tableManager")
+      context.actorSelection(path)
+    }.map { actorSelection =>
+      actorSelection.resolveOne(FiniteDuration(5, TimeUnit.SECONDS))
+    }
+
+    val future = Future.sequence(actorSelectionFutures)
+    Await.result(future, FiniteDuration(10, TimeUnit.SECONDS)).toSeq
   }
 
   private def execute(state: CreateTableOperatorState): Unit = {
@@ -64,7 +90,7 @@ class CreateTableOperator(localTableManager: ActorRef,
     val addedSenderState = state.storeSender(sender())
     context.become(active(addedSenderState))
 
-    val allTableManagers: Seq[ActorRef] = getAllTableManagers
+    val allTableManagers: Seq[ActorRef] = remoteTableManagers(context, cluster)
     val partitionManagerMappings = data.map { case (partitionId, values) =>
       val random = new Random()
       val chosenTableManager = allTableManagers(random.nextInt(allTableManagers.length))
@@ -85,7 +111,7 @@ class CreateTableOperator(localTableManager: ActorRef,
     val newState = state.updateResult(tableRef)
     context.become(active(newState))
 
-    val allTableManagers: Seq[ActorRef] = getAllTableManagers
+    val allTableManagers: Seq[ActorRef] = remoteTableManagers(context, cluster)
     allTableManagers.foreach(tableManager => tableManager ! AddRemoteTable(tableName, tableRef))
   }
 
@@ -102,7 +128,7 @@ class CreateTableOperator(localTableManager: ActorRef,
   private def createTable(state: CreateTableOperatorState): Unit = {
     log.debug("create table")
     // Select some TableManager randomly
-    val allTableManagers: Seq[ActorRef] = getAllTableManagers
+    val allTableManagers: Seq[ActorRef] = remoteTableManagers(context, cluster)
     val random = new Random()
     val chosenTableManager = allTableManagers(random.nextInt(allTableManagers.length))
     val columnNames = data.headOption.flatMap{ case (_, partitionData) => Some(partitionData.keys.toSeq)}.getOrElse(Seq.empty)
