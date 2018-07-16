@@ -39,17 +39,7 @@ object TableManager {
 
 class TableManager() extends Actor with ActorLogging {
 
-  val cluster = Cluster(context.system)
-
   override def receive: Receive = active(TableManagerState(Map.empty))
-
-  // subscribe to cluster changes, re-subscribe when restart
-  override def preStart(): Unit = {
-    cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
-      classOf[MemberEvent], classOf[UnreachableMember])
-  }
-
-  override def postStop(): Unit = cluster.unsubscribe(self)
 
   private def addTable(state: TableManagerState,
                        name: String,

@@ -4,7 +4,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorContext, ActorPath, ActorRef, Props}
 import akka.cluster.Cluster
-import akka.cluster.ClusterEvent.{InitialStateAsEvents, MemberEvent, UnreachableMember}
+import akka.cluster.ClusterEvent._
 import de.hpi.svedeb.management.TableManager._
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.CreateTableOperator.CreateTableOperatorState
@@ -151,6 +151,13 @@ class CreateTableOperator(localTableManager: ActorRef,
     case PartitionCreated(partitionId, partition) => handlePartitionCreated(state, partitionId, partition)
     case TableAdded(tableRef) => handleTableAdded(state, tableRef)
     case RemoteTableAdded() => handleRemoteTableAdded(state)
+    case MemberUp(member) =>
+      log.info("Member is Up: {}", member.address)
+    case UnreachableMember(member) =>
+      log.info("Member detected as unreachable: {}", member)
+    case MemberRemoved(member, previousStatus) =>
+      log.info("Member is Removed: {} after {}", member.address, previousStatus)
+    case _: MemberEvent => // ignore
     case m => throw new Exception(s"Message not understood: $m")
   }
 }
