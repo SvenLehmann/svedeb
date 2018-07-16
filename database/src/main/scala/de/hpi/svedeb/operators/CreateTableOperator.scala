@@ -62,14 +62,6 @@ class CreateTableOperator(localTableManager: ActorRef,
 
   val cluster = Cluster(context.system)
 
-  // subscribe to cluster changes, re-subscribe when restart
-  override def preStart(): Unit = {
-    cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
-      classOf[MemberEvent], classOf[UnreachableMember])
-  }
-
-  override def postStop(): Unit = cluster.unsubscribe(self)
-
   def remoteTableManagers(context: ActorContext, cluster: Cluster): Seq[ActorRef] = {
     import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -151,13 +143,6 @@ class CreateTableOperator(localTableManager: ActorRef,
     case PartitionCreated(partitionId, partition) => handlePartitionCreated(state, partitionId, partition)
     case TableAdded(tableRef) => handleTableAdded(state, tableRef)
     case RemoteTableAdded() => handleRemoteTableAdded(state)
-    case MemberUp(member) =>
-      log.info("Member is Up: {}", member.address)
-    case UnreachableMember(member) =>
-      log.info("Member detected as unreachable: {}", member)
-    case MemberRemoved(member, previousStatus) =>
-      log.info("Member is Removed: {} after {}", member.address, previousStatus)
-    case _: MemberEvent => // ignore
     case m => throw new Exception(s"Message not understood: $m")
   }
 }
