@@ -1,4 +1,5 @@
 import com.typesafe.sbt.SbtMultiJvm.multiJvmSettings
+import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 
 name := "svedeb"
 
@@ -7,11 +8,7 @@ scalaVersion in ThisBuild := "2.11.8"
 
 // Projects
 
-lazy val global = project
-  .in(file("."))
-  .enablePlugins(MultiJvmPlugin) // use the plugin
-  .configs(MultiJvm) // load the multi-jvm configuration
-  .settings(multiJvmSettings: _*) // apply the default settings
+lazy val global = project.in(file("."))
   .settings(commonSettings)
   .aggregate(
     benchmarks,
@@ -24,6 +21,10 @@ lazy val database = project
     commonSettings,
     libraryDependencies ++= commonDependencies
   )
+  .enablePlugins(MultiJvmPlugin) // use the plugin
+  .settings(multiJvmSettings: _*) // apply the default settings
+  .configs(MultiJvm) // load the multi-jvm configuration
+
 
 lazy val benchmarks = project
   .settings(
@@ -67,10 +68,9 @@ lazy val commonDependencies = Seq(
   dependencies.scalatest
 )
 
-parallelExecution in ThisBuild := false
-
 // Settings
 lazy val commonSettings = Seq(
-  parallelExecution in Test := false, // do not run test cases in parallel
+  parallelExecution in Test := false, // do not run test cases in parallel,
+  unmanagedSourceDirectories in MultiJvm := Seq(baseDirectory(_ / "database/src/multi-jvm")).join.value,
   test in assembly := {}
 )

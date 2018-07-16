@@ -1,0 +1,1 @@
+class MultiNodeSampleSpecMultiJvmNode1 extends MultiNodeSample
