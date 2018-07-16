@@ -1,6 +1,10 @@
 package de.hpi.svedeb
 
 import de.hpi.svedeb.api.API.Shutdown
+import akka.pattern.ask
+import de.hpi.svedeb.ClusterNode.{FetchAPI, FetchedAPI}
+
+import scala.concurrent.duration._
 
 object BenchmarkRunner extends App {
 
@@ -32,7 +36,10 @@ object BenchmarkRunner extends App {
   private def nanosecondsToMilliseconds(time: Long): Double = time/1000000.0
 
   def runBenchmark(benchmark: AbstractBenchmark, tableSize: Int): Unit = {
-    val api = SvedeB.start()
+    val clusterNode = ClusterNode.start()
+    val apiFuture = clusterNode.ask(FetchAPI()) (5 seconds)
+    import scala.concurrent.Await
+    val api = Await.result(apiFuture, 5 seconds).asInstanceOf[FetchedAPI].api
 
     try {
       val times = (1 to numberOfIterations).map(_ => {
@@ -56,10 +63,10 @@ object BenchmarkRunner extends App {
   for {
     benchmark <- joinBenchmarks
     tableSize <- Seq(
-      100, 200, 300, 400, 500, 600, 700, 800, 900,
-      1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000,
-      10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000,
-      100000//, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
+      100, 200, 300, 400, 500, 600, 700, 800, 900
+//      1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000,
+//      10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000,
+//      100000//, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
       //1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000
      )
   } yield runBenchmark(benchmark, tableSize)
@@ -69,12 +76,12 @@ object BenchmarkRunner extends App {
   for {
     benchmark <- scanBenchmarks
     tableSize <- Seq(
-      100, 200, 300, 400, 500, 600, 700, 800, 900,
-      1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000,
-      10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000,
-      100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
-      1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000,
-      10000000//, 20000000, 30000000, 40000000, 50000000, 60000000, 70000000, 80000000, 90000000, 100000000
+      100, 200, 300, 400, 500, 600, 700, 800, 900
+//      1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000,
+//      10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000,
+//      100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
+//      1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000,
+//      10000000//, 20000000, 30000000, 40000000, 50000000, 60000000, 70000000, 80000000, 90000000, 100000000
     )
   } yield runBenchmark(benchmark, tableSize)
 

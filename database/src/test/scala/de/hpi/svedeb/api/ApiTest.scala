@@ -1,11 +1,6 @@
 package de.hpi.svedeb.api
 
-import akka.actor.ActorRef
-import akka.testkit.{TestActor, TestProbe}
 import de.hpi.svedeb.AbstractActorTest
-import de.hpi.svedeb.api.MaterializationWorker.{MaterializeTable, MaterializedTable}
-import de.hpi.svedeb.table.ColumnType
-import org.scalatest.Matchers._
 
 
 // TODO: Implement
@@ -25,5 +20,4 @@ class ApiTest extends AbstractActorTest("Api") {
 //    val materializedTable = expectMsgType[MaterializedResult]
 //    materializedTable.result shouldEqual columns
 //  }
-
 }

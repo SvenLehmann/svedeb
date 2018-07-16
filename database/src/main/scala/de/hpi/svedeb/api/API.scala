@@ -1,7 +1,6 @@
 package de.hpi.svedeb.api
 
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
-import akka.routing.RoundRobinPool
 import de.hpi.svedeb.api.API._
 import de.hpi.svedeb.api.MaterializationWorker.{MaterializeTable, MaterializedTable}
 import de.hpi.svedeb.api.QueryPlanExecutor.{QueryFinished, Run}
@@ -16,7 +15,7 @@ object API {
   case class MaterializedResult(result: Map[String, ColumnType])
   case class Result(resultTable: ActorRef)
 
-  private case class ApiState(queryCounter: Int = 0, runningQueries: Map[Int, ActorRef] = Map.empty) {
+  private case class ApiState(queryCounter: Int, runningQueries: Map[Int, ActorRef]) {
     def addQuery(sender: ActorRef): (ApiState, Int) = {
       val queryId = queryCounter + 1
       val newState = ApiState(queryId, runningQueries + (queryId -> sender))
@@ -28,7 +27,7 @@ object API {
 }
 
 class API(tableManager: ActorRef) extends Actor with ActorLogging {
-  override def receive: Receive = active(ApiState())
+  override def receive: Receive = active(ApiState(0, Map.empty))
 
   private def materializeTable(user: ActorRef, resultTable: ActorRef): Unit = {
     val worker = context.actorOf(MaterializationWorker.props(self, user))

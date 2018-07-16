@@ -1,13 +1,13 @@
 package de.hpi.svedeb.operators
 
-import akka.actor.{ActorRef, Props}
+import akka.actor.{ActorRef, Deploy, Props}
+import akka.remote.RemoteScope
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.ScanOperator.ScanState
 import de.hpi.svedeb.operators.workers.ScanWorker
 import de.hpi.svedeb.operators.workers.ScanWorker.{ScanJob, ScanWorkerResult}
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table._
-import de.hpi.svedeb.utils.Utils
 import de.hpi.svedeb.utils.Utils.ValueType
 
 object ScanOperator {
@@ -66,7 +66,13 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: ValueType => 
 
     partitions
       .map { case (index, partition) =>
-        context.actorOf(ScanWorker.props(partition, index, state.columnName, state.predicate))
+        // TODO: Add multi-node test
+        val addr = partition.path.address
+        log.debug(s"Starting ScanWorker at $addr")
+        context.system.actorOf(
+          ScanWorker
+            .props(partition, index, state.columnName, state.predicate)
+            .withDeploy(new Deploy(RemoteScope(addr))))
       }.foreach(worker => worker ! ScanJob())
   }
 

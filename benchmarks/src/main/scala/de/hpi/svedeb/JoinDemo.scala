@@ -2,6 +2,7 @@ package de.hpi.svedeb
 
 import akka.pattern.ask
 import akka.util.Timeout
+import de.hpi.svedeb.ClusterNode.{FetchAPI, FetchedAPI}
 import de.hpi.svedeb.api.API._
 import de.hpi.svedeb.queryPlan._
 import de.hpi.svedeb.table.ColumnType
@@ -15,7 +16,10 @@ object JoinDemo extends App {
   val leftTableName = "Table1"
   val rightTableName = "Table2"
 
-  val api = SvedeB.start()
+  val clusterNode = ClusterNode.start()
+  val apiFuture = clusterNode.ask(FetchAPI()) (5 seconds)
+  import scala.concurrent.Await
+  val api = Await.result(apiFuture, 5 seconds).asInstanceOf[FetchedAPI].api
 
   private def createTable(name: String, data: Map[Int, Map[String, ColumnType]]): Unit = {
     val createTableFuture = api.ask(

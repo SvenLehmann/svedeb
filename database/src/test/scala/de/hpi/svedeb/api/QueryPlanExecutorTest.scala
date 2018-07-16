@@ -12,7 +12,7 @@ import de.hpi.svedeb.table.Partition.{ColumnsRetrieved, GetColumns}
 import de.hpi.svedeb.table.Table._
 import org.scalatest.Matchers._
 
-class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
+class QueryPlanExecutorTest extends AbstractActorTest("QueryPlanExecutorTest") {
   
   "An QueryPlanExecutor" should "query an empty table" in {
     val table = generateTableTestProbe(Seq(Map("a" -> ColumnType(1, 2))))
@@ -27,7 +27,8 @@ class QueryPlanExecutorTest extends AbstractActorTest("APIWorker") {
     checkTable(query.resultTable, Map(0 -> Map("a" -> ColumnType(1, 2))))
   }
 
-  it should "create an empty table" in {
+  // TODO: uses Akka Cluster, therefor it must be a multi-node test
+  ignore should "create an empty table" in {
     val table = generateTableTestProbe(Seq(Map("a" -> ColumnType(), "b" -> ColumnType())))
 
     val tableManager = generateTableManagerTestProbe(Seq(table))
