@@ -7,7 +7,7 @@ import org.scalatest.Matchers._
 
 class NestedLoopJoinWorkerTest extends AbstractActorTest("NestedLoopJoinWorker") {
 
-  "A NestedLoopJoin" should "join two columns" in {
+  "A NestedLoopJoinWorker" should "join two columns" in {
     val leftPartition = generatePartitionTestProbe(0,
       Map("a" -> ColumnType(1, 2), "b" -> ColumnType(1, 2))).partition
     val rightPartition = generatePartitionTestProbe(0,
