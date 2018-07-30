@@ -1,3 +1,5 @@
+package de.hpi.svedeb
+
 import akka.remote.testkit.MultiNodeSpecCallbacks
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 

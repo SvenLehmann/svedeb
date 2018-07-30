@@ -1,6 +1,7 @@
 import akka.remote.testkit.MultiNodeSpec
 import akka.testkit.ImplicitSender
-import akka.actor.{ Props, Actor }
+import akka.actor.{Actor, Props}
+import de.hpi.svedeb.STMultiNodeSpec
 
 object MultiNodeSample {
   class Ponger extends Actor {
