@@ -7,16 +7,16 @@ import de.hpi.svedeb.utils.Utils.ValueType
 
 object PartitionedHashTableActor {
   case class ListValues()
-  case class ListedValues(values: Seq[(Int, Int, ValueType)])
+  case class ListedValues(values: Seq[PartitionedHashTableEntry])
   case class FetchValues()
-  case class FetchedHashedValues(hashKey: Int)
+  case class FetchedHashedValues(hashKey: ValueType)
 
-  private case class HashTableState(originalSender: ActorRef, answerCount: Int, values: Seq[(Int, Int, ValueType)]) {
+  private case class HashTableState(originalSender: ActorRef, answerCount: Int, values: Seq[PartitionedHashTableEntry]) {
     def storeOriginalSender(sender: ActorRef): HashTableState = {
       HashTableState(sender, answerCount, values)
     }
 
-    def storeIntermediateResult(newValues: Seq[(Int, Int, ValueType)]): HashTableState = {
+    def storeIntermediateResult(newValues: Seq[PartitionedHashTableEntry]): HashTableState = {
       HashTableState(originalSender, answerCount + 1, values ++ newValues)
     }
 
@@ -25,7 +25,7 @@ object PartitionedHashTableActor {
     }
   }
 
-  def props(hashKey: Int, actorRefs: Seq[ActorRef]): Props = Props(new PartitionedHashTableActor(hashKey, actorRefs))
+  def props(hashKey: ValueType, actorRefs: Seq[ActorRef]): Props = Props(new PartitionedHashTableActor(hashKey, actorRefs))
 }
 
 class PartitionedHashTableActor(hashKey: Int, actorRefs: Seq[ActorRef]) extends Actor with ActorLogging {
@@ -35,7 +35,7 @@ class PartitionedHashTableActor(hashKey: Int, actorRefs: Seq[ActorRef]) extends 
     actorRefs.foreach(actorRef => actorRef ! FetchValuesForKey(hashKey))
   }
 
-  private def handleFetchedValues(state: HashTableState, values: Seq[(Int, Int, ValueType)]): Unit = {
+  private def handleFetchedValues(state: HashTableState, values: Seq[PartitionedHashTableEntry]): Unit = {
     val newState = state.storeIntermediateResult(values)
     context.become(active(newState))
 

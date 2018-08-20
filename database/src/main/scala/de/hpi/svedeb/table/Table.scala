@@ -114,14 +114,11 @@ class TableWithData(data: Map[Int, Map[String, ColumnType]], partitionSize: Int)
 }
 
 class TableWithPartitions(columnNames: Seq[String], partitions: Map[Int, ActorRef], partitionSize: Int) extends Table(partitionSize) {
-
   override def receive: Receive = active(TableState(
     columnNames,
     Map.empty,
     partitions
   ))
-
-
 }
 
 

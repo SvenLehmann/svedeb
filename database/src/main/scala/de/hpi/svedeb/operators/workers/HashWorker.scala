@@ -1,6 +1,7 @@
 package de.hpi.svedeb.operators.workers
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import de.hpi.svedeb.operators.HashJoinOperator.JoinSide
 import de.hpi.svedeb.operators.helper.PartitionedHashTableActor
 import de.hpi.svedeb.operators.helper.PartitionedHashTableActor.{FetchValues, FetchedHashedValues}
 import de.hpi.svedeb.operators.workers.HashWorker.{HashJob, HashWorkerState, HashedTable}
@@ -9,7 +10,7 @@ import de.hpi.svedeb.table.Table.{GetPartitions, PartitionsInTable}
 
 object HashWorker {
   case class HashJob()
-  case class HashedTable(result: Map[Int, ActorRef])
+  case class HashedTable(result: Map[Int, ActorRef], side: JoinSide)
 
   private case class HashWorkerState(originalSender: ActorRef,
                                      expectedAnswerCount: Option[Int],
@@ -57,10 +58,16 @@ object HashWorker {
     }
   }
 
-  def props(table: ActorRef, joinColumn: String): Props = Props(new HashWorker(table, joinColumn))
+  def props(table: ActorRef, joinColumn: String, side: JoinSide): Props = Props(new HashWorker(table, joinColumn, side))
 }
 
-class HashWorker(table: ActorRef, joinColumn: String) extends Actor with ActorLogging {
+/**
+  * An actor that hashes one side of a HashJoin, i.e. the left or the right input
+  * @param table the input table actor
+  * @param joinColumn the join column that needs to be hashed
+  * @param side the side of the join, only used for the return value
+  */
+class HashWorker(table: ActorRef, joinColumn: String, side: JoinSide) extends Actor with ActorLogging {
   override def receive: Receive = active(HashWorkerState(ActorRef.noSender, None, 0, Map.empty, Map.empty))
 
   private def beginHashJob(state: HashWorkerState): Unit = {
@@ -100,7 +107,7 @@ class HashWorker(table: ActorRef, joinColumn: String) extends Actor with ActorLo
 
     if (newState.gotAllResults) {
       log.debug("got all results")
-      newState.originalSender ! HashedTable(newState.resultMap)
+      newState.originalSender ! HashedTable(newState.resultMap, side)
     }
   }
 
