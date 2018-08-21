@@ -2,6 +2,7 @@ package de.hpi.svedeb.operators.workers
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.operators.HashJoinOperator.JoinSide
+import de.hpi.svedeb.operators.helper.PartitionedHashTableActor.{ListValues, ListedValues}
 import de.hpi.svedeb.operators.helper.PartitionedHashTableEntry
 import de.hpi.svedeb.operators.workers.HashJoinMaterializationWorker.{MaterializeJoinResult, MaterializedJoinResult}
 import de.hpi.svedeb.operators.workers.PartitionHashWorker.{FetchValuesForKey, FetchedValues}
@@ -19,6 +20,10 @@ object ProbeWorker {
       ProbeWorkerState(originalSender, values + (hashMap -> value))
     }
 
+    def storeOriginalSender(sender: ActorRef): ProbeWorkerState = {
+      ProbeWorkerState(sender, values)
+    }
+
     def receivedAllValues: Boolean = values.size == 2
   }
 
@@ -32,12 +37,15 @@ class ProbeWorker(hash: Int,
                   predicate: (ValueType, ValueType) => Boolean) extends Actor with ActorLogging {
   override def receive: Receive = active(ProbeWorkerState(ActorRef.noSender, Map.empty))
 
-  private def fetchHashMaps(): Unit = {
-    leftHashMap ! FetchValuesForKey(hash)
-    rightHashMap ! FetchValuesForKey(hash)
+  private def fetchHashMaps(state: ProbeWorkerState): Unit = {
+    val newState = state.storeOriginalSender(sender())
+    context.become(active(newState))
+
+    leftHashMap ! ListValues()
+    rightHashMap ! ListValues()
   }
 
-  private def handleFetchedValues(state: ProbeWorkerState, sendingHashMap: ActorRef, values: Seq[PartitionedHashTableEntry]): Unit = {
+  private def handleListedValues(state: ProbeWorkerState, sendingHashMap: ActorRef, values: Seq[PartitionedHashTableEntry]): Unit = {
     val newState = state.storeValues(sendingHashMap, values)
     context.become(active(newState))
 
@@ -60,8 +68,8 @@ class ProbeWorker(hash: Int,
   }
 
   private def active(state: ProbeWorkerState): Receive = {
-    case ProbeJob() => fetchHashMaps()
-    case FetchedValues(values) => handleFetchedValues(state, sender(), values)
+    case ProbeJob() => fetchHashMaps(state)
+    case ListedValues(values) => handleListedValues(state, sender(), values)
     case m => throw new Exception(s"Message not understood: $m")
   }
 }
