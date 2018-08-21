@@ -79,7 +79,7 @@ class ScanWorker(partition: ActorRef,
 
   private def active(state: State): Receive = {
     case ScanJob() => beginScanJob(state)
-    case ColumnsRetrieved(columnRefs) => filterColumn(state, columnRefs)
+    case ColumnsRetrieved(_, columnRefs) => filterColumn(state, columnRefs)
     case FilteredRowIndices(_, columnName, indices) => scanColumns(state, indices)
     case ScannedValues(_, columnName, values) => storePartialResult(state, columnName, values)
     case m => throw new Exception(s"Message not understood: $m")
