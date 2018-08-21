@@ -89,6 +89,7 @@ abstract class AbstractActorTest(name: String)
             val filteredIndices = columnDefinition.filterByPredicate(predicate)
             sender.tell(FilteredRowIndices(partitionId, columnName, filteredIndices), column.ref)
             TestActor.KeepRunning
+          case m => throw new Exception(s"Message not understood: $m")
         }
     })
 
@@ -110,12 +111,15 @@ abstract class AbstractActorTest(name: String)
             sender.tell(ColumnNameList(partitionDefinition.keys.toSeq), partition.ref)
             TestActor.KeepRunning
           case GetColumns() =>
-            sender.tell(ColumnsRetrieved(columns), partition.ref)
+            sender.tell(ColumnsRetrieved(partitionId, columns), partition.ref)
             TestActor.KeepRunning
           case GetColumn(columnName) =>
             sender.tell(ColumnRetrieved(partitionId, columnName, columns(columnName)), partition.ref)
             TestActor.KeepRunning
-          case _ => throw new Exception("Unexpected message type")
+          case ScanColumns(indices) =>
+            sender.tell(ScannedColumns(partitionId, partitionDefinition.mapValues(_.filterByIndicesWithOptional(indices))), partition.ref)
+            TestActor.KeepRunning
+          case m => throw new Exception(s"Message not understood: $m")
         }
     })
 
@@ -149,6 +153,7 @@ abstract class AbstractActorTest(name: String)
           case AddRowToTable(_) =>
             sender.tell(RowAddedToTable(), table.ref)
             TestActor.KeepRunning
+          case m => throw new Exception(s"Message not understood: $m")
         }
     })
 
@@ -169,6 +174,7 @@ abstract class AbstractActorTest(name: String)
             sender ! TableAdded(tables.headOption.getOrElse(ActorRef.noSender))
             TestActor.KeepRunning
           case AddRemoteTable(_, _) => sender ! RemoteTableAdded(); TestActor.KeepRunning
+          case m => throw new Exception(s"Message not understood: $m")
         }
     })
 

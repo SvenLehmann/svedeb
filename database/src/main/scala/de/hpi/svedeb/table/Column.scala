@@ -9,12 +9,14 @@ object Column {
   case class FilterColumn(predicate: ValueType => Boolean)
   // None returns all values
   case class ScanColumn(indices: Option[Seq[RowId]] = None)
+  case class ScanColumnWithOptional(indices: Seq[RowId])
   case class GetColumnName()
   case class GetColumnSize()
 
   // Result events
   case class FilteredRowIndices(partitionId: Int, columnName: String, indices: Seq[RowId])
   case class ScannedValues(partitionId: Int, columnName: String, values: ColumnType)
+  case class ScannedValuesWithOptional(partitionId: Int, columnName: String, values: OptionalColumnType)
   case class ValueAppended(partitionId: Int, columnName: String)
   case class ColumnName(name: String)
   case class ColumnSize(partitionId: Int, size: Int)
@@ -41,6 +43,12 @@ class Column(partitionId: Int, columnName: String, initialValues: ColumnType) ex
     }
   }
 
+  // Used in HashJoin Materialization
+  private def scanWithOptional(values: ColumnType, indices: Seq[RowId]): Unit = {
+    val scannedValues = values.filterByIndicesWithOptional(indices)
+    sender() ! ScannedValuesWithOptional(partitionId, columnName, scannedValues)
+  }
+
   private def addRow(values: ColumnType, value: ValueType): Unit = {
     log.debug("Appending value: {}", value)
     context.become(active(values.append(value)))
@@ -52,6 +60,7 @@ class Column(partitionId: Int, columnName: String, initialValues: ColumnType) ex
     case AppendValue(value) => addRow(values, value)
     case FilterColumn(predicate) => filter(values, predicate)
     case ScanColumn(indices) => scan(values, indices)
+    case ScanColumnWithOptional(indices) => scanWithOptional(values, indices)
     case GetColumnName() => sender() ! ColumnName(columnName)
     case GetColumnSize() => sender() ! ColumnSize(partitionId, values.size())
     case m => throw new Exception(s"Message not understood: $m")

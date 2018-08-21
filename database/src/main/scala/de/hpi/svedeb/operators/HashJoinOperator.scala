@@ -9,7 +9,7 @@ import de.hpi.svedeb.operators.workers.{HashJoinMaterializationWorker, HashWorke
 import de.hpi.svedeb.operators.workers.HashWorker.{HashJob, HashedTable}
 import de.hpi.svedeb.operators.workers.ProbeWorker.{ProbeJob, ProbeResult}
 import de.hpi.svedeb.table.Table
-import de.hpi.svedeb.table.Table.ColumnList
+import de.hpi.svedeb.table.Table.{ColumnList, ListColumnsInTable}
 import de.hpi.svedeb.utils.Utils.ValueType
 
 object HashJoinOperator {
@@ -37,7 +37,7 @@ object HashJoinOperator {
     }
 
     def hasReceivedAllResults: Boolean = {
-      resultPartitionMap.forall(_._2.isDefined)
+      resultPartitionMap.forall(_._2.isDefined) && leftColumnNames.isDefined && rightColumnNames.isDefined
     }
 
     def storeSender(sender: ActorRef): HashJoinState = {
@@ -76,6 +76,9 @@ class HashJoinOperator(leftTable: ActorRef,
   override def receive: Receive = active(HashJoinState(ActorRef.noSender, None, None, None, None, Map.empty))
 
   private def initializeJoin(state: HashJoinState): Unit = {
+    val newState = state.storeSender(sender())
+    context.become(active(newState))
+
     val leftHashWorker = context.actorOf(HashWorker.props(leftTable, leftJoinColumn, LeftJoinSide))
     val rightHashWorker = context.actorOf(HashWorker.props(rightTable, rightJoinColumn, RightJoinSide))
     leftHashWorker ! HashJob()
@@ -92,16 +95,21 @@ class HashJoinOperator(leftTable: ActorRef,
       val left = newState.leftHashTable.get
       val right = newState.rightHashTable.get
 
-      for (
+      val keys = for (
         key <- left.keySet ++ right.keySet;
         leftHashMap <- left.get(key);
         rightHashMap <- right.get(key)
       ) yield {
+        log.debug(s"Starting ProbeWorker for hashkey $key")
         val worker = context.actorOf(ProbeWorker.props(key, leftHashMap, rightHashMap, predicate))
         worker ! ProbeJob()
+        key
       }
-      val keys = left.keySet ++ right.keySet
+//      val keys = left.keySet ++ right.keySet
       context.become(active(newState.initializeResultMap(keys)))
+
+      leftTable ! ListColumnsInTable()
+      rightTable ! ListColumnsInTable()
     }
   }
 
@@ -111,26 +119,28 @@ class HashJoinOperator(leftTable: ActorRef,
     context.actorOf(HashJoinMaterializationWorker.props(leftTable, rightTable, hashKey, indices)) ! MaterializeJoinResult()
   }
 
+  def createResultTable(state: HashJoinState): Unit = {
+    log.debug("create result table")
+
+    // Assign new partition ids
+    val partitions = state.resultPartitionMap
+      .mapValues(_.get) // we just checked that all Options are set
+
+    val table = context.actorOf(Table.propsWithPartitions(
+      state.leftColumnNames.get ++ state.rightColumnNames.get,
+      partitions
+    ))
+
+    state.originalSender ! QueryResult(table)
+  }
+
   def handleMaterializedJoinResult(state: HashJoinState, hashKey: ValueType, partition: ActorRef): Unit = {
+    log.debug("handle materialized join result")
     val newState = state.storeMaterializedResult(hashKey, partition)
     context.become(active(newState))
 
     if (newState.hasReceivedAllResults) {
-
-      // Assign new partition ids
-      val partitions = newState.resultPartitionMap.values
-        .filter(_.isDefined)
-        .map(_.get)
-        .zipWithIndex
-        .map{ case (p, id) => id -> p }
-        .toMap
-
-      val table = context.actorOf(Table.propsWithPartitions(
-        newState.leftColumnNames.get ++ newState.rightColumnNames.get,
-        partitions
-      ))
-
-      newState.originalSender ! QueryResult(table)
+      createResultTable(newState)
     }
   }
 
@@ -144,6 +154,10 @@ class HashJoinOperator(leftTable: ActorRef,
     }
 
     context.become(active(newState))
+
+    if (newState.hasReceivedAllResults) {
+      createResultTable(newState)
+    }
   }
 
   private def active(state: HashJoinState): Receive = {

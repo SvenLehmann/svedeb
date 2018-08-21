@@ -15,7 +15,7 @@ class HashJoinOperatorTest extends AbstractActorTest("HashJoinOperator") {
     operator ! Execute()
 
     val result = expectMsgType[QueryResult]
-    checkTable(result.resultTable, Map(0 -> Map("a" -> ColumnType(2), "b" -> ColumnType(2))))
+    checkTable(result.resultTable, Map(2 -> Map("a" -> ColumnType(2), "b" -> ColumnType(2))))
   }
 
   it should "handle multiple columns" in {
@@ -27,7 +27,7 @@ class HashJoinOperatorTest extends AbstractActorTest("HashJoinOperator") {
     operator ! Execute()
 
     val result = expectMsgType[QueryResult]
-    val expectedResult = Map(0 -> Map(
+    val expectedResult = Map(2 -> Map(
       "a" -> ColumnType(2), "a2" -> ColumnType(5),
       "b" -> ColumnType(2), "b2" -> ColumnType(5)))
     checkTable(result.resultTable, expectedResult)
@@ -43,9 +43,9 @@ class HashJoinOperatorTest extends AbstractActorTest("HashJoinOperator") {
 
     val result = expectMsgType[QueryResult]
     checkTable(result.resultTable, Map(
-      0 -> Map("a" -> ColumnType(2), "b" -> ColumnType(2)),
-      2 -> Map("a" -> ColumnType(3), "b" -> ColumnType(3)),
-      3 -> Map("a" -> ColumnType(4), "b" -> ColumnType(4))))
+      2 -> Map("a" -> ColumnType(2), "b" -> ColumnType(2)),
+      3 -> Map("a" -> ColumnType(3), "b" -> ColumnType(3)),
+      4 -> Map("a" -> ColumnType(4), "b" -> ColumnType(4))))
   }
 
   it should "handle multiple partitions (part2)" in {
@@ -57,8 +57,10 @@ class HashJoinOperatorTest extends AbstractActorTest("HashJoinOperator") {
     operator ! Execute()
 
     val result = expectMsgType[QueryResult]
+
     checkTable(result.resultTable, Map(
-      0 -> Map("a" -> ColumnType(2, 3), "b" -> ColumnType(2, 3)),
-      3 -> Map("a" -> ColumnType(4), "b" -> ColumnType(4))))
+        2 -> Map("a" -> ColumnType(2), "b" -> ColumnType(2)),
+        3 -> Map("a" -> ColumnType(3), "b" -> ColumnType(3)),
+        4 -> Map("a" -> ColumnType(4), "b" -> ColumnType(4))))
   }
 }
