@@ -172,7 +172,7 @@ class NestedLoopJoinWorker(leftPartition: ActorRef,
 
   private def active(state: JoinWorkerState): Receive = {
     case JoinJob() => beginJoinJob(state)
-    case ColumnsRetrieved(columns) => handleColumnsRetrieved(state, columns)
+    case ColumnsRetrieved(_, columns) => handleColumnsRetrieved(state, columns)
     case ScannedValues(_, columnName, values) => handleScannedValues(state, columnName, values)
     case m => throw new Exception(s"Message not understood: $m")
   }
