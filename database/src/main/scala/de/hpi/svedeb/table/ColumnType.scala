@@ -26,6 +26,14 @@ case class ColumnType(values: IndexedSeq[ValueType]) {
     ColumnType(indices.map(values).toIndexedSeq)
   }
 
+  def filterByIndicesWithOptional(indices: Seq[RowId]): OptionalColumnType = {
+    val optionalValues = values.zipWithIndex.map {
+      case (value, rowId) => if (indices.contains(rowId)) Some(value) else None
+    }.toIndexedSeq
+
+    OptionalColumnType(optionalValues)
+  }
+
   def size(): Int = {
     values.size
   }

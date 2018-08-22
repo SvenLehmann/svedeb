@@ -32,5 +32,13 @@ class ColumnTypeTest extends AbstractTest {
     filteredColumn shouldEqual ColumnType(1, 2)
   }
 
+  it should "filter by indices adding Nones" in {
+    val columnType = ColumnType(1, 2, 1, 3)
+
+    val indices = Seq(0, 1)
+    val filteredColumn = columnType.filterByIndicesWithOptional(indices)
+    filteredColumn shouldEqual OptionalColumnType(Some(1), Some(2), None, None)
+  }
+
 }
 

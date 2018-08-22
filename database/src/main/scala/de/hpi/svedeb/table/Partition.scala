@@ -3,7 +3,10 @@ package de.hpi.svedeb.table
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.table.Column.{AppendValue, ValueAppended}
 import de.hpi.svedeb.table.Partition._
+import de.hpi.svedeb.table.worker.PartitionWorker
+import de.hpi.svedeb.table.worker.PartitionWorker.{InternalScanColumns, InternalScannedValues}
 import de.hpi.svedeb.utils.Utils
+import de.hpi.svedeb.utils.Utils.RowId
 
 
 /**
@@ -17,12 +20,15 @@ object Partition {
   case class ListColumnNames()
   case class GetColumn(name: String)
   case class GetColumns()
+  case class ScanColumns(indices: Seq[RowId])
   case class AddRow(row: RowType, originalSender: ActorRef)
 
   // Result events
   case class ColumnNameList(columns: Seq[String])
+//  case class ScannedColumns(indices: Option[Seq[RowId]] = None)
+  case class ScannedColumns(partitionId: Int, columns: Map[String, OptionalColumnType])
   case class ColumnRetrieved(partitionId: Int, columnName: String, column: ActorRef)
-  case class ColumnsRetrieved(columns: Map[String, ActorRef])
+  case class ColumnsRetrieved(partitionId: Int, columns: Map[String, ActorRef])
   case class RowAdded(originalSender: ActorRef)
   case class PartitionFull(row: RowType, originalSender: ActorRef)
 
@@ -56,7 +62,7 @@ class Partition(partitionId: Int,
   override def receive: Receive = active(PartitionState(processingInsert = false, 0, 0, ActorRef.noSender, ActorRef.noSender))
 
   private def retrieveColumns(): Unit = {
-    sender() ! ColumnsRetrieved(columnRefs)
+    sender() ! ColumnsRetrieved(partitionId, columnRefs)
   }
 
   private def retrieveColumn(name: String): Unit = {
@@ -103,10 +109,17 @@ class Partition(partitionId: Int,
     }
   }
 
+  private def handleScanColumns(state: PartitionState, indices: Seq[RowId]): Unit = {
+    val worker = context.actorOf(PartitionWorker.props(columnRefs))
+    worker ! InternalScanColumns(sender(), indices)
+  }
+
   private def active(state: PartitionState): Receive = {
     case ListColumnNames() => listColumns()
     case GetColumn(name) => retrieveColumn(name)
     case GetColumns() => retrieveColumns()
+    case ScanColumns(indices) => handleScanColumns(state, indices)
+    case InternalScannedValues(originalSender, values) => originalSender ! ScannedColumns(partitionId, values)
     case AddRow(row, originalSender) =>
       // Postpone message until previous insert is completed
       if (state.processingInsert) self forward AddRow(row, originalSender)
