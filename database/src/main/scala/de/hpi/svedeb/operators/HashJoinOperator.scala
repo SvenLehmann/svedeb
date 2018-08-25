@@ -1,6 +1,7 @@
 package de.hpi.svedeb.operators
 
-import akka.actor.{ActorRef, Props}
+import akka.actor.{ActorRef, Deploy, Props}
+import akka.remote.RemoteScope
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.HashJoinOperator.{HashJoinState, JoinSide, LeftJoinSide, RightJoinSide}
 import de.hpi.svedeb.operators.helper.PartitionedHashTableEntry
@@ -11,6 +12,8 @@ import de.hpi.svedeb.operators.workers.ProbeWorker.{ProbeJob, ProbeResult}
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table.{ColumnList, ListColumnsInTable}
 import de.hpi.svedeb.utils.Utils.ValueType
+
+import scala.util.Random
 
 object HashJoinOperator {
 
@@ -79,8 +82,12 @@ class HashJoinOperator(leftTable: ActorRef,
     val newState = state.storeSender(sender())
     context.become(active(newState))
 
-    val leftHashWorker = context.actorOf(HashWorker.props(leftTable, leftJoinColumn, LeftJoinSide))
-    val rightHashWorker = context.actorOf(HashWorker.props(rightTable, rightJoinColumn, RightJoinSide))
+    val leftHashWorker = context.actorOf(HashWorker
+      .props(leftTable, leftJoinColumn, LeftJoinSide)
+      .withDeploy(new Deploy(RemoteScope(leftTable.path.address))))
+    val rightHashWorker = context.actorOf(HashWorker
+      .props(rightTable, rightJoinColumn, RightJoinSide)
+      .withDeploy(new Deploy(RemoteScope(rightTable.path.address))))
     leftHashWorker ! HashJob()
     rightHashWorker ! HashJob()
   }
@@ -101,7 +108,16 @@ class HashJoinOperator(leftTable: ActorRef,
         rightHashMap <- right.get(key)
       ) yield {
         log.debug(s"Starting ProbeWorker for hashkey $key")
-        val worker = context.actorOf(ProbeWorker.props(key, leftHashMap, rightHashMap, predicate))
+        // Decide on which node we are instantiating the Worker Actor. Choose randomly between left and right partition.
+        val random = new Random()
+        val address = if (random.nextBoolean()) {
+          leftHashMap.path.address
+        } else {
+          rightHashMap.path.address
+        }
+        val worker = context.actorOf(ProbeWorker
+          .props(key, leftHashMap, rightHashMap, predicate)
+          .withDeploy(new Deploy(RemoteScope(address))))
         worker ! ProbeJob()
         key
       }

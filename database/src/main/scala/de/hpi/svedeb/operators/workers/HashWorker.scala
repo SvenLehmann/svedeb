@@ -1,6 +1,7 @@
 package de.hpi.svedeb.operators.workers
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Deploy, Props}
+import akka.remote.RemoteScope
 import de.hpi.svedeb.operators.HashJoinOperator.JoinSide
 import de.hpi.svedeb.operators.helper.PartitionedHashTableActor
 import de.hpi.svedeb.operators.helper.PartitionedHashTableActor.{FetchValues, FetchedHashedValues}
@@ -15,6 +16,7 @@ object HashWorker {
   private case class HashWorkerState(originalSender: ActorRef,
                                      expectedAnswerCount: Option[Int],
                                      answerCount: Int,
+                                    // map of hash keys and the partitionWorkers that have it
                                      partitionWorkerMap: Map[Int, Seq[ActorRef]],
                                      resultMap: Map[Int, ActorRef]) {
     /*private def mergeMaps(map1: Map[Int, Seq[ActorRef]], map2: Map[Int, Seq[ActorRef]]): Map[Int, Seq[ActorRef]] = {
@@ -81,7 +83,9 @@ class HashWorker(table: ActorRef, joinColumn: String, side: JoinSide) extends Ac
     log.debug("handling partitions in table")
     context.become(active(state.storePartitionCount(partitions.size)))
     partitions.foreach(partition => {
-      val worker = context.actorOf(PartitionHashWorker.props(partition._2, joinColumn))
+      val worker = context.actorOf(PartitionHashWorker
+        .props(partition._2, joinColumn)
+        .withDeploy(new Deploy(RemoteScope(partition._2.path.address))))
       worker ! HashPartition()
     })
   }
@@ -94,6 +98,7 @@ class HashWorker(table: ActorRef, joinColumn: String, side: JoinSide) extends Ac
     if (newState.isFinished) {
       log.debug("is finished")
       newState.partitionWorkerMap.foreach{ case (hashKey, actorRefs) =>
+        // Does not matter where this is created because the PHTA asks multiple partitionHashWorkers
         val hashTable = context.actorOf(PartitionedHashTableActor.props(hashKey, actorRefs))
         hashTable ! FetchValues()
       }
