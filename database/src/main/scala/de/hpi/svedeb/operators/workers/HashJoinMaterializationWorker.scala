@@ -97,15 +97,6 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
 
     leftTable ! GetPartitions()
     rightTable ! GetPartitions()
-
-//    newState.leftColumnRefs.get.values.foreach(column => column ! ScanColumn(Some(joinedIndices.map(_._1))))
-//    newState.rightColumnRefs.get.values.foreach(column => column ! ScanColumn(Some(joinedIndices.map(_._2))))
-
-//    PartitionedHashTableEntry(partitionId: Int, rowId: Int, value: ValueType)
-
-//    indices.foreach { case (l, r) =>
-//      leftTable !
-//    }
   }
 
   private def initiateMaterialization(state: HashJoinMaterializationWorkerState): Unit = {
