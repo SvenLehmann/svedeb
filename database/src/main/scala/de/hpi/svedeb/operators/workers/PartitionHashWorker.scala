@@ -53,7 +53,7 @@ class PartitionHashWorker(partition: ActorRef, joinColumn: String) extends Actor
       .groupBy(columnValue => columnValue._1) // TODO Change hash function, currently it is the identity function
       .mapValues(valuesWithSameHash => valuesWithSameHash.map {
         case (value, rowId) => PartitionedHashTableEntry(state.partitionId.get, rowId, value)
-      })
+      }).map(identity)
 
     val newState = state.storeHashedPartition(hashedPartition)
     context.become(active(newState))

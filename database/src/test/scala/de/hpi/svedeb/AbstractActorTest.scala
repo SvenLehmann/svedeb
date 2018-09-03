@@ -89,7 +89,11 @@ abstract class AbstractActorTest(name: String)
             val filteredIndices = columnDefinition.filterByPredicate(predicate)
             sender.tell(FilteredRowIndices(partitionId, columnName, filteredIndices), column.ref)
             TestActor.KeepRunning
-          case m => throw new Exception(s"Message not understood: $m")
+          case ScanColumnWithOptional(indices) =>
+            val filteredIndices = columnDefinition.filterByIndicesWithOptional(indices)
+            sender.tell(ScannedValuesWithOptional(partitionId, columnName, filteredIndices), column.ref)
+            TestActor.KeepRunning
+          case m => throw new Exception(s"Column TestProbe: Message not understood: $m")
         }
     })
 
@@ -119,7 +123,7 @@ abstract class AbstractActorTest(name: String)
           case ScanColumns(indices) =>
             sender.tell(ScannedColumns(partitionId, partitionDefinition.mapValues(_.filterByIndicesWithOptional(indices))), partition.ref)
             TestActor.KeepRunning
-          case m => throw new Exception(s"Message not understood: $m")
+          case m => throw new Exception(s"Partition TestProbe: Message not understood: $m")
         }
     })
 
@@ -153,7 +157,7 @@ abstract class AbstractActorTest(name: String)
           case AddRowToTable(_) =>
             sender.tell(RowAddedToTable(), table.ref)
             TestActor.KeepRunning
-          case m => throw new Exception(s"Message not understood: $m")
+          case m => throw new Exception(s"Table TestProbe: Message not understood: $m")
         }
     })
 
@@ -174,7 +178,7 @@ abstract class AbstractActorTest(name: String)
             sender ! TableAdded(tables.headOption.getOrElse(ActorRef.noSender))
             TestActor.KeepRunning
           case AddRemoteTable(_, _) => sender ! RemoteTableAdded(); TestActor.KeepRunning
-          case m => throw new Exception(s"Message not understood: $m")
+          case m => throw new Exception(s"TableManager TestProbe: Message not understood: $m")
         }
     })
 

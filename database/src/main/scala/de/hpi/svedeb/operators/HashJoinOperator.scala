@@ -140,7 +140,7 @@ class HashJoinOperator(leftTable: ActorRef,
 
     // Assign new partition ids
     val partitions = state.resultPartitionMap
-      .mapValues(_.get) // we just checked that all Options are set
+      .mapValues(_.get).map(identity) // we just checked that all Options are set
 
     val table = context.actorOf(Table.propsWithPartitions(
       state.leftColumnNames.get ++ state.rightColumnNames.get,

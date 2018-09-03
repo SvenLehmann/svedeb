@@ -2,12 +2,11 @@ package de.hpi.svedeb
 
 import akka.pattern.ask
 import akka.util.Timeout
-import de.hpi.svedeb.ClusterNode.{FetchAPI, FetchedAPI}
+import de.hpi.svedeb.ClusterNode.{ClusterIsUp, FetchAPI, FetchedAPI, IsClusterUp}
 import de.hpi.svedeb.api.API._
 import de.hpi.svedeb.queryPlan._
 import de.hpi.svedeb.table.ColumnType
 
-import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -20,6 +19,9 @@ object JoinDemo extends App {
   val apiFuture = clusterNode.ask(FetchAPI()) (5 seconds)
   import scala.concurrent.Await
   val api = Await.result(apiFuture, 5 seconds).asInstanceOf[FetchedAPI].api
+
+  // Hacky way to wait for cluster start
+  while (!Await.result(clusterNode.ask(IsClusterUp()) (5 seconds), 5 seconds).asInstanceOf[ClusterIsUp].bool) {}
 
   private def createTable(name: String, data: Map[Int, Map[String, ColumnType]]): Unit = {
     val createTableFuture = api.ask(

@@ -1,5 +1,15 @@
 package de.hpi.svedeb
 
-class Main {
+object Main extends App {
 
+  if (args.length == 0) {
+    ClusterNode.start()
+  } else {
+    args(0) match {
+      case "join" =>
+        BenchmarkRunner
+      case _ =>
+        println("Undefined arg, can only understand 'join'")
+    }
+  }
 }

@@ -37,8 +37,8 @@ object MaterializationWorker {
     }
 
     def convertToResult(): Map[String, ColumnType] = {
-      val aggregated = data.values.flatten.groupBy(_._1).mapValues( _.map(_._2).toSeq)
-      aggregated.mapValues(_.reduce((l, r) => ColumnType(l.values ++ r.values)))
+      val aggregated = data.values.flatten.groupBy(_._1).mapValues(_.map(_._2).toSeq).map(identity)
+      aggregated.mapValues(_.reduce((l, r) => ColumnType(l.values ++ r.values))).map(identity)
     }
   }
 }

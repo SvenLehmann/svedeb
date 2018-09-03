@@ -12,7 +12,7 @@ object DataGenerator {
 
     def generatePartition(rowsPerPartition: Int): Map[String, ColumnType] = {
       val columnMap = columnNames.map(name => (name, generateColumn(rowsPerPartition))).toMap
-      columnMap.mapValues(values => ColumnType(values.toIndexedSeq))
+      columnMap.mapValues(values => ColumnType(values.toIndexedSeq)).map(identity)
     }
 
     val rowsPerPartition =
@@ -20,7 +20,7 @@ object DataGenerator {
       else List.tabulate(partitionCount - 1)(_ => partitionSize) :+ rowCount % partitionSize
 
     val rowsPerPartitionMap = rowsPerPartition.zipWithIndex.map(_.swap).toMap
-    rowsPerPartitionMap.mapValues(generatePartition)
+    rowsPerPartitionMap.mapValues(generatePartition).map(identity)
   }
 
 }

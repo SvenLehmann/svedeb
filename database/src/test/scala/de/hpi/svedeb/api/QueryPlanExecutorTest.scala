@@ -28,17 +28,17 @@ class QueryPlanExecutorTest extends AbstractActorTest("QueryPlanExecutorTest") {
   }
 
   // TODO: uses Akka Cluster, therefor it must be a multi-node test
-  ignore should "create an empty table" in {
-    val table = generateTableTestProbe(Seq(Map("a" -> ColumnType(), "b" -> ColumnType())))
-
-    val tableManager = generateTableManagerTestProbe(Seq(table))
-
-    val queryPlanExecutor = system.actorOf(QueryPlanExecutor.props(tableManager))
-    queryPlanExecutor ! Run(0, QueryPlan(CreateTable("SomeTable", Seq("a", "b"), 10)))
-
-    val query = expectMsgType[QueryFinished]
-    checkTable(query.resultTable, Map(0 -> Map("a" -> ColumnType(Vector()), "b" -> ColumnType(Vector()))))
-  }
+//  ignore should "create an empty table" in {
+//    val table = generateTableTestProbe(Seq(Map("a" -> ColumnType(), "b" -> ColumnType())))
+//
+//    val tableManager = generateTableManagerTestProbe(Seq(table))
+//
+//    val queryPlanExecutor = system.actorOf(QueryPlanExecutor.props(tableManager))
+//    queryPlanExecutor ! Run(0, QueryPlan(CreateTable("SomeTable", Seq("a", "b"), 10)))
+//
+//    val query = expectMsgType[QueryFinished]
+//    checkTable(query.resultTable, Map(0 -> Map("a" -> ColumnType(Vector()), "b" -> ColumnType(Vector()))))
+//  }
 
   it should "drop a table" in {
     val tableManager = generateTableManagerTestProbe(Seq.empty)

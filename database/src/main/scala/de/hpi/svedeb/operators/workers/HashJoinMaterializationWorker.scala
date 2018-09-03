@@ -3,9 +3,9 @@ package de.hpi.svedeb.operators.workers
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.operators.helper.PartitionedHashTableEntry
 import de.hpi.svedeb.operators.workers.HashJoinMaterializationWorker.{HashJoinMaterializationWorkerState, MaterializeJoinResult, MaterializedJoinResult}
-import de.hpi.svedeb.table.{Column, ColumnType, OptionalColumnType, Partition}
 import de.hpi.svedeb.table.Partition.{ScanColumns, ScannedColumns}
 import de.hpi.svedeb.table.Table.{ColumnList, GetPartitions, ListColumnsInTable, PartitionsInTable}
+import de.hpi.svedeb.table.{ColumnType, OptionalColumnType, Partition}
 import de.hpi.svedeb.utils.Utils.ValueType
 
 object HashJoinMaterializationWorker {
@@ -102,9 +102,9 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
   private def initiateMaterialization(state: HashJoinMaterializationWorkerState): Unit = {
     log.debug("Initiate Materialization")
     val leftGroupedByPartition = indices.map(_._1).groupBy(_.partitionId)
-    val leftRowIdsPerPartition = leftGroupedByPartition.mapValues(_.map(_.rowId).distinct)
+    val leftRowIdsPerPartition = leftGroupedByPartition.mapValues(_.map(_.rowId).distinct).map(identity)
     val rightGroupedByPartition = indices.map(_._2).groupBy(_.partitionId)
-    val rightRowIdsPerPartition = rightGroupedByPartition.mapValues(_.map(_.rowId).distinct)
+    val rightRowIdsPerPartition = rightGroupedByPartition.mapValues(_.map(_.rowId).distinct).map(identity)
 
     val newState = state.storeQueriedPartitionCounts(leftGroupedByPartition.size, rightGroupedByPartition.size)
     context.become(active(newState))

@@ -5,7 +5,7 @@ import akka.actor.ActorRef
 abstract class AbstractQueryPlanNode(var leftInput: Option[AbstractQueryPlanNode] = None,
                                      var rightInput: Option[AbstractQueryPlanNode] = None,
                                      var assignedWorker: Option[ActorRef] = None,
-                                     var resultTable: Option[ActorRef] = None) {
+                                     var resultTable: Option[ActorRef] = None) extends Serializable {
 
   def saveIntermediateResult(intermediateResult: ActorRef): AbstractQueryPlanNode = {
     resultTable = Some(intermediateResult)

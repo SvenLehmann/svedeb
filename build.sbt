@@ -30,7 +30,7 @@ lazy val benchmarks = project
     name := "benchmarks",
     commonSettings,
     libraryDependencies ++= (commonDependencies :+ dependencies.spark),
-    mainClass in assembly := Some("de.hpi.svedeb.BenchmarkRunner"),
+    mainClass in assembly := Some("de.hpi.svedeb.Main"),
     assemblyMergeStrategy in assembly := {
       case PathList("META-INF", xs @ _*) => MergeStrategy.discard
       case x => MergeStrategy.first
@@ -40,7 +40,7 @@ lazy val benchmarks = project
 // Dependencies
 lazy val dependencies =
   new {
-    val akkaV       = "2.5.12"
+    val akkaV       = "2.5.16"
     val scalatestV  = "3.0.5"
     val sparkV      = "2.3.1"
 
