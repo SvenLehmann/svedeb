@@ -1,12 +1,10 @@
 package de.hpi.svedeb.operators.workers
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import de.hpi.svedeb.operators.HashJoinOperator.JoinSide
 import de.hpi.svedeb.operators.helper.PartitionedHashTableActor.{ListValues, ListedValues}
 import de.hpi.svedeb.operators.helper.PartitionedHashTableEntry
-import de.hpi.svedeb.operators.workers.HashJoinMaterializationWorker.{MaterializeJoinResult, MaterializedJoinResult}
-import de.hpi.svedeb.operators.workers.PartitionHashWorker.{FetchValuesForKey, FetchedValues}
 import de.hpi.svedeb.operators.workers.ProbeWorker.{ProbeJob, ProbeResult, ProbeWorkerState}
+import de.hpi.svedeb.utils.Utils
 import de.hpi.svedeb.utils.Utils.ValueType
 
 object ProbeWorker {
@@ -38,6 +36,7 @@ class ProbeWorker(hash: Int,
   override def receive: Receive = active(ProbeWorkerState(ActorRef.noSender, Map.empty))
 
   private def fetchHashMaps(state: ProbeWorkerState): Unit = {
+    log.debug("Fetching hashMaps")
     val newState = state.storeOriginalSender(sender())
     context.become(active(newState))
 
@@ -46,12 +45,15 @@ class ProbeWorker(hash: Int,
   }
 
   private def handleListedValues(state: ProbeWorkerState, sendingHashMap: ActorRef, values: Seq[PartitionedHashTableEntry]): Unit = {
+    log.debug("Handling values from hashMaps")
     val newState = state.storeValues(sendingHashMap, values)
     context.become(active(newState))
 
     if (newState.receivedAllValues) {
       val leftValues = newState.values(leftHashMap)
       val rightValues = newState.values(rightHashMap)
+
+      log.debug(s"Joining values for key $hash: ${leftValues.size} x ${rightValues.size}")
 
       // Extracted this as a function for easier performance measurements
       def join(): Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)] = {
@@ -62,7 +64,9 @@ class ProbeWorker(hash: Int,
         } yield (left, right)
       }
 
+//      val joinedIndices = Utils.time("Time for actual Join", join())
       val joinedIndices = join()
+      log.debug(s"Join results ${joinedIndices.size}")
       newState.originalSender ! ProbeResult(hash, joinedIndices)
     }
   }

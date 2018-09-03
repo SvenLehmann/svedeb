@@ -17,8 +17,6 @@ object HashJoinMaterializationWorker {
                                                 rightPartitions: Option[Map[Int, ActorRef]],
                                                 leftQueriedPartitionCount: Option[Int],
                                                 rightQueriedPartitionCount: Option[Int],
-                                                leftColumnNames: Option[Seq[String]],
-                                                rightColumnNames: Option[Seq[String]],
                                                 leftValues: Map[Int, Map[String, OptionalColumnType]],
                                                 rightValues: Map[Int, Map[String, OptionalColumnType]]
                                                ) {
@@ -26,7 +24,6 @@ object HashJoinMaterializationWorker {
       HashJoinMaterializationWorkerState(originalSender,
         leftPartitions, rightPartitions,
         Some(leftQueriedPartitionCount), Some(rightQueriedPartitionCount),
-        leftColumnNames, rightColumnNames,
         leftValues, rightValues)
     }
 
@@ -34,69 +31,71 @@ object HashJoinMaterializationWorker {
       HashJoinMaterializationWorkerState(sender,
         leftPartitions, rightPartitions,
         leftQueriedPartitionCount, rightQueriedPartitionCount,
-        leftColumnNames, rightColumnNames,
         leftValues, rightValues)
     }
 
-    def receivedAllColumns: Boolean = {
+    def receivedAllColumnsFromAllPartitions: Boolean = {
       leftValues.size == leftQueriedPartitionCount.get && rightValues.size == rightQueriedPartitionCount.get
     }
 
     def storeScannedColumns(sendingPartition: ActorRef, partitionId: Int, columns: Map[String, OptionalColumnType]): HashJoinMaterializationWorkerState = {
       if (leftPartitions.get.apply(partitionId) == sendingPartition) {
-        HashJoinMaterializationWorkerState(originalSender, leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount, leftColumnNames, rightColumnNames, leftValues + (partitionId -> columns), rightValues)
+        HashJoinMaterializationWorkerState(
+          originalSender, leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount,
+          leftValues + (partitionId -> columns), rightValues)
       } else if (rightPartitions.get.apply(partitionId) == sendingPartition) {
-        HashJoinMaterializationWorkerState(originalSender, leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount, leftColumnNames, rightColumnNames, leftValues, rightValues + (partitionId -> columns))
+        HashJoinMaterializationWorkerState(
+          originalSender, leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount,
+          leftValues, rightValues + (partitionId -> columns))
       } else {
         throw new Exception("booooom")
       }
     }
 
     def storeLeftPartitions(partitions: Map[Int, ActorRef]): HashJoinMaterializationWorkerState = {
-      HashJoinMaterializationWorkerState(originalSender, Some(partitions), rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount,leftColumnNames, rightColumnNames, leftValues, rightValues)
+      HashJoinMaterializationWorkerState(originalSender, Some(partitions), rightPartitions,
+        leftQueriedPartitionCount, rightQueriedPartitionCount, leftValues, rightValues)
     }
 
     def storeRightPartitions(partitions: Map[Int, ActorRef]): HashJoinMaterializationWorkerState = {
-      HashJoinMaterializationWorkerState(originalSender, leftPartitions, Some(partitions), leftQueriedPartitionCount, rightQueriedPartitionCount,leftColumnNames, rightColumnNames, leftValues, rightValues)
+      HashJoinMaterializationWorkerState(originalSender, leftPartitions, Some(partitions),
+        leftQueriedPartitionCount, rightQueriedPartitionCount, leftValues, rightValues)
     }
 
-    def storeLeftColumnNames(columnNames: Seq[String]): HashJoinMaterializationWorkerState = {
-      HashJoinMaterializationWorkerState(originalSender, leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount,Some(columnNames), rightColumnNames, leftValues, rightValues)
-    }
-
-    def storeRightColumnNames(columnNames: Seq[String]): HashJoinMaterializationWorkerState = {
-      HashJoinMaterializationWorkerState(originalSender, leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount,leftColumnNames, Some(columnNames), leftValues, rightValues)
-    }
-
-    def hasReceivedColumnsAndPartitions: Boolean = {
-      leftPartitions.isDefined && rightPartitions.isDefined && leftColumnNames.isDefined && rightColumnNames.isDefined
+    def hasReceivedBothPartitions: Boolean = {
+      leftPartitions.isDefined && rightPartitions.isDefined
     }
   }
 
   def props(leftTable: ActorRef,
             rightTable: ActorRef,
+            columnNames: (Seq[String], Seq[String]),
             hashKey: ValueType,
             indices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)]): Props =
-    Props(new HashJoinMaterializationWorker(leftTable, rightTable, hashKey, indices))
+    Props(new HashJoinMaterializationWorker(leftTable, rightTable, columnNames, hashKey, indices))
 }
 
 class HashJoinMaterializationWorker(leftTable: ActorRef,
                                     rightTable: ActorRef,
+                                    columnNames: (Seq[String], Seq[String]),
                                     hashKey: ValueType,
                                     indices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)])
   extends Actor with ActorLogging {
 
-  override def receive: Receive = active(HashJoinMaterializationWorkerState(ActorRef.noSender, None, None, None, None, None, None, Map.empty, Map.empty))
+  override def receive: Receive = active(
+    HashJoinMaterializationWorkerState(ActorRef.noSender, None, None, None, None, Map.empty, Map.empty))
 
   private def materializeJoinResult(state: HashJoinMaterializationWorkerState): Unit = {
+    log.debug("Materialize Join Result")
     val newState = state.storeOriginalSender(sender())
     context.become(active(newState))
 
-    leftTable ! ListColumnsInTable()
-    rightTable ! ListColumnsInTable()
-
-    leftTable ! GetPartitions()
-    rightTable ! GetPartitions()
+    if (indices.isEmpty) {
+      sender() ! MaterializedJoinResult(hashKey, ActorRef.noSender)
+    } else {
+      leftTable ! GetPartitions()
+      rightTable ! GetPartitions()
+    }
   }
 
   private def initiateMaterialization(state: HashJoinMaterializationWorkerState): Unit = {
@@ -109,29 +108,17 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
     val newState = state.storeQueriedPartitionCounts(leftGroupedByPartition.size, rightGroupedByPartition.size)
     context.become(active(newState))
 
-    leftRowIdsPerPartition.foreach { case (partitionId, rowIds) => state.leftPartitions.get.apply(partitionId) ! ScanColumns(rowIds)}
-    rightRowIdsPerPartition.foreach { case (partitionId, rowIds) => state.rightPartitions.get.apply(partitionId) ! ScanColumns(rowIds)}
-  }
-
-  private def handleColumnList(state: HashJoinMaterializationWorkerState, columnNames: Seq[String]): Unit = {
-    log.debug("HashJoinMaterializeWorker: handleColumnList")
-    val newState = if (sender() == leftTable) {
-      state.storeLeftColumnNames(columnNames)
-    } else if (sender() == rightTable) {
-      state.storeRightColumnNames(columnNames)
-    } else {
-      throw new Exception("Boooom")
+    leftRowIdsPerPartition.foreach {
+      case (partitionId, rowIds) => state.leftPartitions.get.apply(partitionId) ! ScanColumns(rowIds)
     }
-
-    context.become(active(newState))
-
-    if (newState.hasReceivedColumnsAndPartitions) {
-      initiateMaterialization(newState)
+    rightRowIdsPerPartition.foreach {
+      case (partitionId, rowIds) => state.rightPartitions.get.apply(partitionId) ! ScanColumns(rowIds)
     }
   }
 
-  private def handlePartitionsInTable(state: HashJoinMaterializationWorkerState, partitions: Map[Int, ActorRef]): Unit = {
-    log.debug("HashJoinMaterializeWorker: handlePartitionsInTable")
+  private def handlePartitionsInTable(state: HashJoinMaterializationWorkerState,
+                                      partitions: Map[Int, ActorRef]): Unit = {
+    log.debug("handlePartitionsInTable")
     val newState = if (sender() == leftTable) {
       state.storeLeftPartitions(partitions)
     } else if (sender() == rightTable) {
@@ -142,18 +129,22 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
 
     context.become(active(newState))
 
-    if (newState.hasReceivedColumnsAndPartitions) {
+    if (newState.hasReceivedBothPartitions) {
       initiateMaterialization(newState)
     }
   }
 
-  private def handleScannedColumns(state: HashJoinMaterializationWorkerState, partitionId: Int, columns: Map[String, OptionalColumnType]): Unit = {
-    log.debug("handle scanned columns")
+  private def handleScannedColumns(state: HashJoinMaterializationWorkerState,
+                                   partitionId: Int,
+                                   columns: Map[String, OptionalColumnType]): Unit = {
+    log.debug(s"partitionCounts ${state.leftQueriedPartitionCount.get} - ${state.rightQueriedPartitionCount.get}")
+    log.debug(s"handle scanned columns with partitionId $partitionId & columns ${columns.keys}")
+
     val partitionSender = sender() // the partition, we use it to determine from which side it was sent
     val newState = state.storeScannedColumns(partitionSender, partitionId, columns)
     context.become(active(newState))
 
-    if (newState.receivedAllColumns) {
+    if (newState.receivedAllColumnsFromAllPartitions) {
       val leftIndices = indices.map(_._1)
       val rightIndices = indices.map(_._2)
 
@@ -172,8 +163,8 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
         columnNames.map(columnName => columnName -> iterateIndices(columnName, indices, values)).toMap
       }
 
-      val leftColumns = reconstructColumns(newState.leftColumnNames.get, leftIndices, newState.leftValues)
-      val rightColumns = reconstructColumns(newState.rightColumnNames.get, rightIndices, newState.rightValues)
+      val leftColumns = reconstructColumns(columnNames._1, leftIndices, newState.leftValues)
+      val rightColumns = reconstructColumns(columnNames._2, rightIndices, newState.rightValues)
 
       val partition = context.actorOf(Partition.props(hashKey, leftColumns ++ rightColumns))
       newState.originalSender ! MaterializedJoinResult(hashKey, partition)
@@ -182,7 +173,6 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
 
   private def active(state: HashJoinMaterializationWorkerState): Receive = {
     case MaterializeJoinResult() => materializeJoinResult(state)
-    case ColumnList(columnNames) => handleColumnList(state, columnNames)
     case PartitionsInTable(partitions) => handlePartitionsInTable(state, partitions)
     case ScannedColumns(partitionId, columns) => handleScannedColumns(state, partitionId, columns)
     case m => throw new Exception(s"Message not understood: $m")

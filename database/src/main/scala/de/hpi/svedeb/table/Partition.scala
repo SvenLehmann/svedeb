@@ -119,7 +119,9 @@ class Partition(partitionId: Int,
     case GetColumn(name) => retrieveColumn(name)
     case GetColumns() => retrieveColumns()
     case ScanColumns(indices) => handleScanColumns(state, indices)
-    case InternalScannedValues(originalSender, values) => originalSender ! ScannedColumns(partitionId, values)
+    case InternalScannedValues(originalSender, values) =>
+      log.debug(s"partition $partitionId received InternalScannedValues from PartitionWorker")
+      originalSender ! ScannedColumns(partitionId, values)
     case AddRow(row, originalSender) =>
       // Postpone message until previous insert is completed
       if (state.processingInsert) self forward AddRow(row, originalSender)

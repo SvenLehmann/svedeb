@@ -11,7 +11,6 @@ import scala.concurrent.Await
 import scala.language.postfixOps
 
 object Utils {
-  val numberOfIterations = 3
   implicit val timeout: Timeout = Timeout(30 minutes)
 
   def time[R](description: String, block: => R): R = {
@@ -22,8 +21,8 @@ object Utils {
     result
   }
 
-  def createTable(api: ActorRef, tableName: String, columns: Seq[String], rowCount: Int, partitionSize: Int): Unit = {
-    val data = DataGenerator.generateData(columns, rowCount, partitionSize)
+  def createTable(api: ActorRef, tableName: String, columns: Seq[String], rowCount: Int, partitionSize: Int, distinctValues: Int): Unit = {
+    val data = DataGenerator.generateData(columns, rowCount, partitionSize, distinctValues)
     val future = api.ask(Query(QueryPlan(CreateTable(tableName, data, partitionSize))))
     Await.result(future, timeout.duration).asInstanceOf[Result]
   }

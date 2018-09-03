@@ -1,8 +1,8 @@
 package de.hpi.svedeb
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, PoisonPill}
 import akka.pattern.ask
-import de.hpi.svedeb.api.API.Query
+import de.hpi.svedeb.api.API.{Query, Result}
 import de.hpi.svedeb.queryPlan.{GetTable, QueryPlan, Scan}
 
 import scala.concurrent.Await
@@ -12,7 +12,7 @@ object ScanBenchmark extends AbstractBenchmark {
   val partitionSize = 10000
 
   override def setup(api: ActorRef, tableSize: Int): Unit = {
-    Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize)
+    Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize, 100)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {
@@ -24,8 +24,9 @@ object ScanBenchmark extends AbstractBenchmark {
           "columnA",
           _ < 55)
       )
-    ))
-    Await.result(future, Duration.Inf)
+    )).mapTo[Result]
+    val result = Await.result(future, Duration.Inf)
+    result.resultTable ! PoisonPill
   }
 
   override def tearDown(api: ActorRef): Unit = {

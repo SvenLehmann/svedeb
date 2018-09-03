@@ -2,6 +2,7 @@ package de.hpi.svedeb
 
 import akka.actor.ActorRef
 import akka.util.Timeout
+import de.hpi.svedeb.operators.AbstractOperator.QueryResult
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

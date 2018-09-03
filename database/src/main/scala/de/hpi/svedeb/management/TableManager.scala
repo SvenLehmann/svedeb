@@ -45,7 +45,7 @@ class TableManager() extends Actor with ActorLogging {
                        name: String,
                        columnNames: Seq[String],
                        partitions: Map[Int, ActorRef]): Unit = {
-    log.debug("Add table")
+    log.error("Add table")
     val table = context.actorOf(Table.propsWithPartitions(columnNames, partitions))
     sender() ! TableAdded(table)
 
@@ -76,13 +76,13 @@ class TableManager() extends Actor with ActorLogging {
   }
 
   private def addPartition(partitionId: Int, partitionData: Map[String, ColumnType], partitionSize: Int): Unit = {
-    log.debug("Add partition")
+    log.error("Add partition")
     val newPartition = context.actorOf(Partition.props(partitionId, partitionData, partitionSize))
     sender() ! PartitionCreated(partitionId, newPartition)
   }
 
   private def addRemoteTable(state: TableManagerState, tableName: String, table: ActorRef): Unit = {
-    log.debug(s"Adding remote table $tableName")
+    log.error(s"Adding remote table $tableName")
     val newState = state.addTable(tableName, table)
     context.become(active(newState))
 

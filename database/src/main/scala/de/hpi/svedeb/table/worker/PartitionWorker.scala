@@ -45,6 +45,7 @@ class PartitionWorker(columns: Map[String, ActorRef]) extends Actor with ActorLo
     context.become(active(newState))
 
     if (newState.receivedAllColumns) {
+      log.debug("PartitionWorker received all Columns with Optionals")
       newState.parentPartition ! InternalScannedValues(newState.originalSender,
         newState.values.mapValues(_.get).map(identity))
     }

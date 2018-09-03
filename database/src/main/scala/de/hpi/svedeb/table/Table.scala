@@ -88,7 +88,6 @@ abstract class Table(partitionSize: Int) extends Actor with ActorLogging {
 
   private def handleGetPartitions(state: TableState): Unit = {
     log.debug("Handling GetPartitions")
-    log.debug(s"${sender().path}")
     sender() ! PartitionsInTable(state.partitions)
   }
 

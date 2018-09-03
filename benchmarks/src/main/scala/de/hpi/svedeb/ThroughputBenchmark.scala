@@ -15,7 +15,7 @@ class ThroughputBenchmark(numberOfQueries: Int) extends AbstractBenchmark {
   override val name: String = "ThroughputBenchmark"
 
   override def setup(api: ActorRef, tableSize: Int): Unit = {
-    Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize)
+    Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize, 100)
   }
 
   class HelloActor extends Actor {

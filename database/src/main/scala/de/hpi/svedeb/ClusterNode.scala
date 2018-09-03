@@ -53,7 +53,7 @@ class ClusterNode extends Actor with ActorLogging {
     } else {
       sender() ! ClusterIsUp(false)
     }
-    case _: MemberEvent => // ignore
+    case m: MemberEvent => log.error(s"$m")
   }
 
 }

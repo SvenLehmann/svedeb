@@ -1,9 +1,9 @@
 package de.hpi.svedeb
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, PoisonPill}
 import akka.pattern.ask
-import de.hpi.svedeb.api.API.Query
-import de.hpi.svedeb.queryPlan.{GetTable, HashJoin, NestedLoopJoin, QueryPlan}
+import de.hpi.svedeb.api.API.{Query, Result}
+import de.hpi.svedeb.queryPlan.{GetTable, HashJoin, QueryPlan}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -14,8 +14,10 @@ object HashJoinBenchmark extends AbstractBenchmark {
   val partitionSize = 10000
 
   override def setup(api: ActorRef, tableSize: Int): Unit = {
-    Utils.createTable(api, "table1", Seq("a1"), tableSize, partitionSize)
-    Utils.createTable(api, "table2", Seq("a2"), tableSize / 10, partitionSize)
+//    val partitionSize = Math.min(10000, tableSize/10)
+//    Utils.createTable(api, "table1", Seq("a"), tableSize, partitionSize, tableSize/100)
+    Utils.createTable(api, "table1", Seq("a"), tableSize, partitionSize, tableSize)
+    Utils.createTable(api, "table2", Seq("b"), tableSize / 10, partitionSize, tableSize)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {
@@ -25,12 +27,13 @@ object HashJoinBenchmark extends AbstractBenchmark {
         HashJoin(
           GetTable("table1"),
           GetTable("table2"),
-          "a1",
-          "a2",
+          "a",
+          "b",
           _ == _)
       )
-    ))
-    Await.result(future, Duration.Inf)
+    )).mapTo[Result]
+    val result = Await.result(future, Duration.Inf)
+    result.resultTable ! PoisonPill
   }
 
   override def tearDown(api: ActorRef): Unit = {

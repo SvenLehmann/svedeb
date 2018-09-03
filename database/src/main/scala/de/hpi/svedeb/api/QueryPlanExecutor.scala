@@ -74,7 +74,7 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
           leftColumn,
           rightColumn,
           predicate
-        ))
+        ), "HashJoinOperator")
       case InsertRow(_, row: RowType) =>
         context.actorOf(InsertRowOperator.props(node.leftInput.get.resultTable.get, row))
       case _ => throw new Exception("Unknown node type, cannot build operator")

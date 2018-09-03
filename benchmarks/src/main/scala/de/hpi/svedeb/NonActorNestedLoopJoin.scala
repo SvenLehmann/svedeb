@@ -12,8 +12,8 @@ object NonActorNestedLoopJoin extends AbstractBenchmark {
   private var right: Map[Int, Map[String, ColumnType]] = _
 
   override def setup(api: ActorRef, tableSize: Int): Unit = {
-    left = DataGenerator.generateData(columns, tableSize, partitionSize)
-    right = DataGenerator.generateData(columns, tableSize/10, partitionSize)
+    left = DataGenerator.generateData(columns, tableSize, partitionSize, tableSize)
+    right = DataGenerator.generateData(columns, tableSize/10, partitionSize, tableSize)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {

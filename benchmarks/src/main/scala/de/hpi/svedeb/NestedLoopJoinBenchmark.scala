@@ -1,6 +1,6 @@
 package de.hpi.svedeb
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, PoisonPill}
 import akka.pattern.ask
 import de.hpi.svedeb.api.API._
 import de.hpi.svedeb.queryPlan._
@@ -14,8 +14,8 @@ object NestedLoopJoinBenchmark extends AbstractBenchmark {
   val partitionSize = 10000
 
   override def setup(api: ActorRef, tableSize: Int): Unit = {
-    Utils.createTable(api, "table1", Seq("a1"), tableSize, partitionSize)
-    Utils.createTable(api, "table2", Seq("a2"), tableSize / 10, partitionSize)
+    Utils.createTable(api, "table1", Seq("a1"), tableSize, partitionSize, tableSize)
+    Utils.createTable(api, "table2", Seq("a2"), tableSize / 10, partitionSize, tableSize)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {
@@ -29,8 +29,9 @@ object NestedLoopJoinBenchmark extends AbstractBenchmark {
           "a2",
           _ == _)
       )
-    ))
-    Await.result(future, Duration.Inf)
+    )).mapTo[Result]
+    val result = Await.result(future, Duration.Inf)
+    result.resultTable ! PoisonPill
   }
 
   override def tearDown(api: ActorRef): Unit = {
