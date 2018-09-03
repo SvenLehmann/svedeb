@@ -9,7 +9,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import scala.language.postfixOps
 
-object JoinBenchmark extends AbstractBenchmark {
+object NestedLoopJoinBenchmark extends AbstractBenchmark {
 
   val partitionSize = 10000
 
