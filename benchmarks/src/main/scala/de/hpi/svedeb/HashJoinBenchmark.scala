@@ -11,13 +11,11 @@ import scala.language.postfixOps
 
 object HashJoinBenchmark extends AbstractBenchmark {
 
-  val partitionSize = 10000
+//  val partitionSize = 10000
 
-  override def setup(api: ActorRef, tableSize: Int): Unit = {
-//    val partitionSize = Math.min(10000, tableSize/10)
-//    Utils.createTable(api, "table1", Seq("a"), tableSize, partitionSize, tableSize/100)
-    Utils.createTable(api, "table1", Seq("a"), tableSize, partitionSize, tableSize)
-    Utils.createTable(api, "table2", Seq("b"), tableSize / 10, partitionSize, tableSize)
+  override def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit = {
+    Utils.createTable(api, "table1", Seq("a"), tableSize, partitionSize, distinctValues)
+    Utils.createTable(api, "table2", Seq("b"), tableSize / 10, partitionSize, distinctValues)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {

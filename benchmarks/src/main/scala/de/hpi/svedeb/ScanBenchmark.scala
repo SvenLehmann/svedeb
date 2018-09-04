@@ -9,10 +9,10 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 object ScanBenchmark extends AbstractBenchmark {
-  val partitionSize = 10000
+//  val partitionSize = 10000
 
-  override def setup(api: ActorRef, tableSize: Int): Unit = {
-    Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize, 100)
+  override def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit = {
+    Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize, distinctValues)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {

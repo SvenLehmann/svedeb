@@ -6,14 +6,14 @@ import de.hpi.svedeb.table.ColumnType
 object NonActorNestedLoopJoin extends AbstractBenchmark {
 
   val columns = Seq("a")
-  val partitionSize = 10000
+//  val partitionSize = 10000
 
   private var left: Map[Int, Map[String, ColumnType]] = _
   private var right: Map[Int, Map[String, ColumnType]] = _
 
-  override def setup(api: ActorRef, tableSize: Int): Unit = {
-    left = DataGenerator.generateData(columns, tableSize, partitionSize, tableSize)
-    right = DataGenerator.generateData(columns, tableSize/10, partitionSize, tableSize)
+  override def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit = {
+    left = DataGenerator.generateData(columns, tableSize, partitionSize, distinctValues)
+    right = DataGenerator.generateData(columns, tableSize/10, partitionSize, distinctValues)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {

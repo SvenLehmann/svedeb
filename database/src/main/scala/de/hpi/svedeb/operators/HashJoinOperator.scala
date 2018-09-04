@@ -95,7 +95,7 @@ object HashJoinOperator {
         resultPartitionMap, timeBeforeHash, timeBeforeProbe, System.nanoTime())
     }
 
-    def hasFinishedHashAndReceivedColumnNamesPhase: Boolean =
+    def hasFinishedHashPhaseAndReceivedColumnNames: Boolean =
       leftHashTable.isDefined && rightHashTable.isDefined &&
         leftColumnNames.isDefined && rightColumnNames.isDefined
   }
@@ -139,26 +139,27 @@ class HashJoinOperator(leftTable: ActorRef,
     val newState = state.storeHashTable(joinSide, hashMap)
     context.become(active(newState))
 
-    if (newState.hasFinishedHashAndReceivedColumnNamesPhase) {
+    if (newState.hasFinishedHashPhaseAndReceivedColumnNames) {
       initiateProbePhase(newState)
     }
   }
 
   private def initiateProbePhase(state: HashJoinState): Unit = {
-    val left = state.leftHashTable.get
-    val right = state.rightHashTable.get
+    val leftHashTable = state.leftHashTable.get
+    val rightHashTable = state.rightHashTable.get
 
     val newState = state.setTimeBeforeProbe()
     context.become(active(newState))
 
+    val random = new Random()
+
     val keys = for (
-      key <- left.keySet ++ right.keySet;
-      leftHashMap <- left.get(key);
-      rightHashMap <- right.get(key)
+      key <- leftHashTable.keySet ++ rightHashTable.keySet;
+      leftHashMap <- leftHashTable.get(key);
+      rightHashMap <- rightHashTable.get(key)
     ) yield {
-      log.debug(s"Starting ProbeWorker for hashkey $key")
+      log.debug(s"Starting ProbeWorker for hash $key")
       // Decide on which node we are instantiating the Worker Actor. Choose randomly between left and right partition.
-      val random = new Random()
       val address = if (random.nextBoolean()) {
         leftHashMap.path.address
       } else {
@@ -187,12 +188,14 @@ class HashJoinOperator(leftTable: ActorRef,
       s"HashJoinMaterializationWorker$hashKey") ! MaterializeJoinResult()
   }
 
-  def createResultTable(state: HashJoinState): Unit = {
+  private def createResultTable(state: HashJoinState): Unit = {
     log.debug("create result table")
 
     // Assign new partition ids
     val partitions = state.resultPartitionMap
-      .mapValues(_.get).filter{ case (_, partition) => partition != ActorRef.noSender}.map(identity) // we just checked that all Options are set
+      .mapValues(_.get) // we just checked that all Options are set
+      .filter{ case (_, partition) => partition != ActorRef.noSender}
+      .map(identity) // convert MapLike to serializable Map
 
     val table = context.actorOf(Table.propsWithPartitions(
       state.leftColumnNames.get ++ state.rightColumnNames.get,
@@ -202,7 +205,7 @@ class HashJoinOperator(leftTable: ActorRef,
     state.originalSender ! QueryResult(table)
   }
 
-  def handleMaterializedJoinResult(state: HashJoinState, hashKey: ValueType, partition: ActorRef): Unit = {
+  private def handleMaterializedJoinResult(state: HashJoinState, hashKey: ValueType, partition: ActorRef): Unit = {
     log.debug("handle materialized join result")
     val newState = state.storeMaterializedResult(hashKey, partition)
     context.become(active(newState))
@@ -217,18 +220,17 @@ class HashJoinOperator(leftTable: ActorRef,
     }
   }
 
-  def handleColumnNames(state: HashJoinState, columnNames: Seq[String]): Unit = {
+  private def handleColumnNames(state: HashJoinState, columnNames: Seq[String]): Unit = {
     val newState = if (sender() == leftTable) {
       state.storeColumnNames(LeftJoinSide, columnNames)
     } else if (sender() == rightTable){
       state.storeColumnNames(RightJoinSide, columnNames)
     } else {
-      state
+      throw new Exception("Received column names from neither Left nor Right")
     }
-
     context.become(active(newState))
 
-    if (newState.hasFinishedHashAndReceivedColumnNamesPhase) {
+    if (newState.hasFinishedHashPhaseAndReceivedColumnNames) {
       initiateProbePhase(newState)
     }
   }

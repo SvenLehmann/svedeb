@@ -11,11 +11,11 @@ import scala.language.postfixOps
 
 object NestedLoopJoinBenchmark extends AbstractBenchmark {
 
-  val partitionSize = 10000
+//  val partitionSize = 10000
 
-  override def setup(api: ActorRef, tableSize: Int): Unit = {
-    Utils.createTable(api, "table1", Seq("a1"), tableSize, partitionSize, tableSize)
-    Utils.createTable(api, "table2", Seq("a2"), tableSize / 10, partitionSize, tableSize)
+  override def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit = {
+    Utils.createTable(api, "table1", Seq("a1"), tableSize, partitionSize, distinctValues)
+    Utils.createTable(api, "table2", Seq("a2"), tableSize / 10, partitionSize, distinctValues)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {

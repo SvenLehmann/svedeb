@@ -28,7 +28,7 @@ object HashWorker {
       HashWorkerState(sender, expectedAnswerCount, answerCount, partitionWorkerMap, resultMap)
     }
 
-    def storePartitionKeys(partitionKeys: Seq[Int], partitionHashWorker: ActorRef): HashWorkerState = {
+    def storePartitionKeys(partitionHashWorker: ActorRef, partitionKeys: Seq[Int]): HashWorkerState = {
       var mapCopy = partitionWorkerMap
       partitionKeys.foreach(key => {
         val list = mapCopy.getOrElse(key, Seq.empty) :+ partitionHashWorker
@@ -94,7 +94,7 @@ class HashWorker(table: ActorRef, joinColumn: String, side: JoinSide) extends Ac
   // We store information about which PartitionHashWorker has information for which hashKeys
   private def handleHashedPartitionKeys(state: HashWorkerState, hashes: Seq[Int]): Unit = {
     log.debug("handling hashed partitions keys")
-    val newState = state.storePartitionKeys(hashes, sender())
+    val newState = state.storePartitionKeys(sender(), hashes)
     context.become(active(newState))
 
     if (newState.isFinished) {

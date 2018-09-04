@@ -23,7 +23,7 @@ object NonActorSparkBasedJoin extends AbstractBenchmark {
     seq.toDS()
   }
 
-  override def setup(api: ActorRef, tableSize: Int): Unit = {
+  override def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit = {
     left = createDataset(tableSize)
     right = createDataset(tableSize/10)
   }
