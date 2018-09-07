@@ -12,7 +12,12 @@ abstract class AbstractBenchmark {
 
   val name: String
 
-  def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit
+  def setup(api: ActorRef,
+            tableSize: Int,
+            numberOfColumns: Int,
+            partitionSize: Int,
+            distinctValues: Int,
+            tableRatio: Double): Unit
 
   def runBenchmark(api: ActorRef): Unit
 

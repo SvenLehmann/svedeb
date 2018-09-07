@@ -10,7 +10,7 @@ object NonActorScan extends AbstractBenchmark {
 
   private var input: Map[Int, Map[String, ColumnType]] = _
 
-  override def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit = {
+  override def setup(api: ActorRef, tableSize: Int, numberOfColumns: Int, partitionSize: Int, distinctValues: Int, tableRatio: Double): Unit = {
     input = DataGenerator.generateData(columns, tableSize, partitionSize, distinctValues)
   }
 

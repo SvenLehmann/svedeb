@@ -11,11 +11,11 @@ import scala.language.postfixOps
 
 object HashJoinBenchmark extends AbstractBenchmark {
 
-//  val partitionSize = 10000
+  override def setup(api: ActorRef, tableSize: Int, numberOfColumns: Int, partitionSize: Int, distinctValues: Int, tableRatio: Double): Unit = {
+    val potentialColumnNames = Seq("a", "b", "c", "d", "e")
 
-  override def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit = {
-    Utils.createTable(api, "table1", Seq("a"), tableSize, partitionSize, distinctValues)
-    Utils.createTable(api, "table2", Seq("b"), tableSize / 10, partitionSize, distinctValues)
+    Utils.createTable(api, "table1", potentialColumnNames.take(numberOfColumns).map(_ + "1"), tableSize, partitionSize, distinctValues)
+    Utils.createTable(api, "table2", potentialColumnNames.take(numberOfColumns).map(_ + "2"), (tableSize * tableRatio).toInt, partitionSize, distinctValues)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {
@@ -25,8 +25,8 @@ object HashJoinBenchmark extends AbstractBenchmark {
         HashJoin(
           GetTable("table1"),
           GetTable("table2"),
-          "a",
-          "b",
+          "a1",
+          "a2",
           _ == _)
       )
     )).mapTo[Result]

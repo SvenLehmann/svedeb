@@ -11,7 +11,7 @@ import scala.concurrent.duration.Duration
 object ScanBenchmark extends AbstractBenchmark {
 //  val partitionSize = 10000
 
-  override def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit = {
+  override def setup(api: ActorRef, tableSize: Int, numberOfColumns: Int, partitionSize: Int, distinctValues: Int, tableRatio: Double): Unit = {
     Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize, distinctValues)
   }
 

@@ -13,9 +13,11 @@ object NestedLoopJoinBenchmark extends AbstractBenchmark {
 
 //  val partitionSize = 10000
 
-  override def setup(api: ActorRef, tableSize: Int, partitionSize: Int, distinctValues: Int): Unit = {
-    Utils.createTable(api, "table1", Seq("a1"), tableSize, partitionSize, distinctValues)
-    Utils.createTable(api, "table2", Seq("a2"), tableSize / 10, partitionSize, distinctValues)
+  override def setup(api: ActorRef, tableSize: Int, numberOfColumns: Int, partitionSize: Int, distinctValues: Int, tableRatio: Double): Unit = {
+    val potentialColumnNames = Seq("a", "b", "c", "d", "e")
+
+    Utils.createTable(api, "table1", potentialColumnNames.take(numberOfColumns).map(_ + "1"), tableSize, partitionSize, distinctValues)
+    Utils.createTable(api, "table2", potentialColumnNames.take(numberOfColumns).map(_ + "2"), (tableSize * tableRatio).toInt, partitionSize, distinctValues)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {
