@@ -19,7 +19,7 @@ class BenchmarkRunner() {
 
   val joinBenchmarks = List(
     HashJoinBenchmark
-//    NestedLoopJoinBenchmark,
+//    NestedLoopJoinBenchmark
 //    NonActorNestedLoopJoin,
 //    NonActorHashJoin
     //    NonActorSparkBasedJoin
@@ -55,6 +55,8 @@ class BenchmarkRunner() {
 
     try {
       val times = (1 to numberOfIterations).map(_ => {
+        Thread.sleep(500)
+
         // Reinitialize in every iteration to avoid caching effects
         benchmark.setup(api, tableSize, numberOfColumns, partitionSize, distinctValues, tableRatio)
         val executionTime = time(benchmark.runBenchmark(api))
@@ -76,19 +78,21 @@ class BenchmarkRunner() {
       println(s"Benchmark \t TableSize \t PartitionSize \t DistinctValues \t TableRatio \t numberOfColumns \t Average in ms \t Median in ms")
       for {
         benchmark <- joinBenchmarks
-        numberOfColumns <- Seq(1, 2, 3, 4, 5)
-        tableRatio <- Seq(1, 0.5, 0.1, 0.05, 0.01)
+//        numberOfColumns <- Seq(1, 2, 3, 4, 5)
+        numberOfColumns <- Seq(1)
+        tableRatio <- Seq(0.05)
+//        tableRatio <- Seq(1, 0.5, 0.1, 0.05, 0.01)
 //        distinctValues <- Seq(10000, 100000, 10000000)
-        partitionSize <- Seq(1000)
+        partitionSize <- Seq(10000)
         tableSize <- Seq(
-          100, 200, 300, 400, 500, 600, 700, 800, 900,
+//          100, 200, 300, 400, 500, 600, 700, 800, 900,
           1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000,
           10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000,
-          100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000
-//          1000000//, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000
+          100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
+          1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000
         )
 
-      } yield runBenchmark(benchmark, tableSize, numberOfColumns, partitionSize, tableSize, tableRatio)
+      } yield runBenchmark(benchmark, tableSize, numberOfColumns, partitionSize, Math.round(tableSize * tableRatio).toInt, tableRatio)
 
 //      println("ScanBenchmarks")
 //      println(s"Benchmark \t TableSize \t PartitionSize \t DistinctValues \t Average in ms \t Median in ms")

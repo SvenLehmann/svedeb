@@ -1,6 +1,6 @@
 package de.hpi.svedeb.table
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import de.hpi.svedeb.table.Partition._
 import de.hpi.svedeb.table.Table._
 import de.hpi.svedeb.table.worker.TableWorker
@@ -90,6 +90,9 @@ abstract class Table(partitionSize: Int) extends Actor with ActorLogging {
     case PartitionFull(row, originalSender) => handlePartitionFull(state, row, originalSender)
     case InternalActorsForColumn(originalSender, columnName, columnActors) =>
       originalSender ! ActorsForColumn(columnName, columnActors)
+    case PoisonPill =>
+      print("received poison pill")
+      state.partitions.values.foreach(_ ! PoisonPill)
     case m => throw new Exception(s"Message not understood: $m")
   }
 }

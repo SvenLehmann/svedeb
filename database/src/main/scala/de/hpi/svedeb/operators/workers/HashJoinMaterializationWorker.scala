@@ -3,6 +3,7 @@ package de.hpi.svedeb.operators.workers
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import de.hpi.svedeb.operators.helper.PartitionedHashTableEntry
 import de.hpi.svedeb.operators.workers.HashJoinMaterializationWorker.{HashJoinMaterializationWorkerState, MaterializeJoinResult, MaterializedJoinResult}
+import de.hpi.svedeb.operators.workers.ProbeWorker.{FetchIndices, JoinedIndices}
 import de.hpi.svedeb.table.Partition.{ScanColumns, ScannedColumns}
 import de.hpi.svedeb.table.Table.{ColumnList, GetPartitions, ListColumnsInTable, PartitionsInTable}
 import de.hpi.svedeb.table.{ColumnType, OptionalColumnType, Partition}
@@ -18,20 +19,27 @@ object HashJoinMaterializationWorker {
                                                 leftQueriedPartitionCount: Option[Int],
                                                 rightQueriedPartitionCount: Option[Int],
                                                 leftValues: Map[Int, Map[String, OptionalColumnType]],
-                                                rightValues: Map[Int, Map[String, OptionalColumnType]]
+                                                rightValues: Map[Int, Map[String, OptionalColumnType]],
+                                                joinedIndices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)]
                                                ) {
+    def storeJoinedIndices(indices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)]): HashJoinMaterializationWorkerState = {
+      HashJoinMaterializationWorkerState(originalSender,
+        leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount,
+        leftValues, rightValues, indices)
+    }
+
     def storeQueriedPartitionCounts(leftQueriedPartitionCount: Int, rightQueriedPartitionCount: Int): HashJoinMaterializationWorkerState = {
       HashJoinMaterializationWorkerState(originalSender,
         leftPartitions, rightPartitions,
         Some(leftQueriedPartitionCount), Some(rightQueriedPartitionCount),
-        leftValues, rightValues)
+        leftValues, rightValues, joinedIndices)
     }
 
     def storeOriginalSender(sender: ActorRef): HashJoinMaterializationWorkerState = {
       HashJoinMaterializationWorkerState(sender,
         leftPartitions, rightPartitions,
         leftQueriedPartitionCount, rightQueriedPartitionCount,
-        leftValues, rightValues)
+        leftValues, rightValues, joinedIndices)
     }
 
     def receivedAllColumnsFromAllPartitions: Boolean = {
@@ -42,11 +50,11 @@ object HashJoinMaterializationWorker {
       if (leftPartitions.get.apply(partitionId) == sendingPartition) {
         HashJoinMaterializationWorkerState(
           originalSender, leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount,
-          leftValues + (partitionId -> columns), rightValues)
+          leftValues + (partitionId -> columns), rightValues, joinedIndices)
       } else if (rightPartitions.get.apply(partitionId) == sendingPartition) {
         HashJoinMaterializationWorkerState(
           originalSender, leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount,
-          leftValues, rightValues + (partitionId -> columns))
+          leftValues, rightValues + (partitionId -> columns), joinedIndices)
       } else {
         throw new Exception("booooom")
       }
@@ -54,12 +62,12 @@ object HashJoinMaterializationWorker {
 
     def storeLeftPartitions(partitions: Map[Int, ActorRef]): HashJoinMaterializationWorkerState = {
       HashJoinMaterializationWorkerState(originalSender, Some(partitions), rightPartitions,
-        leftQueriedPartitionCount, rightQueriedPartitionCount, leftValues, rightValues)
+        leftQueriedPartitionCount, rightQueriedPartitionCount, leftValues, rightValues, joinedIndices)
     }
 
     def storeRightPartitions(partitions: Map[Int, ActorRef]): HashJoinMaterializationWorkerState = {
       HashJoinMaterializationWorkerState(originalSender, leftPartitions, Some(partitions),
-        leftQueriedPartitionCount, rightQueriedPartitionCount, leftValues, rightValues)
+        leftQueriedPartitionCount, rightQueriedPartitionCount, leftValues, rightValues, joinedIndices)
     }
 
     def hasReceivedBothPartitions: Boolean = {
@@ -71,24 +79,32 @@ object HashJoinMaterializationWorker {
             rightTable: ActorRef,
             columnNames: (Seq[String], Seq[String]),
             hashKey: ValueType,
-            indices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)]): Props =
-    Props(new HashJoinMaterializationWorker(leftTable, rightTable, columnNames, hashKey, indices))
+            probeWorker: ActorRef): Props =
+    Props(new HashJoinMaterializationWorker(leftTable, rightTable, columnNames, hashKey, probeWorker))
 }
 
 class HashJoinMaterializationWorker(leftTable: ActorRef,
                                     rightTable: ActorRef,
                                     columnNames: (Seq[String], Seq[String]),
                                     hashKey: ValueType,
-                                    indices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)])
+                                    probeWorker: ActorRef)
   extends Actor with ActorLogging {
 
   override def receive: Receive = active(
-    HashJoinMaterializationWorkerState(ActorRef.noSender, None, None, None, None, Map.empty, Map.empty))
+    HashJoinMaterializationWorkerState(ActorRef.noSender, None, None, None, None, Map.empty, Map.empty, Seq.empty))
 
-  private def materializeJoinResult(state: HashJoinMaterializationWorkerState): Unit = {
-    log.debug("Materialize Join Result")
+  private def fetchIndices(state: HashJoinMaterializationWorkerState): Unit = {
     val newState = state.storeOriginalSender(sender())
     context.become(active(newState))
+
+    probeWorker ! FetchIndices()
+  }
+
+  private def materializeJoinResult(state: HashJoinMaterializationWorkerState, indices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)]): Unit = {
+    log.debug("Materialize Join Result")
+
+    val newerState = state.storeJoinedIndices(indices)
+    context.become(active(newerState))
 
     if (indices.isEmpty) {
       sender() ! MaterializedJoinResult(hashKey, ActorRef.noSender)
@@ -100,9 +116,9 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
 
   private def initiateMaterialization(state: HashJoinMaterializationWorkerState): Unit = {
     log.debug("Initiate Materialization")
-    val leftGroupedByPartition = indices.map(_._1).groupBy(_.partitionId)
+    val leftGroupedByPartition = state.joinedIndices.map(_._1).groupBy(_.partitionId)
     val leftRowIdsPerPartition = leftGroupedByPartition.mapValues(_.map(_.rowId).distinct).map(identity)
-    val rightGroupedByPartition = indices.map(_._2).groupBy(_.partitionId)
+    val rightGroupedByPartition = state.joinedIndices.map(_._2).groupBy(_.partitionId)
     val rightRowIdsPerPartition = rightGroupedByPartition.mapValues(_.map(_.rowId).distinct).map(identity)
 
     val newState = state.storeQueriedPartitionCounts(leftGroupedByPartition.size, rightGroupedByPartition.size)
@@ -145,8 +161,8 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
     context.become(active(newState))
 
     if (newState.receivedAllColumnsFromAllPartitions) {
-      val leftIndices = indices.map(_._1)
-      val rightIndices = indices.map(_._2)
+      val leftIndices = newState.joinedIndices.map(_._1)
+      val rightIndices = newState.joinedIndices.map(_._2)
 
       def iterateIndices(columnName: String,
                          indices: Seq[PartitionedHashTableEntry],
@@ -172,7 +188,8 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
   }
 
   private def active(state: HashJoinMaterializationWorkerState): Receive = {
-    case MaterializeJoinResult() => materializeJoinResult(state)
+    case MaterializeJoinResult() => fetchIndices(state)
+    case JoinedIndices(indices) => materializeJoinResult(state, indices)
     case PartitionsInTable(partitions) => handlePartitionsInTable(state, partitions)
     case ScannedColumns(partitionId, columns) => handleScannedColumns(state, partitionId, columns)
     case m => throw new Exception(s"Message not understood: $m")

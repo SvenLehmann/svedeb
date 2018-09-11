@@ -1,6 +1,6 @@
 package de.hpi.svedeb.table
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import de.hpi.svedeb.table.Column.{AppendValue, ValueAppended}
 import de.hpi.svedeb.table.Partition._
 import de.hpi.svedeb.table.worker.PartitionWorker
@@ -121,6 +121,7 @@ class Partition(partitionId: Int,
     case ScanColumns(indices) => handleScanColumns(state, indices)
     case InternalScannedValues(originalSender, values) =>
       log.debug(s"partition $partitionId received InternalScannedValues from PartitionWorker")
+      sender() ! PoisonPill
       originalSender ! ScannedColumns(partitionId, values)
     case AddRow(row, originalSender) =>
       // Postpone message until previous insert is completed

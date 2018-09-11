@@ -4,11 +4,10 @@ import akka.actor.{ActorRef, Deploy, Props}
 import akka.remote.RemoteScope
 import de.hpi.svedeb.operators.AbstractOperator.{Execute, QueryResult}
 import de.hpi.svedeb.operators.HashJoinOperator.{HashJoinState, JoinSide, LeftJoinSide, RightJoinSide}
-import de.hpi.svedeb.operators.helper.PartitionedHashTableEntry
 import de.hpi.svedeb.operators.workers.HashJoinMaterializationWorker.{MaterializeJoinResult, MaterializedJoinResult}
-import de.hpi.svedeb.operators.workers.{HashJoinMaterializationWorker, HashWorker, ProbeWorker}
 import de.hpi.svedeb.operators.workers.HashWorker.{HashJob, HashedTable}
 import de.hpi.svedeb.operators.workers.ProbeWorker.{ProbeJob, ProbeResult}
+import de.hpi.svedeb.operators.workers.{HashJoinMaterializationWorker, HashWorker, ProbeWorker}
 import de.hpi.svedeb.table.Table
 import de.hpi.svedeb.table.Table.{ColumnList, ListColumnsInTable}
 import de.hpi.svedeb.utils.Utils.ValueType
@@ -27,19 +26,20 @@ object HashJoinOperator {
                                    leftHashTable: Option[Map[ValueType, ActorRef]],
                                    rightHashTable: Option[Map[ValueType, ActorRef]],
                                    resultPartitionMap: Map[ValueType, Option[ActorRef]],
-                                   timeBeforeHash: Long,
-                                   timeBeforeProbe: Long,
-                                   timeBeforeMaterialize: Long
+                                   startTime: Long,
+                                   timeInHash: Long,
+                                   timeInProbe: Long,
+                                   timeInMaterialize: Long
                                   ) {
     def storeColumnNames(joinSide: JoinSide, columnNames: Seq[String]): HashJoinState = {
       joinSide match {
-        case LeftJoinSide => HashJoinState(originalSender, Some(columnNames), rightColumnNames, leftHashTable, rightHashTable, resultPartitionMap, timeBeforeHash, timeBeforeProbe, timeBeforeMaterialize)
-        case RightJoinSide => HashJoinState(originalSender, leftColumnNames, Some(columnNames), leftHashTable, rightHashTable, resultPartitionMap, timeBeforeHash, timeBeforeProbe, timeBeforeMaterialize)
+        case LeftJoinSide => HashJoinState(originalSender, Some(columnNames), rightColumnNames, leftHashTable, rightHashTable, resultPartitionMap, startTime, timeInHash, timeInProbe, timeInMaterialize)
+        case RightJoinSide => HashJoinState(originalSender, leftColumnNames, Some(columnNames), leftHashTable, rightHashTable, resultPartitionMap, startTime, timeInHash, timeInProbe, timeInMaterialize)
       }
     }
 
     def initializeResultMap(keys: Set[ValueType]): HashJoinState = {
-      HashJoinState(originalSender, leftColumnNames, rightColumnNames, leftHashTable, rightHashTable, keys.map((_, None)).toMap, timeBeforeHash, timeBeforeProbe, timeBeforeMaterialize)
+      HashJoinState(originalSender, leftColumnNames, rightColumnNames, leftHashTable, rightHashTable, keys.map((_, None)).toMap, startTime, timeInHash, timeInProbe, timeInMaterialize)
     }
 
     def hasReceivedAllResults: Boolean = {
@@ -47,7 +47,7 @@ object HashJoinOperator {
     }
 
     def storeSender(sender: ActorRef): HashJoinState = {
-      HashJoinState(sender, leftColumnNames, rightColumnNames, leftHashTable, rightHashTable, resultPartitionMap, timeBeforeHash, timeBeforeProbe, timeBeforeMaterialize)
+      HashJoinState(sender, leftColumnNames, rightColumnNames, leftHashTable, rightHashTable, resultPartitionMap, startTime, timeInHash, timeInProbe, timeInMaterialize)
     }
 
     def storeMaterializedResult(hashKey: ValueType, partition: ActorRef): HashJoinState = {
@@ -55,7 +55,7 @@ object HashJoinOperator {
         leftColumnNames, rightColumnNames,
         leftHashTable, rightHashTable,
         resultPartitionMap + (hashKey -> Some(partition)),
-        timeBeforeHash, timeBeforeProbe, timeBeforeMaterialize)
+        startTime, timeInHash, timeInProbe, timeInMaterialize)
     }
 
     def storeHashTable(joinSide: JoinSide, hashTable: Map[ValueType, ActorRef]): HashJoinState = {
@@ -64,35 +64,42 @@ object HashJoinOperator {
           leftColumnNames, rightColumnNames,
           Some(hashTable), rightHashTable,
           resultPartitionMap,
-          timeBeforeHash, timeBeforeProbe, timeBeforeMaterialize)
+          startTime, timeInHash, timeInProbe, timeInMaterialize)
       } else {
         HashJoinState(originalSender,
           leftColumnNames, rightColumnNames,
           leftHashTable, Some(hashTable),
           resultPartitionMap,
-          timeBeforeHash, timeBeforeProbe, timeBeforeMaterialize)
+          startTime, timeInHash, timeInProbe, timeInMaterialize)
       }
     }
 
-    def setTimeBeforeHash(): HashJoinState = {
+    def setStartTime(): HashJoinState = {
       HashJoinState(originalSender,
         leftColumnNames, rightColumnNames,
         leftHashTable, rightHashTable,
-        resultPartitionMap, System.nanoTime(), timeBeforeProbe, timeBeforeMaterialize)
+        resultPartitionMap, System.nanoTime(), timeInHash, timeInProbe, timeInMaterialize)
     }
 
-    def setTimeBeforeProbe(): HashJoinState = {
+    def setTimeInHash(): HashJoinState = {
       HashJoinState(originalSender,
         leftColumnNames, rightColumnNames,
         leftHashTable, rightHashTable,
-        resultPartitionMap, timeBeforeHash, System.nanoTime(), timeBeforeMaterialize)
+        resultPartitionMap, startTime, System.nanoTime() - startTime, timeInProbe, timeInMaterialize)
     }
 
-    def setTimeBeforeMaterialize(): HashJoinState = {
+    def setTimeInProbe(): HashJoinState = {
       HashJoinState(originalSender,
         leftColumnNames, rightColumnNames,
         leftHashTable, rightHashTable,
-        resultPartitionMap, timeBeforeHash, timeBeforeProbe, System.nanoTime())
+        resultPartitionMap, startTime, timeInHash, System.nanoTime() - (startTime + timeInHash), timeInMaterialize)
+    }
+
+    def setTimeInMaterialize(): HashJoinState = {
+      HashJoinState(originalSender,
+        leftColumnNames, rightColumnNames,
+        leftHashTable, rightHashTable,
+        resultPartitionMap, startTime, timeInHash, timeInProbe, System.nanoTime() - (startTime + timeInHash + timeInProbe))
     }
 
     def hasFinishedHashPhaseAndReceivedColumnNames: Boolean =
@@ -110,10 +117,13 @@ class HashJoinOperator(leftTable: ActorRef,
                        leftJoinColumn: String,
                        rightJoinColumn: String,
                        predicate: (ValueType, ValueType) => Boolean) extends AbstractOperator {
-  override def receive: Receive = active(HashJoinState(ActorRef.noSender, None, None, None, None, Map.empty, 0, 0, 0))
+  override def receive: Receive = active(HashJoinState(ActorRef.noSender, None, None, None, None, Map.empty, 0, 0, 0, 0))
 
   private def initializeJoin(state: HashJoinState): Unit = {
-    val newState = state.storeSender(sender())
+    val startTimeState = state.setStartTime()
+    context.become(active(startTimeState))
+
+    val newState = startTimeState.storeSender(sender())
     context.become(active(newState))
 
     val leftHashWorker = context.actorOf(HashWorker
@@ -122,9 +132,6 @@ class HashJoinOperator(leftTable: ActorRef,
     val rightHashWorker = context.actorOf(HashWorker
       .props(rightTable, rightJoinColumn, RightJoinSide)
       .withDeploy(new Deploy(RemoteScope(rightTable.path.address))), "RightHashWorker")
-
-    val newerState = newState.setTimeBeforeHash()
-    context.become(active(newerState))
 
     leftHashWorker ! HashJob()
     rightHashWorker ! HashJob()
@@ -148,7 +155,7 @@ class HashJoinOperator(leftTable: ActorRef,
     val leftHashTable = state.leftHashTable.get
     val rightHashTable = state.rightHashTable.get
 
-    val newState = state.setTimeBeforeProbe()
+    val newState = state.setTimeInHash()
     context.become(active(newState))
 
     val random = new Random()
@@ -175,15 +182,15 @@ class HashJoinOperator(leftTable: ActorRef,
   }
 
   private def handleProbeResult(state: HashJoinOperator.HashJoinState,
-                                hashKey: ValueType,
-                                indices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)]): Unit = {
+                                hashKey: ValueType): Unit = {
     log.debug("Received Probe Result, starting materialization")
 
-    val newerState = state.setTimeBeforeMaterialize()
+//     TODO: is not exact, as we've here just seen one result, but not all. This will show the time of the slowest probe worker
+    val newerState = state.setTimeInProbe()
     context.become(active(newerState))
 
     val columnNames = (newerState.leftColumnNames.get, newerState.rightColumnNames.get)
-    context.actorOf(HashJoinMaterializationWorker.props(leftTable, rightTable, columnNames, hashKey, indices)
+    context.actorOf(HashJoinMaterializationWorker.props(leftTable, rightTable, columnNames, hashKey, sender())
       .withDeploy(new Deploy(RemoteScope(sender().path.address))),
       s"HashJoinMaterializationWorker$hashKey") ! MaterializeJoinResult()
   }
@@ -211,12 +218,10 @@ class HashJoinOperator(leftTable: ActorRef,
     context.become(active(newState))
 
     if (newState.hasReceivedAllResults) {
-      val timeNow = System.nanoTime()
-//      println(s"Total time from before hash: ${(timeNow - newState.timeBeforeHash)/1000000.0}ms")
-//      println(s"Total time from before probe: ${(timeNow - newState.timeBeforeProbe)/1000000.0}ms")
-//      println(s"Total time from before materialize: ${(timeNow - newState.timeBeforeMaterialize)/1000000.0}ms")
+      val newerState = newState.setTimeInMaterialize()
+      println(s"${newerState.timeInHash} \t ${newerState.timeInProbe} \t ${newerState.timeInMaterialize}")
 
-      createResultTable(newState)
+      createResultTable(newerState)
     }
   }
 
@@ -238,7 +243,7 @@ class HashJoinOperator(leftTable: ActorRef,
   private def active(state: HashJoinState): Receive = {
     case Execute() => initializeJoin(state)
     case HashedTable(hashMap, joinSide) => storeHashResult(state, hashMap, joinSide)
-    case ProbeResult(hashKey, indices) => handleProbeResult(state, hashKey, indices)
+    case ProbeResult(hashKey) => handleProbeResult(state, hashKey)
     case ColumnList(columnNames) => handleColumnNames(state, columnNames)
     case MaterializedJoinResult(hashKey, partition) => handleMaterializedJoinResult(state, hashKey, partition)
     case m => throw new Exception(s"Message not understood: $m")

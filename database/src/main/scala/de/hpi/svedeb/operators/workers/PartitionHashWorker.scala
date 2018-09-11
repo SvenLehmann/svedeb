@@ -56,7 +56,7 @@ class PartitionHashWorker(partition: ActorRef, joinColumn: String) extends Actor
   private def handleScannedValues(state: PartitionHashWorkerState, values: ColumnType): Unit = {
     log.debug("PartitionHashWorker: handleScannedValues (aka hashing)")
     val hashedPartition = values.values.zipWithIndex
-      .groupBy(columnValue => columnValue._1 % 10) // TODO: better Hash Function?
+      .groupBy(columnValue => columnValue._1 % 50) // TODO: better Hash Function?
       .mapValues(valuesWithSameHash => valuesWithSameHash.map {
         case (value, rowId) => PartitionedHashTableEntry(state.partitionId.get, rowId, value)
       }).map(identity)

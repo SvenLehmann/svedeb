@@ -22,7 +22,7 @@ object NonActorHashJoin extends AbstractBenchmark {
     val hashTable = right.mapValues { partition =>
       partition("a")
         .values
-        .groupBy(f => f)
+        .groupBy(f => f % 3)
         .withDefaultValue(Seq())
     }
 
@@ -35,6 +35,7 @@ object NonActorHashJoin extends AbstractBenchmark {
             for {
               l <- leftValues.values
               r <- rightPartitionHashTable(l)
+              if l == r
             } yield {
               (l, r)
             }
