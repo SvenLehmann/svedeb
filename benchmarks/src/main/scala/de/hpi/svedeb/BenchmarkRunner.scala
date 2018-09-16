@@ -18,11 +18,11 @@ class BenchmarkRunner() {
   private val clusterNode = ClusterNode.start()
 
   val joinBenchmarks = List(
-    HashJoinBenchmark
-//    NestedLoopJoinBenchmark
-//    NonActorNestedLoopJoin,
-//    NonActorHashJoin
-    //    NonActorSparkBasedJoin
+    HashJoinBenchmark,
+    NonActorNestedLoopJoin,
+    NonActorHashJoin,
+      NestedLoopJoinBenchmark,
+//        NonActorSparkBasedJoin
   )
 
   val scanBenchmarks = List(
@@ -78,14 +78,12 @@ class BenchmarkRunner() {
       println(s"Benchmark \t TableSize \t PartitionSize \t DistinctValues \t TableRatio \t numberOfColumns \t Average in ms \t Median in ms")
       for {
         benchmark <- joinBenchmarks
-//        numberOfColumns <- Seq(1, 2, 3, 4, 5)
-        numberOfColumns <- Seq(1)
-        tableRatio <- Seq(0.05)
-//        tableRatio <- Seq(1, 0.5, 0.1, 0.05, 0.01)
-//        distinctValues <- Seq(10000, 100000, 10000000)
+        numberOfColumns <- Seq(1, 2, 3, 4, 5)
+        tableRatio <- Seq(1, 0.5, 0.1, 0.05, 0.01)
+        distinctValues <- Seq(10000, 100000, 10000000)
         partitionSize <- Seq(10000)
         tableSize <- Seq(
-//          100, 200, 300, 400, 500, 600, 700, 800, 900,
+          100, 200, 300, 400, 500, 600, 700, 800, 900,
           1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000,
           10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000,
           100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000, 900000,
@@ -130,10 +128,4 @@ class BenchmarkRunner() {
       api ! Shutdown()
     }
   }
-
-
-
-
-
-
 }

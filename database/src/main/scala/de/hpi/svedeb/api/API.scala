@@ -6,7 +6,6 @@ import de.hpi.svedeb.api.MaterializationWorker.{MaterializeTable, MaterializedTa
 import de.hpi.svedeb.api.QueryPlanExecutor.{QueryFinished, Run}
 import de.hpi.svedeb.queryPlan.QueryPlan
 import de.hpi.svedeb.table.ColumnType
-import de.hpi.svedeb.utils.PrivateMethodExposer
 
 object API {
   case class Query(queryPlan: QueryPlan)
@@ -56,7 +55,7 @@ class API(tableManager: ActorRef) extends Actor with ActorLogging {
       executor ! Run(queryId, queryPlan)
     case QueryFinished(queryId, resultTable) =>
       state.runningQueries(queryId) ! Result(resultTable)
-      sender() ! PoisonPill
+     // sender() ! PoisonPill
     case Shutdown() => handleShutdown()
     case m => throw new Exception(s"Message not understood: $m")
   }

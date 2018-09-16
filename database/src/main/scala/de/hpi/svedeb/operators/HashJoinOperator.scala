@@ -219,8 +219,7 @@ class HashJoinOperator(leftTable: ActorRef,
 
     if (newState.hasReceivedAllResults) {
       val newerState = newState.setTimeInMaterialize()
-      println(s"${newerState.timeInHash} \t ${newerState.timeInProbe} \t ${newerState.timeInMaterialize}")
-
+//      println(s"${newerState.timeInHash} \t ${newerState.timeInProbe} \t ${newerState.timeInMaterialize}")
       createResultTable(newerState)
     }
   }

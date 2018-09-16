@@ -9,7 +9,7 @@ object NonActorSparkBasedJoin extends AbstractBenchmark {
 //  val columns = Seq("a", "b")
   val partitionSize = 1000
 
-  private val sparkSession: SparkSession = SparkSession.builder.appName("Spark Join").master("local[4]").getOrCreate()
+  private val sparkSession: SparkSession = SparkSession.builder.appName("Spark Join").master("local[20]").getOrCreate()
   sparkSession.sparkContext.setLogLevel("ERROR")
 
   private var left: Dataset[Scheme] = _
