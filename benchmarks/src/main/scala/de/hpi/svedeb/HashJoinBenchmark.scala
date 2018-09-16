@@ -4,7 +4,6 @@ import akka.actor.{ActorRef, PoisonPill}
 import akka.pattern.ask
 import de.hpi.svedeb.api.API.{Query, Result}
 import de.hpi.svedeb.queryPlan.{GetTable, HashJoin, QueryPlan}
-import de.hpi.svedeb.utils.PrivateMethodExposer
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
