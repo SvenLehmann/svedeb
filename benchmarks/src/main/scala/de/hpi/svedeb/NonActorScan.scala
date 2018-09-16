@@ -6,7 +6,6 @@ import de.hpi.svedeb.table.ColumnType
 object NonActorScan extends AbstractBenchmark {
 
   val columns = Seq("a")
-//  val partitionSize = 10000
 
   private var input: Map[Int, Map[String, ColumnType]] = _
 

@@ -1,13 +1,11 @@
 package de.hpi.svedeb
 
 import akka.actor.ActorRef
-import de.hpi.svedeb.api.API.Result
 import de.hpi.svedeb.table.ColumnType
 
 object NonActorHashJoin extends AbstractBenchmark {
 
   val columns = Seq("a")
-//  val partitionSize = 10000
 
   private var left: Map[Int, Map[String, ColumnType]] = _
   private var right: Map[Int, Map[String, ColumnType]] = _
@@ -22,7 +20,7 @@ object NonActorHashJoin extends AbstractBenchmark {
     val hashTable = right.mapValues { partition =>
       partition("a")
         .values
-        .groupBy(f => f % 3)
+        .groupBy(f => f)
         .withDefaultValue(Seq())
     }
 

@@ -45,17 +45,14 @@ class API(tableManager: ActorRef) extends Actor with ActorLogging {
     case Materialize(table) => materializeTable(sender(), table)
     case MaterializedTable(user, columns) => user ! MaterializedResult(columns)
     case Query(queryPlan) =>
-
-//      val res = new PrivateMethodExposer(context.system)('printTree)()
-//      println(res)
-
       val (newState, queryId) = state.addQuery(sender())
       context.become(active(newState))
       val executor = context.actorOf(QueryPlanExecutor.props(tableManager))
       executor ! Run(queryId, queryPlan)
     case QueryFinished(queryId, resultTable) =>
       state.runningQueries(queryId) ! Result(resultTable)
-     // sender() ! PoisonPill
+    // Cannot kill sender() as it still holds reference to resulting TableActor. Only use for benchmarks
+    // sender() ! PoisonPill
     case Shutdown() => handleShutdown()
     case m => throw new Exception(s"Message not understood: $m")
   }

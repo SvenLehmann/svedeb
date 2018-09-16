@@ -3,8 +3,8 @@ package de.hpi.svedeb.operators.workers
 import akka.actor.{Actor, ActorLogging, ActorRef, Deploy, Props}
 import akka.remote.RemoteScope
 import de.hpi.svedeb.operators.HashJoinOperator.JoinSide
-import de.hpi.svedeb.operators.helper.PartitionedHashTableActor
-import de.hpi.svedeb.operators.helper.PartitionedHashTableActor.{BuildPartitionedHashTable, BuiltPartitionedHashTable}
+import de.hpi.svedeb.operators.helper.HashBucket
+import de.hpi.svedeb.operators.helper.HashBucket.{BuildPartitionedHashTable, BuiltPartitionedHashTable}
 import de.hpi.svedeb.operators.workers.HashWorker.{HashJob, HashWorkerState, HashedTable}
 import de.hpi.svedeb.operators.workers.PartitionHashWorker.{HashPartition, HashedPartitionKeys}
 import de.hpi.svedeb.table.Table.{GetPartitions, PartitionsInTable}
@@ -46,7 +46,7 @@ object HashWorker {
       HashWorkerState(originalSender, expectedAnswerCount, answerCount, partitionWorkerMap, resultMap)
     }
 
-    def storePHTA(hashKey: Int, sender: ActorRef): HashWorkerState = {
+    def storeHashBucket(hashKey: Int, sender: ActorRef): HashWorkerState = {
       val newMap = resultMap + (hashKey -> sender)
       HashWorkerState(originalSender, expectedAnswerCount, answerCount, partitionWorkerMap, newMap)
     }
@@ -100,8 +100,8 @@ class HashWorker(table: ActorRef, joinColumn: String, side: JoinSide) extends Ac
     if (newState.isFinished) {
       log.debug("All partitions have been hashed, now creating remote HashTables (aka PartitionHashTableActors)")
       newState.partitionWorkerMap.foreach{ case (hashKey, partitionWorkers) =>
-        // Does not matter where this is created because the PHTA asks multiple partitionHashWorkers
-        val hashTable = context.actorOf(PartitionedHashTableActor.props(hashKey, partitionWorkers),
+        // Does not matter where this is created because the HashBucket asks multiple partitionHashWorkers
+        val hashTable = context.actorOf(HashBucket.props(hashKey, partitionWorkers),
           s"PartitionedHashTableActor$hashKey")
         hashTable ! BuildPartitionedHashTable()
       }
@@ -109,8 +109,8 @@ class HashWorker(table: ActorRef, joinColumn: String, side: JoinSide) extends Ac
   }
 
   private def handleBuiltPartitionedHashTable(state: HashWorkerState, hashKey: Int): Unit = {
-    log.debug(s"storing PHTA for key $hashKey")
-    val newState = state.storePHTA(hashKey, sender())
+    log.debug(s"storing HashBucket for key $hashKey")
+    val newState = state.storeHashBucket(hashKey, sender())
     context.become(active(newState))
 
     if (newState.gotAllResults) {

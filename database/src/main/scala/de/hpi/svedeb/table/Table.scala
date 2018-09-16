@@ -90,9 +90,7 @@ abstract class Table(partitionSize: Int) extends Actor with ActorLogging {
     case PartitionFull(row, originalSender) => handlePartitionFull(state, row, originalSender)
     case InternalActorsForColumn(originalSender, columnName, columnActors) =>
       originalSender ! ActorsForColumn(columnName, columnActors)
-    case PoisonPill =>
-      print("received poison pill")
-      state.partitions.values.foreach(_ ! PoisonPill)
+    case PoisonPill => state.partitions.values.foreach(_ ! PoisonPill)
     case m => throw new Exception(s"Message not understood: $m")
   }
 }

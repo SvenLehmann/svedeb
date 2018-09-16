@@ -1,7 +1,7 @@
 package de.hpi.svedeb.operators.workers
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import de.hpi.svedeb.operators.helper.PartitionedHashTableEntry
+import de.hpi.svedeb.operators.helper.HashBucketEntry
 import de.hpi.svedeb.operators.workers.HashJoinMaterializationWorker.{HashJoinMaterializationWorkerState, MaterializeJoinResult, MaterializedJoinResult}
 import de.hpi.svedeb.operators.workers.ProbeWorker.{FetchIndices, JoinedIndices}
 import de.hpi.svedeb.table.Partition.{ScanColumns, ScannedColumns}
@@ -20,9 +20,9 @@ object HashJoinMaterializationWorker {
                                                 rightQueriedPartitionCount: Option[Int],
                                                 leftValues: Map[Int, Map[String, OptionalColumnType]],
                                                 rightValues: Map[Int, Map[String, OptionalColumnType]],
-                                                joinedIndices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)]
+                                                joinedIndices: Seq[(HashBucketEntry, HashBucketEntry)]
                                                ) {
-    def storeJoinedIndices(indices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)]): HashJoinMaterializationWorkerState = {
+    def storeJoinedIndices(indices: Seq[(HashBucketEntry, HashBucketEntry)]): HashJoinMaterializationWorkerState = {
       HashJoinMaterializationWorkerState(originalSender,
         leftPartitions, rightPartitions, leftQueriedPartitionCount, rightQueriedPartitionCount,
         leftValues, rightValues, indices)
@@ -100,7 +100,7 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
     probeWorker ! FetchIndices()
   }
 
-  private def materializeJoinResult(state: HashJoinMaterializationWorkerState, indices: Seq[(PartitionedHashTableEntry, PartitionedHashTableEntry)]): Unit = {
+  private def materializeJoinResult(state: HashJoinMaterializationWorkerState, indices: Seq[(HashBucketEntry, HashBucketEntry)]): Unit = {
     log.debug("Materialize Join Result")
 
     val newerState = state.storeJoinedIndices(indices)
@@ -165,16 +165,16 @@ class HashJoinMaterializationWorker(leftTable: ActorRef,
       val rightIndices = newState.joinedIndices.map(_._2)
 
       def iterateIndices(columnName: String,
-                         indices: Seq[PartitionedHashTableEntry],
+                         indices: Seq[HashBucketEntry],
                          values: Map[Int, Map[String, OptionalColumnType]]): ColumnType = {
         val columnValues = indices.map {
-          case PartitionedHashTableEntry(pId, rowId, _) => values(pId).apply(columnName).values(rowId).get
+          case HashBucketEntry(pId, rowId, _) => values(pId).apply(columnName).values(rowId).get
         }.toIndexedSeq
         ColumnType(columnValues)
       }
 
       def reconstructColumns(columnNames: Seq[String],
-                             indices: Seq[PartitionedHashTableEntry],
+                             indices: Seq[HashBucketEntry],
                              values: Map[Int, Map[String, OptionalColumnType]]): Map[String, ColumnType] = {
         columnNames.map(columnName => columnName -> iterateIndices(columnName, indices, values)).toMap
       }

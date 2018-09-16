@@ -10,7 +10,6 @@ import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
 class ThroughputBenchmark(numberOfQueries: Int) extends AbstractBenchmark {
-//  val partitionSize = 1000
 
   override val name: String = "ThroughputBenchmark"
 

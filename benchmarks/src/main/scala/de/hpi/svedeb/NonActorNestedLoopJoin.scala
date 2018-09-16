@@ -6,7 +6,6 @@ import de.hpi.svedeb.table.ColumnType
 object NonActorNestedLoopJoin extends AbstractBenchmark {
 
   val columns = Seq("a")
-//  val partitionSize = 10000
 
   private var left: Map[Int, Map[String, ColumnType]] = _
   private var right: Map[Int, Map[String, ColumnType]] = _

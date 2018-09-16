@@ -1,22 +1,22 @@
 package de.hpi.svedeb.operators.helper
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import de.hpi.svedeb.operators.helper.PartitionedHashTableActor._
+import de.hpi.svedeb.operators.helper.HashBucket._
 import de.hpi.svedeb.operators.workers.PartitionHashWorker.{FetchValuesForKey, FetchedValues}
 import de.hpi.svedeb.utils.Utils.ValueType
 
-object PartitionedHashTableActor {
+object HashBucket {
   case class ListValues()
-  case class ListedValues(values: Seq[PartitionedHashTableEntry])
+  case class ListedValues(values: Seq[HashBucketEntry])
   case class BuildPartitionedHashTable()
   case class BuiltPartitionedHashTable(hashKey: ValueType)
 
-  private case class HashTableState(originalSender: ActorRef, answerCount: Int, values: Seq[PartitionedHashTableEntry]) {
+  private case class HashTableState(originalSender: ActorRef, answerCount: Int, values: Seq[HashBucketEntry]) {
     def storeOriginalSender(sender: ActorRef): HashTableState = {
       HashTableState(sender, answerCount, values)
     }
 
-    def storeIntermediateResult(newValues: Seq[PartitionedHashTableEntry]): HashTableState = {
+    def storeIntermediateResult(newValues: Seq[HashBucketEntry]): HashTableState = {
       HashTableState(originalSender, answerCount + 1, values ++ newValues)
     }
 
@@ -25,7 +25,7 @@ object PartitionedHashTableActor {
     }
   }
 
-  def props(hashKey: ValueType, actorRefs: Seq[ActorRef]): Props = Props(new PartitionedHashTableActor(hashKey, actorRefs))
+  def props(hashKey: ValueType, actorRefs: Seq[ActorRef]): Props = Props(new HashBucket(hashKey, actorRefs))
 }
 
 /**
@@ -34,7 +34,7 @@ object PartitionedHashTableActor {
   * @param hashKey the key
   * @param partitionHashWorkers the actors which hold the data
   */
-class PartitionedHashTableActor(hashKey: Int, partitionHashWorkers: Seq[ActorRef]) extends Actor with ActorLogging {
+class HashBucket(hashKey: Int, partitionHashWorkers: Seq[ActorRef]) extends Actor with ActorLogging {
   override def receive: Receive = active(HashTableState(ActorRef.noSender, 0, Seq.empty))
   private def buildHashTable(state: HashTableState): Unit = {
     log.debug("handle fetch values")
@@ -42,7 +42,7 @@ class PartitionedHashTableActor(hashKey: Int, partitionHashWorkers: Seq[ActorRef
     partitionHashWorkers.foreach(partitionHashWorker => partitionHashWorker ! FetchValuesForKey(hashKey))
   }
 
-  private def handleFetchedValues(state: HashTableState, key: Int, values: Seq[PartitionedHashTableEntry]): Unit = {
+  private def handleFetchedValues(state: HashTableState, key: Int, values: Seq[HashBucketEntry]): Unit = {
     log.debug(s"handle fetched values $key (${values.size} elements)")
     val newState = state.storeIntermediateResult(values)
     context.become(active(newState))

@@ -21,7 +21,7 @@ class BenchmarkRunner() {
     HashJoinBenchmark,
     NonActorNestedLoopJoin,
     NonActorHashJoin,
-      NestedLoopJoinBenchmark,
+    NestedLoopJoinBenchmark
 //        NonActorSparkBasedJoin
   )
 
