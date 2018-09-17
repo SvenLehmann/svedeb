@@ -3,8 +3,8 @@ package de.hpi.svedeb.operators.workers
 import akka.actor.{Actor, ActorLogging, ActorRef, Deploy, Props}
 import akka.remote.RemoteScope
 import de.hpi.svedeb.operators.HashJoinOperator.JoinSide
-import de.hpi.svedeb.operators.helper.PartitionedHashTableActor
-import de.hpi.svedeb.operators.helper.PartitionedHashTableActor.{FetchValues, FetchedHashedValues}
+import de.hpi.svedeb.operators.helper.HashBucket
+import de.hpi.svedeb.operators.helper.HashBucket.{BuildPartitionedHashTable, BuiltPartitionedHashTable}
 import de.hpi.svedeb.operators.workers.HashWorker.{HashJob, HashWorkerState, HashedTable}
 import de.hpi.svedeb.operators.workers.PartitionHashWorker.{HashPartition, HashedPartitionKeys}
 import de.hpi.svedeb.table.Table.{GetPartitions, PartitionsInTable}
@@ -28,7 +28,7 @@ object HashWorker {
       HashWorkerState(sender, expectedAnswerCount, answerCount, partitionWorkerMap, resultMap)
     }
 
-    def storePartitionKeys(partitionKeys: Seq[Int], partitionHashWorker: ActorRef): HashWorkerState = {
+    def storePartitionKeys(partitionHashWorker: ActorRef, partitionKeys: Seq[Int]): HashWorkerState = {
       var mapCopy = partitionWorkerMap
       partitionKeys.foreach(key => {
         val list = mapCopy.getOrElse(key, Seq.empty) :+ partitionHashWorker
@@ -46,7 +46,7 @@ object HashWorker {
       HashWorkerState(originalSender, expectedAnswerCount, answerCount, partitionWorkerMap, resultMap)
     }
 
-    def storePHTA(hashKey: Int, sender: ActorRef): HashWorkerState = {
+    def storeHashBucket(hashKey: Int, sender: ActorRef): HashWorkerState = {
       val newMap = resultMap + (hashKey -> sender)
       HashWorkerState(originalSender, expectedAnswerCount, answerCount, partitionWorkerMap, newMap)
     }
@@ -80,34 +80,37 @@ class HashWorker(table: ActorRef, joinColumn: String, side: JoinSide) extends Ac
   }
 
   private def handlePartitionsInTable(state: HashWorkerState, partitions: Map[Int, ActorRef]): Unit = {
-    log.debug("handling partitions in table")
+    log.debug(s"handling partitions in table, #partition ${partitions.size}")
     context.become(active(state.storePartitionCount(partitions.size)))
     partitions.foreach(partition => {
       val worker = context.actorOf(PartitionHashWorker
         .props(partition._2, joinColumn)
-        .withDeploy(new Deploy(RemoteScope(partition._2.path.address))))
+        .withDeploy(new Deploy(RemoteScope(partition._2.path.address))), s"PartitionHashWorker${partition._1}")
       worker ! HashPartition()
     })
   }
 
-  private def handleHashedPartition(state: HashWorkerState, partitionKeys: Seq[Int]): Unit = {
-    log.debug("handling hashed partitions")
-    val newState = state.storePartitionKeys(partitionKeys, sender())
+  // PartitionHashWorker sent the keys that it produced during hashing.
+  // We store information about which PartitionHashWorker has information for which hashKeys
+  private def handleHashedPartitionKeys(state: HashWorkerState, hashes: Seq[Int]): Unit = {
+    log.debug("handling hashed partitions keys")
+    val newState = state.storePartitionKeys(sender(), hashes)
     context.become(active(newState))
 
     if (newState.isFinished) {
-      log.debug("is finished")
-      newState.partitionWorkerMap.foreach{ case (hashKey, actorRefs) =>
-        // Does not matter where this is created because the PHTA asks multiple partitionHashWorkers
-        val hashTable = context.actorOf(PartitionedHashTableActor.props(hashKey, actorRefs))
-        hashTable ! FetchValues()
+      log.debug("All partitions have been hashed, now creating remote HashTables (aka PartitionHashTableActors)")
+      newState.partitionWorkerMap.foreach{ case (hashKey, partitionWorkers) =>
+        // Does not matter where this is created because the HashBucket asks multiple partitionHashWorkers
+        val hashTable = context.actorOf(HashBucket.props(hashKey, partitionWorkers),
+          s"PartitionedHashTableActor$hashKey")
+        hashTable ! BuildPartitionedHashTable()
       }
     }
   }
 
-  private def handleFetchedHashedValues(state: HashWorkerState, hashKey: Int): Unit = {
-    log.debug("handling fetched hashed values")
-    val newState = state.storePHTA(hashKey, sender())
+  private def handleBuiltPartitionedHashTable(state: HashWorkerState, hashKey: Int): Unit = {
+    log.debug(s"storing HashBucket for key $hashKey")
+    val newState = state.storeHashBucket(hashKey, sender())
     context.become(active(newState))
 
     if (newState.gotAllResults) {
@@ -119,8 +122,8 @@ class HashWorker(table: ActorRef, joinColumn: String, side: JoinSide) extends Ac
   private def active(state: HashWorkerState): Receive = {
     case HashJob() => beginHashJob(state)
     case PartitionsInTable(partitions) => handlePartitionsInTable(state, partitions)
-    case HashedPartitionKeys(partitionKeys) => handleHashedPartition(state, partitionKeys)
-    case FetchedHashedValues(hashKey) => handleFetchedHashedValues(state, hashKey)
+    case HashedPartitionKeys(hashKeys) => handleHashedPartitionKeys(state, hashKeys)
+    case BuiltPartitionedHashTable(hashKey) => handleBuiltPartitionedHashTable(state, hashKey)
     case m => throw new Exception(s"Message not understood: $m")
   }
 }

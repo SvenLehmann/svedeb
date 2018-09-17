@@ -6,12 +6,11 @@ import de.hpi.svedeb.table.ColumnType
 object NonActorScan extends AbstractBenchmark {
 
   val columns = Seq("a")
-  val partitionSize = 10000
 
   private var input: Map[Int, Map[String, ColumnType]] = _
 
-  override def setup(api: ActorRef, tableSize: Int): Unit = {
-    input = DataGenerator.generateData(columns, tableSize, partitionSize)
+  override def setup(api: ActorRef, tableSize: Int, numberOfColumns: Int, partitionSize: Int, distinctValues: Int, tableRatio: Double): Unit = {
+    input = DataGenerator.generateData(columns, tableSize, partitionSize, distinctValues)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {

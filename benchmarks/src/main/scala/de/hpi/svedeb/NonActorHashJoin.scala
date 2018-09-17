@@ -1,20 +1,18 @@
 package de.hpi.svedeb
 
 import akka.actor.ActorRef
-import de.hpi.svedeb.api.API.Result
 import de.hpi.svedeb.table.ColumnType
 
 object NonActorHashJoin extends AbstractBenchmark {
 
   val columns = Seq("a")
-  val partitionSize = 10000
 
   private var left: Map[Int, Map[String, ColumnType]] = _
   private var right: Map[Int, Map[String, ColumnType]] = _
 
-  override def setup(api: ActorRef, tableSize: Int): Unit = {
-    left = DataGenerator.generateData(columns, tableSize, partitionSize)
-    right = DataGenerator.generateData(columns, tableSize/10, partitionSize)
+  override def setup(api: ActorRef, tableSize: Int, numberOfColumns: Int, partitionSize: Int, distinctValues: Int, tableRatio: Double): Unit = {
+    left = DataGenerator.generateData(columns, tableSize, partitionSize, distinctValues)
+    right = DataGenerator.generateData(columns, tableSize/10, partitionSize, distinctValues)
   }
 
   override def runBenchmark(api: ActorRef): Unit = {
@@ -35,6 +33,7 @@ object NonActorHashJoin extends AbstractBenchmark {
             for {
               l <- leftValues.values
               r <- rightPartitionHashTable(l)
+              if l == r
             } yield {
               (l, r)
             }

@@ -2,6 +2,7 @@ package de.hpi.svedeb
 
 import akka.actor.ActorRef
 import akka.util.Timeout
+import de.hpi.svedeb.operators.AbstractOperator.QueryResult
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -11,7 +12,12 @@ abstract class AbstractBenchmark {
 
   val name: String
 
-  def setup(api: ActorRef, tableSize: Int): Unit
+  def setup(api: ActorRef,
+            tableSize: Int,
+            numberOfColumns: Int,
+            partitionSize: Int,
+            distinctValues: Int,
+            tableRatio: Double): Unit
 
   def runBenchmark(api: ActorRef): Unit
 

@@ -30,9 +30,12 @@ lazy val benchmarks = project
     name := "benchmarks",
     commonSettings,
     libraryDependencies ++= (commonDependencies :+ dependencies.spark),
-    mainClass in assembly := Some("de.hpi.svedeb.BenchmarkRunner"),
+    mainClass in assembly := Some("de.hpi.svedeb.Main"),
+    assemblyJarName in assembly := "SvedeB-Fat.jar",
+    test in assembly := {},
     assemblyMergeStrategy in assembly := {
       case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+      case "reference.conf" => MergeStrategy.concat
       case x => MergeStrategy.first
     }
   ).dependsOn(database)
@@ -40,9 +43,14 @@ lazy val benchmarks = project
 // Dependencies
 lazy val dependencies =
   new {
-    val akkaV       = "2.5.12"
+    val akkaV       = "2.5.16"
     val scalatestV  = "3.0.5"
     val sparkV      = "2.3.1"
+    val kryoV       = "0.5.1"
+    val chillAkkaV   = "0.9.3"
+
+    val kryo        = "com.github.romix.akka"     %%  "akka-kryo-serialization" % kryoV
+    val chillAkka  = "com.twitter"       %%  "chill-akka"    % chillAkkaV
 
     val spark       = "org.apache.spark"  %%  "spark-sql"     % sparkV
     val akkaActor   = "com.typesafe.akka" %%  "akka-actor"    % akkaV
@@ -64,6 +72,7 @@ lazy val commonDependencies = Seq(
   dependencies.akkaMultiNodeTestkit,
   dependencies.akkaRemote,
   dependencies.akkaTestkit,
+  dependencies.chillAkka,
   dependencies.scalatest
 )
 

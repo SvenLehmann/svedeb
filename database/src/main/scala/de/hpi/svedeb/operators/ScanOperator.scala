@@ -100,7 +100,7 @@ class ScanOperator(table: ActorRef, columnName: String, predicate: ValueType => 
   private def createNewTable(state: ScanState): Unit = {
     val table = context.actorOf(Table.propsWithPartitions(
       state.columnNames.get,
-      state.results.filter(_._2.isDefined).mapValues(_.get))
+      state.results.filter(_._2.isDefined).mapValues(_.get).map(identity))
     )
     log.debug("Created output table, sending to {}", state.sender)
     state.sender ! QueryResult(table)

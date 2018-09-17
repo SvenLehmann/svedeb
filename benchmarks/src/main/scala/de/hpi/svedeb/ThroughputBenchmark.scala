@@ -10,12 +10,11 @@ import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
 class ThroughputBenchmark(numberOfQueries: Int) extends AbstractBenchmark {
-  val partitionSize = 1000
 
   override val name: String = "ThroughputBenchmark"
 
-  override def setup(api: ActorRef, tableSize: Int): Unit = {
-    Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize)
+  override def setup(api: ActorRef, tableSize: Int, numberOfColumns: Int, partitionSize: Int, distinctValues: Int, tableRatio: Double): Unit = {
+    Utils.createTable(api, "table1", Seq("columnA", "columnB"), tableSize, partitionSize, distinctValues)
   }
 
   class HelloActor extends Actor {

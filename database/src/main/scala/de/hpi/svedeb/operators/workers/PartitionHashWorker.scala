@@ -1,7 +1,7 @@
 package de.hpi.svedeb.operators.workers
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import de.hpi.svedeb.operators.helper.PartitionedHashTableEntry
+import de.hpi.svedeb.operators.helper.HashBucketEntry
 import de.hpi.svedeb.operators.workers.PartitionHashWorker._
 import de.hpi.svedeb.table.Column.{ScanColumn, ScannedValues}
 import de.hpi.svedeb.table.ColumnType
@@ -11,9 +11,12 @@ object PartitionHashWorker {
   case class HashPartition()
   case class HashedPartitionKeys(hashKeys: Seq[Int])
   case class FetchValuesForKey(key: Int)
-  case class FetchedValues(values: Seq[PartitionedHashTableEntry])
+  case class FetchedValues(key: Int, values: Seq[HashBucketEntry])
 
-  private case class PartitionHashWorkerState(partitionId: Option[Int], originalSender: ActorRef, hashedPartition: Map[Int, Seq[PartitionedHashTableEntry]]) {
+  private case class PartitionHashWorkerState(
+                                               partitionId: Option[Int],
+                                               originalSender: ActorRef,
+                                               hashedPartition: Map[Int, Seq[HashBucketEntry]]) {
     def storePartitionId(partitionId: Int): PartitionHashWorkerState = {
       PartitionHashWorkerState(Some(partitionId), originalSender, hashedPartition)
     }
@@ -22,7 +25,7 @@ object PartitionHashWorker {
       PartitionHashWorkerState(partitionId, sender, hashedPartition)
     }
 
-    def storeHashedPartition(hashedPartition: Map[Int, Seq[PartitionedHashTableEntry]]): PartitionHashWorkerState = {
+    def storeHashedPartition(hashedPartition: Map[Int, Seq[HashBucketEntry]]): PartitionHashWorkerState = {
       PartitionHashWorkerState(partitionId, originalSender, hashedPartition)
     }
   }
@@ -39,21 +42,24 @@ class PartitionHashWorker(partition: ActorRef, joinColumn: String) extends Actor
   override def receive: Receive = active(PartitionHashWorkerState(None, ActorRef.noSender, Map.empty))
 
   private def initializeHash(state: PartitionHashWorkerState): Unit = {
+    log.debug("PartitionHashWorker: Initialize hashing")
     context.become(active(state.storeOriginalSender(sender())))
     partition ! GetColumn(joinColumn)
   }
 
   private def handleColumnRetrieved(state: PartitionHashWorkerState, partitionId: Int, column: ActorRef): Unit = {
+    log.debug("PartitionHashWorker: handleColumnRetrieved")
     context.become(active(state.storePartitionId(partitionId)))
     column ! ScanColumn()
   }
 
   private def handleScannedValues(state: PartitionHashWorkerState, values: ColumnType): Unit = {
+    log.debug("PartitionHashWorker: handleScannedValues (aka hashing)")
     val hashedPartition = values.values.zipWithIndex
-      .groupBy(columnValue => columnValue._1) // TODO Change hash function, currently it is the identity function
+      .groupBy(columnValue => columnValue._1 % 50) // TODO: better Hash Function?
       .mapValues(valuesWithSameHash => valuesWithSameHash.map {
-        case (value, rowId) => PartitionedHashTableEntry(state.partitionId.get, rowId, value)
-      })
+        case (value, rowId) => HashBucketEntry(state.partitionId.get, rowId, value)
+      }).map(identity)
 
     val newState = state.storeHashedPartition(hashedPartition)
     context.become(active(newState))
@@ -61,8 +67,10 @@ class PartitionHashWorker(partition: ActorRef, joinColumn: String) extends Actor
     newState.originalSender ! HashedPartitionKeys(hashedPartition.keys.toSeq)
   }
 
+
   private def handleFetchValuesForKey(state: PartitionHashWorkerState, key: Int): Unit = {
-    sender() ! FetchedValues(state.hashedPartition(key))
+    log.debug(s"PartitionHashWorker: handleFetchValuesForKey($key)")
+    sender() ! FetchedValues(key, state.hashedPartition(key))
   }
 
   private def active(state: PartitionHashWorkerState): Receive = {

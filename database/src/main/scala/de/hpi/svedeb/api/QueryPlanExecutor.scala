@@ -64,6 +64,17 @@ class QueryPlanExecutor(tableManager: ActorRef) extends Actor with ActorLogging 
           rightColumn,
           predicate
         ))
+      case HashJoin(_, _, leftColumn, rightColumn, predicate) =>
+        if (node.leftInput.isEmpty || node.rightInput.isEmpty) {
+          throw new Exception("Join Input Tables do not exist. Should not happen. Bug in QueryPlan")
+        }
+        context.actorOf(HashJoinOperator.props(
+          node.leftInput.get.resultTable.get,
+          node.rightInput.get.resultTable.get,
+          leftColumn,
+          rightColumn,
+          predicate
+        ), "HashJoinOperator")
       case InsertRow(_, row: RowType) =>
         context.actorOf(InsertRowOperator.props(node.leftInput.get.resultTable.get, row))
       case _ => throw new Exception("Unknown node type, cannot build operator")

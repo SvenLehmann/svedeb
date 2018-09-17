@@ -51,6 +51,8 @@ class API(tableManager: ActorRef) extends Actor with ActorLogging {
       executor ! Run(queryId, queryPlan)
     case QueryFinished(queryId, resultTable) =>
       state.runningQueries(queryId) ! Result(resultTable)
+    // Cannot kill sender() as it still holds reference to resulting TableActor. Only use for benchmarks
+    // sender() ! PoisonPill
     case Shutdown() => handleShutdown()
     case m => throw new Exception(s"Message not understood: $m")
   }

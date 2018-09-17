@@ -67,10 +67,11 @@ class CreateTableOperator(localTableManager: ActorRef,
 
     val actorSelectionFutures = cluster.state.members.map{ m =>
       val address = m.address
+      log.debug(s"$address")
       val path = ActorPath.fromString(s"$address/user/clusterNode/tableManager")
       context.actorSelection(path)
     }.map { actorSelection =>
-      actorSelection.resolveOne(FiniteDuration(5, TimeUnit.SECONDS))
+      actorSelection.resolveOne(FiniteDuration(10, TimeUnit.SECONDS))
     }
 
     val future = Future.sequence(actorSelectionFutures)
@@ -83,6 +84,7 @@ class CreateTableOperator(localTableManager: ActorRef,
     context.become(active(addedSenderState))
 
     val allTableManagers: Seq[ActorRef] = remoteTableManagers(context, cluster)
+    log.debug(s"RemoteTableManagers for CreateTable: $allTableManagers")
     val partitionManagerMappings = data.map { case (partitionId, values) =>
       val random = new Random()
       val chosenTableManager = allTableManagers(random.nextInt(allTableManagers.length))
@@ -94,7 +96,8 @@ class CreateTableOperator(localTableManager: ActorRef,
     context.become(active(partitionMappingState))
 
     partitionManagerMappings.foreach{ case (partitionId, partitionData, tableManager) =>
-        tableManager ! AddPartition(partitionId, partitionData, partitionSize)
+      log.debug(s"Sending partition $partitionId to table manager $tableManager")
+      tableManager ! AddPartition(partitionId, partitionData, partitionSize)
     }
   }
 
